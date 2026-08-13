@@ -44,10 +44,11 @@ function PurchasePage() {
           {t('Open in new window')}
         </Button>
       </div>
+      {/* The cross-origin storefront requires its normal cookie and storage context. */}
+      {/* oxlint-disable-next-line react/iframe-missing-sandbox */}
       <iframe
         src={PURCHASE_URL}
         className='min-h-0 flex-1 border-0'
-        sandbox='allow-forms allow-popups allow-popups-to-escape-sandbox allow-scripts allow-top-navigation-by-user-activation'
         title={t('Purchase Credits')}
       />
     </div>
