@@ -23,7 +23,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 
 const PURCHASE_URL =
-  process.env.PUBLIC_PURCHASE_URL || 'https://catfk.com/shop/HDN89CZZ'
+  import.meta.env.PUBLIC_PURCHASE_URL || 'https://catfk.com/shop/HDN89CZZ'
 
 export const Route = createFileRoute('/_authenticated/purchase/')({
   component: PurchasePage,
