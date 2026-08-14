@@ -146,6 +146,6 @@ export interface ModelOption {
 export interface GroupOption {
   label: string
   value: string
-  ratio: number
+  ratioLabel: string
   desc?: string
 }

@@ -72,6 +72,7 @@ import { formatFixedPrice, formatGroupPrice } from '../lib/price'
 import type {
   ModelCapability,
   PriceType,
+  PricingGroupInfo,
   PricingModel,
   TokenUnit,
 } from '../types'
@@ -784,7 +785,11 @@ function PriceSection(props: {
 // Auto group chain (used inside group pricing section)
 // ----------------------------------------------------------------------------
 
-function AutoGroupChain(props: { model: PricingModel; autoGroups: string[] }) {
+function AutoGroupChain(props: {
+  model: PricingModel
+  autoGroups: string[]
+  usableGroup: Record<string, PricingGroupInfo>
+}) {
   const { t } = useTranslation()
   const modelEnableGroups = Array.isArray(props.model.enable_groups)
     ? props.model.enable_groups
@@ -801,7 +806,11 @@ function AutoGroupChain(props: { model: PricingModel; autoGroups: string[] }) {
       <span className='text-muted-foreground/40'>→</span>
       {autoChain.map((g, idx) => (
         <span key={g} className='flex items-center gap-1'>
-          <GroupBadge group={g} size='sm' />
+          <GroupBadge
+            group={g}
+            label={props.usableGroup[g]?.ratio_label || g}
+            size='sm'
+          />
           {idx < autoChain.length - 1 && (
             <span className='text-muted-foreground/40'>→</span>
           )}
@@ -852,7 +861,7 @@ function getDynamicFormattedPricesByTier(
 function GroupPricingSection(props: {
   model: PricingModel
   groupRatio: Record<string, number>
-  usableGroup: Record<string, { desc: string; ratio: number }>
+  usableGroup: Record<string, PricingGroupInfo>
   autoGroups: string[]
   priceRate: number
   usdExchangeRate: number
@@ -897,7 +906,11 @@ function GroupPricingSection(props: {
     return (
       <section>
         <SectionTitle>{t('Pricing by Group')}</SectionTitle>
-        <AutoGroupChain model={props.model} autoGroups={props.autoGroups} />
+        <AutoGroupChain
+          model={props.model}
+          autoGroups={props.autoGroups}
+          usableGroup={props.usableGroup}
+        />
         <p className='text-muted-foreground text-sm'>
           {t(
             'This model is not available in any group, or no group pricing information is configured.'
@@ -917,7 +930,11 @@ function GroupPricingSection(props: {
       return (
         <section>
           <SectionTitle>{t('Pricing by Group')}</SectionTitle>
-          <AutoGroupChain model={props.model} autoGroups={props.autoGroups} />
+          <AutoGroupChain
+            model={props.model}
+            autoGroups={props.autoGroups}
+            usableGroup={props.usableGroup}
+          />
           <div className='rounded-lg border border-amber-200/70 bg-amber-50/70 p-3 dark:border-amber-500/20 dark:bg-amber-500/10'>
             <div className='text-sm font-medium text-amber-800 dark:text-amber-200'>
               {t('Special billing expression')}
@@ -966,10 +983,13 @@ function GroupPricingSection(props: {
     return (
       <section>
         <SectionTitle>{t('Pricing by Group')}</SectionTitle>
-        <AutoGroupChain model={props.model} autoGroups={props.autoGroups} />
+        <AutoGroupChain
+          model={props.model}
+          autoGroups={props.autoGroups}
+          usableGroup={props.usableGroup}
+        />
         <div className='space-y-3'>
           {availableGroups.map((group) => {
-            const ratio = props.groupRatio[group] || 1
             const formattedPricesByTier =
               formattedPricesByGroup.get(group) ??
               new Map<DynamicPricingTier, Map<string, string>>()
@@ -977,9 +997,13 @@ function GroupPricingSection(props: {
             return (
               <div key={group} className='overflow-hidden rounded-lg border'>
                 <div className='bg-muted/20 flex items-center justify-between gap-3 border-b px-3 py-2'>
-                  <GroupBadge group={group} size='sm' />
-                  <span className='text-muted-foreground font-mono text-xs'>
-                    {ratio}x
+                  <GroupBadge
+                    group={group}
+                    label={props.usableGroup[group]?.ratio_label || group}
+                    size='sm'
+                  />
+                  <span className='text-muted-foreground text-xs'>
+                    {props.usableGroup[group]?.desc}
                   </span>
                 </div>
                 <StaticDataTable
@@ -1045,7 +1069,11 @@ function GroupPricingSection(props: {
   return (
     <section>
       <SectionTitle>{t('Pricing by Group')}</SectionTitle>
-      <AutoGroupChain model={props.model} autoGroups={props.autoGroups} />
+      <AutoGroupChain
+        model={props.model}
+        autoGroups={props.autoGroups}
+        usableGroup={props.usableGroup}
+      />
       <StaticDataTable
         className='-mx-4 rounded-none border-0 sm:mx-0'
         tableClassName='text-sm'
@@ -1058,14 +1086,20 @@ function GroupPricingSection(props: {
             header: t('Group'),
             className: thClass,
             cellClassName: 'py-2.5',
-            cell: (group) => <GroupBadge group={group} size='sm' />,
+            cell: (group) => (
+              <GroupBadge
+                group={group}
+                label={props.usableGroup[group]?.ratio_label || group}
+                size='sm'
+              />
+            ),
           },
           {
-            id: 'ratio',
-            header: t('Ratio'),
+            id: 'description',
+            header: t('Description'),
             className: thClass,
-            cellClassName: 'text-muted-foreground py-2.5 font-mono',
-            cell: (group) => `${props.groupRatio[group] || 1}x`,
+            cellClassName: 'text-muted-foreground py-2.5',
+            cell: (group) => props.usableGroup[group]?.desc || '-',
           },
           ...(isTokenBased
             ? [
@@ -1128,7 +1162,7 @@ const TAB_META: Record<
 export interface ModelDetailsContentProps {
   model: PricingModel
   groupRatio: Record<string, number>
-  usableGroup: Record<string, { desc: string; ratio: number }>
+  usableGroup: Record<string, PricingGroupInfo>
   endpointMap: Record<string, { path?: string; method?: string }>
   autoGroups: string[]
   priceRate: number

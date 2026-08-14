@@ -94,13 +94,13 @@ function getGroupRatio(other: LogOtherData | null): number | null {
   return null
 }
 
-function buildDetailSegments(
+export function buildDetailSegments(
   log: UsageLog,
   other: LogOtherData | null,
   t: (key: string, opts?: Record<string, unknown>) => string,
   isAdmin: boolean
 ): DetailSegment[] {
-  const segments = buildTypeDetailSegments(log, other, t)
+  const segments = buildTypeDetailSegments(log, other, t, isAdmin)
   // Quota saturation is a rare, admin-only anomaly marker; surface it first
   // and in danger styling so it stands out on the related billing log. The
   // backend already strips admin_info for non-admins; gate on isAdmin too as
@@ -114,7 +114,8 @@ function buildDetailSegments(
 function buildTypeDetailSegments(
   log: UsageLog,
   other: LogOtherData | null,
-  t: (key: string, opts?: Record<string, unknown>) => string
+  t: (key: string, opts?: Record<string, unknown>) => string,
+  isAdmin: boolean
 ): DetailSegment[] {
   // Audit (type=3) and login (type=7) logs: render localized content from the
   // structured op descriptor instead of the raw (English-fallback) content.
@@ -149,6 +150,16 @@ function buildTypeDetailSegments(
   if (!other) return []
 
   const segments: DetailSegment[] = []
+
+  if (!isAdmin) {
+    if (other.is_system_prompt_overwritten) {
+      segments.push({
+        text: t('System Prompt Override'),
+        danger: true,
+      })
+    }
+    return segments
+  }
 
   const priceOpts = { digitsLarge: 4, digitsSmall: 6, abbreviate: false }
   const formatPrice = (price: number) =>

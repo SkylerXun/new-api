@@ -67,6 +67,7 @@ import { GroupSpecialUsableRulesEditor } from './group-special-usable-editor'
 type GroupFormValues = {
   GroupRatio: string
   TopupGroupRatio: string
+  GroupRatioDisplayLabels: string
   UserUsableGroups: string
   GroupGroupRatio: string
   AutoGroups: string
@@ -105,8 +106,8 @@ export const GroupRatioForm = memo(function GroupRatioForm({
   }, [])
 
   const watchedGroupRatio = form.watch('GroupRatio')
+  const watchedDisplayLabels = form.watch('GroupRatioDisplayLabels')
   const watchedUserUsableGroups = form.watch('UserUsableGroups')
-  const watchedTopupGroupRatio = form.watch('TopupGroupRatio')
   const groupNames = useMemo(() => {
     const ratioMap = safeJsonParse<Record<string, number>>(watchedGroupRatio, {
       fallback: {},
@@ -116,18 +117,18 @@ export const GroupRatioForm = memo(function GroupRatioForm({
       watchedUserUsableGroups,
       { fallback: {}, silent: true }
     )
-    const topupMap = safeJsonParse<Record<string, number>>(
-      watchedTopupGroupRatio,
+    const displayLabels = safeJsonParse<Record<string, string>>(
+      watchedDisplayLabels,
       { fallback: {}, silent: true }
     )
     return [
       ...new Set([
         ...Object.keys(ratioMap),
         ...Object.keys(usableMap),
-        ...Object.keys(topupMap),
+        ...Object.keys(displayLabels),
       ]),
     ]
-  }, [watchedGroupRatio, watchedUserUsableGroups, watchedTopupGroupRatio])
+  }, [watchedDisplayLabels, watchedGroupRatio, watchedUserUsableGroups])
 
   return (
     <div className='space-y-6'>
@@ -168,7 +169,7 @@ export const GroupRatioForm = memo(function GroupRatioForm({
           <div className='space-y-6'>
             <GroupRatioVisualEditor
               groupRatio={form.watch('GroupRatio')}
-              topupGroupRatio={form.watch('TopupGroupRatio')}
+              groupRatioDisplayLabels={form.watch('GroupRatioDisplayLabels')}
               userUsableGroups={form.watch('UserUsableGroups')}
               groupGroupRatio={form.watch('GroupGroupRatio')}
               autoGroups={form.watch('AutoGroups')}
@@ -266,10 +267,10 @@ export const GroupRatioForm = memo(function GroupRatioForm({
 
             <FormField
               control={form.control}
-              name='TopupGroupRatio'
+              name='GroupRatioDisplayLabels'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('Top-up group ratios')}</FormLabel>
+                  <FormLabel>{t('Group display labels')}</FormLabel>
                   <FormControl>
                     <JsonCodeEditor
                       value={field.value}
@@ -282,9 +283,8 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                   </FormControl>
                   <FormDescription>
                     {t(
-                      'Optional multiplier per user group used when calculating recharge pricing. Provide a JSON object such as'
+                      'JSON map of group to the label shown to users instead of the numeric ratio.'
                     )}
-                    {` { "default": 1, "vip": 1.2 }`}.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

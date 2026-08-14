@@ -102,9 +102,21 @@ function installApiFixtures(createdPayloads: Array<Record<string, unknown>>) {
           data: {
             success: true,
             data: {
-              auto: { desc: 'Automatic routing', ratio: 'auto' },
-              default: { desc: 'Standard access', ratio: 1 },
-              vip: { desc: 'Priority access', ratio: 2 },
+              auto: {
+                desc: 'Automatic routing',
+                ratio: 'auto',
+                ratio_label: 'Automatic tier',
+              },
+              default: {
+                desc: 'Standard access',
+                ratio: 1,
+                ratio_label: 'Standard tier',
+              },
+              vip: {
+                desc: 'Priority access',
+                ratio: 2,
+                ratio_label: 'Premium tier',
+              },
             },
           },
         }
@@ -177,9 +189,17 @@ async function renderCreateDrawer(): Promise<void> {
     {
       success: true,
       data: {
-        auto: { desc: 'Automatic routing', ratio: 'auto' },
-        default: { desc: 'Standard access', ratio: 1 },
-        vip: { desc: 'Priority access', ratio: 2 },
+        auto: {
+          desc: 'Automatic routing',
+          ratio: 'auto',
+          ratio_label: 'Automatic tier',
+        },
+        default: {
+          desc: 'Standard access',
+          ratio: 1,
+          ratio_label: 'Standard tier',
+        },
+        vip: { desc: 'Priority access', ratio: 2, ratio_label: 'Premium tier' },
       },
     },
     { updatedAt: freshAt }

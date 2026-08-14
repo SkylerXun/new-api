@@ -3,6 +3,7 @@ package ratio_setting
 import (
 	"encoding/json"
 	"errors"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/config"
@@ -16,6 +17,8 @@ var defaultGroupRatio = map[string]float64{
 }
 
 var groupRatioMap = types.NewRWMap[string, float64]()
+
+var groupRatioDisplayLabelsMap = types.NewRWMap[string, string]()
 
 var defaultGroupGroupRatio = map[string]map[string]float64{
 	"vip": {
@@ -74,6 +77,31 @@ func GroupRatio2JSONString() string {
 
 func UpdateGroupRatioByJSONString(jsonStr string) error {
 	return types.LoadFromJsonString(groupRatioMap, jsonStr)
+}
+
+func GroupRatioDisplayLabels2JSONString() string {
+	return groupRatioDisplayLabelsMap.MarshalJSONString()
+}
+
+func UpdateGroupRatioDisplayLabelsByJSONString(jsonStr string) error {
+	return types.LoadFromJsonString(groupRatioDisplayLabelsMap, jsonStr)
+}
+
+func CheckGroupRatioDisplayLabels(jsonStr string) error {
+	labels := make(map[string]string)
+	return common.UnmarshalJsonStr(jsonStr, &labels)
+}
+
+func GetGroupRatioDisplayLabel(group, description string) string {
+	if label, ok := groupRatioDisplayLabelsMap.Get(group); ok {
+		if label = strings.TrimSpace(label); label != "" {
+			return label
+		}
+	}
+	if description = strings.TrimSpace(description); description != "" {
+		return description
+	}
+	return group
 }
 
 func GetGroupRatio(name string) float64 {

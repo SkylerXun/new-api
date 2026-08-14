@@ -96,9 +96,24 @@ const reactTestGlobals = globalThis as typeof globalThis & {
 reactTestGlobals.IS_REACT_ACT_ENVIRONMENT = true
 
 const globalOptions = [
-  { value: 'vip', label: 'VIP', desc: 'Priority access', ratio: 3 },
-  { value: 'default', label: 'Default', desc: 'Standard access', ratio: 1 },
-  { value: 'team', label: 'Team', desc: 'Shared access', ratio: 2 },
+  {
+    value: 'vip',
+    label: 'VIP',
+    desc: 'Priority access',
+    ratioLabel: 'Premium',
+  },
+  {
+    value: 'default',
+    label: 'Default',
+    desc: 'Standard access',
+    ratioLabel: 'Standard',
+  },
+  {
+    value: 'team',
+    label: 'Team',
+    desc: 'Shared access',
+    ratioLabel: 'Team tier',
+  },
 ]
 
 function Harness(props: { initialGroups?: string[] }) {
@@ -113,9 +128,9 @@ function Harness(props: { initialGroups?: string[] }) {
         mode={mode}
         options={[
           { value: 'auto', label: 'auto' },
-          { value: 'default', label: 'default', ratio: 1 },
-          { value: 'vip', label: 'vip', ratio: 2 },
-          { value: 'team', label: 'team', ratio: 3 },
+          { value: 'default', label: 'default', ratioLabel: 'Standard' },
+          { value: 'vip', label: 'vip', ratioLabel: 'Premium' },
+          { value: 'team', label: 'team', ratioLabel: 'Team tier' },
         ]}
         globalOptions={globalOptions}
         maxCount={2}
@@ -352,21 +367,21 @@ describe('Auto group order editor', () => {
           name: 'VIP',
           title: 'Priority access',
           description: 'Priority access',
-          ratio: '3x Ratio',
+          ratio: 'Premium',
         },
         {
           index: '2',
           name: 'Default',
           title: 'Standard access',
           description: 'Standard access',
-          ratio: '1x Ratio',
+          ratio: 'Standard',
         },
         {
           index: '3',
           name: 'Team',
           title: 'Shared access',
           description: 'Shared access',
-          ratio: '2x Ratio',
+          ratio: 'Team tier',
         },
       ]
     )

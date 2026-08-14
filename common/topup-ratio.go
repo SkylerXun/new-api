@@ -29,13 +29,6 @@ func UpdateTopupGroupRatioByJSONString(jsonStr string) error {
 	return json.Unmarshal([]byte(jsonStr), &topupGroupRatio)
 }
 
-func GetTopupGroupRatio(name string) float64 {
-	topupGroupRatioMutex.RLock()
-	defer topupGroupRatioMutex.RUnlock()
-	ratio, ok := topupGroupRatio[name]
-	if !ok {
-		SysError("topup group ratio not found: " + name)
-		return 1
-	}
-	return ratio
+func GetTopupGroupRatio(_ string) float64 {
+	return 1
 }

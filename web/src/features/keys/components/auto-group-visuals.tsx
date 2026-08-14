@@ -17,13 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { ReactNode } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { GroupBadge } from '@/components/group-badge'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-
-export type GroupRatio = number | string | null | undefined
 
 export const AUTO_GROUP_FRAME_CLASS_NAME =
   'border-primary/40 relative overflow-visible border shadow-sm shadow-primary/10'
@@ -68,48 +65,26 @@ export function AutoGroupFrame(props: AutoGroupFrameProps) {
   )
 }
 
-function getRatioBadgeClassName(ratio: GroupRatio, isAuto: boolean): string {
-  if (isAuto || typeof ratio !== 'number') {
-    return 'border-primary/30 bg-primary/10 text-primary'
-  }
-  if (ratio > 5) {
-    return 'border-destructive/30 bg-destructive/10 text-destructive'
-  }
-  if (ratio > 3) {
-    return 'border-warning/30 bg-warning/10 text-warning'
-  }
-  if (ratio > 1) {
-    return 'border-info/30 bg-info/10 text-info'
-  }
-  return 'border-success/30 bg-success/10 text-success'
-}
-
 type GroupRatioBadgeProps = {
   isAuto?: boolean
-  ratio: GroupRatio
+  label?: string
   shouldReduceMotion?: boolean
 }
 
 export function GroupRatioBadge(props: GroupRatioBadgeProps) {
-  const { t } = useTranslation()
+  if (!props.label?.trim()) return null
 
-  if (props.ratio === undefined || props.ratio === null || props.ratio === '') {
-    return null
-  }
-
-  const label =
-    typeof props.ratio === 'number'
-      ? `${props.ratio}x ${t('Ratio')}`
-      : `${t('Auto')} ${t('Ratio')}`
   const badge = (
     <Badge
       variant='outline'
       className={cn(
         'max-w-full truncate text-[10px] sm:text-xs',
-        getRatioBadgeClassName(props.ratio, props.isAuto === true)
+        props.isAuto
+          ? 'border-primary/30 bg-primary/10 text-primary'
+          : 'border-muted-foreground/20 bg-muted text-muted-foreground'
       )}
     >
-      {label}
+      {props.label}
     </Badge>
   )
 

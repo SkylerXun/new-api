@@ -104,6 +104,16 @@ export function Pricing() {
       ),
     [usableGroup]
   )
+  const groupLabels = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(usableGroup || {}).map(([group, info]) => [
+          group,
+          info.ratio_label || info.desc || group,
+        ])
+      ),
+    [usableGroup]
+  )
 
   const handleClearAll = useCallback(() => {
     clearFilters()
@@ -143,6 +153,7 @@ export function Pricing() {
         tokenUnit={tokenUnit}
         showRechargePrice={showRechargePrice}
         selectedGroup={groupFilter}
+        groupLabels={groupLabels}
         onModelClick={handleModelClick}
       />
     )
@@ -216,7 +227,7 @@ export function Pricing() {
               onTagChange={setTagFilter}
               vendors={vendors || []}
               groups={availableGroups}
-              groupRatios={groupRatio}
+              groupLabels={groupLabels}
               tags={availableTags}
               models={models || []}
               hasActiveFilters={hasActiveFilters}
@@ -248,7 +259,7 @@ export function Pricing() {
                 onTagChange={setTagFilter}
                 vendors={vendors || []}
                 groups={availableGroups}
-                groupRatios={groupRatio}
+                groupLabels={groupLabels}
                 tags={availableTags}
                 models={models || []}
                 hasActiveFilters={hasActiveFilters}

@@ -294,7 +294,7 @@ export function AutoGroupOrderEditor(props: AutoGroupOrderEditorProps) {
                     {option.desc}
                   </span>
                 )}
-                <GroupRatioBadge ratio={option.ratio} />
+                <GroupRatioBadge label={option.ratioLabel} />
               </span>
             </li>
           ))}

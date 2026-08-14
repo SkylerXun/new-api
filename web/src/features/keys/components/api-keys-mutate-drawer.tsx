@@ -18,7 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
-import { ChevronDown, KeyRound, Settings2, WalletCards } from 'lucide-react'
+import {
+  ChevronDown,
+  Download,
+  KeyRound,
+  LoaderCircle,
+  Settings2,
+  WalletCards,
+} from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useForm, type SubmitErrorHandler } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -106,6 +113,8 @@ export function ApiKeysMutateDrawer({
   const { triggerRefresh } = useApiKeys()
   const { status, loading: statusLoading } = useStatus()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isFetchingModels, setIsFetchingModels] = useState(false)
+  const [fetchedModels, setFetchedModels] = useState<string[] | null>(null)
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [initializedTarget, setInitializedTarget] = useState<string | null>(
     null
@@ -115,7 +124,7 @@ export function ApiKeysMutateDrawer({
   // Fetch models
   const { data: modelsData } = useQuery({
     queryKey: ['user-models'],
-    queryFn: getUserModels,
+    queryFn: () => getUserModels(),
     enabled: open,
     staleTime: 0,
   })
@@ -154,14 +163,15 @@ export function ApiKeysMutateDrawer({
     staleTime: 0,
   })
 
-  const models = modelsData?.data || []
+  const defaultModels = modelsData?.data || []
+  const models = fetchedModels ?? defaultModels
   const groups = useMemo<ApiKeyGroupOption[]>(
     () =>
       Object.entries(groupsData?.data || {}).map(([key, info]) => ({
         value: key,
         label: key,
         desc: info.desc || key,
-        ratio: info.ratio,
+        ratioLabel: info.ratio_label || info.desc || key,
       })),
     [groupsData]
   )
@@ -276,6 +286,37 @@ export function ApiKeysMutateDrawer({
       }
     }
   }, [groups, form, selectedGroup])
+
+  useEffect(() => {
+    setFetchedModels(null)
+  }, [selectedGroup])
+
+  const handleFetchModels = async () => {
+    const group = selectedGroup?.trim()
+    if (!group || isFetchingModels) return
+
+    setIsFetchingModels(true)
+    try {
+      const result = await getUserModels({ group })
+      if (!result.success) {
+        throw new Error(result.message || t('Failed to fetch models'))
+      }
+
+      const nextModels = result.data || []
+      setFetchedModels(nextModels)
+      if (nextModels.length === 0) {
+        toast.info(t('No models fetched from upstream'))
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : t('Failed to fetch models from upstream')
+      )
+    } finally {
+      setIsFetchingModels(false)
+    }
+  }
 
   const onSubmit = async (data: ApiKeyFormValues) => {
     setIsSubmitting(true)
@@ -695,7 +736,24 @@ export function ApiKeysMutateDrawer({
                       name='model_limits'
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>{t('Model Limits')}</FormLabel>
+                          <div className='flex items-center justify-between gap-2'>
+                            <FormLabel>{t('Model Limits')}</FormLabel>
+                            <Button
+                              type='button'
+                              variant='outline'
+                              size='sm'
+                              className='shrink-0'
+                              disabled={!selectedGroup || isFetchingModels}
+                              onClick={handleFetchModels}
+                            >
+                              {isFetchingModels ? (
+                                <LoaderCircle className='animate-spin' />
+                              ) : (
+                                <Download />
+                              )}
+                              {t('Fetch upstream models')}
+                            </Button>
+                          </div>
                           <FormControl>
                             <MultiSelect
                               options={models.map((m) => ({

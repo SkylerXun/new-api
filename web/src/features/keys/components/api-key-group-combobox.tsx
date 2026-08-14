@@ -47,7 +47,7 @@ export type ApiKeyGroupOption = {
   value: string
   label: string
   desc?: string
-  ratio?: number | string
+  ratioLabel?: string
 }
 
 type ApiKeyGroupComboboxProps = {
@@ -77,12 +77,12 @@ export function ApiKeyGroupCombobox({
     if (!search) return options
 
     return options.filter((option) => {
-      const ratioText = String(option.ratio ?? '').toLowerCase()
+      const ratioLabel = option.ratioLabel?.toLowerCase() ?? ''
       return (
         option.value.toLowerCase().includes(search) ||
         option.label.toLowerCase().includes(search) ||
         option.desc?.toLowerCase().includes(search) ||
-        ratioText.includes(search)
+        ratioLabel.includes(search)
       )
     })
   }, [options, searchValue])
@@ -131,7 +131,7 @@ export function ApiKeyGroupCombobox({
           </span>
           <span className='hidden sm:block'>
             <GroupRatioBadge
-              ratio={selectedOption?.ratio}
+              label={selectedOption?.ratioLabel}
               isAuto={isAutoSelected}
               shouldReduceMotion={shouldReduceMotion}
             />
@@ -198,7 +198,7 @@ export function ApiKeyGroupCombobox({
                       )}
                     </span>
                     <GroupRatioBadge
-                      ratio={option.ratio}
+                      label={option.ratioLabel}
                       isAuto={isAutoOption}
                       shouldReduceMotion={shouldReduceMotion}
                     />

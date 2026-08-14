@@ -22,7 +22,7 @@ import { after, describe, test } from 'node:test'
 import { Window } from 'happy-dom'
 
 const domWindow = new Window()
-const domGlobals = [
+for (const key of [
   'window',
   'document',
   'navigator',
@@ -38,9 +38,7 @@ const domGlobals = [
   'requestAnimationFrame',
   'cancelAnimationFrame',
   'getComputedStyle',
-] as const
-
-for (const key of domGlobals) {
+] as const) {
   Object.defineProperty(globalThis, key, {
     configurable: true,
     value: domWindow[key],
@@ -62,7 +60,6 @@ await i18n.use(initReactI18next).init({
       translation: {
         Auto: 'Auto',
         'Cross-group': 'Cross-group',
-        Ratio: 'Ratio',
         'Automatically selects the best available group with circuit breaker mechanism':
           'Automatically selects the best available group with circuit breaker mechanism',
       },
@@ -70,14 +67,11 @@ await i18n.use(initReactI18next).init({
   },
 })
 
-const reactTestGlobals = globalThis as typeof globalThis & {
-  IS_REACT_ACT_ENVIRONMENT?: boolean
-}
-reactTestGlobals.IS_REACT_ACT_ENVIRONMENT = true
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 
 function CellHarness(props: {
   group: string
-  ratio?: number | string
+  ratioLabel?: string
   crossGroupRetry?: boolean
   shouldReduceMotion?: boolean
 }) {
@@ -86,7 +80,7 @@ function CellHarness(props: {
       <TooltipProvider>
         <ApiKeyGroupCell
           group={props.group}
-          ratio={props.ratio}
+          ratioLabel={props.ratioLabel}
           crossGroupRetry={props.crossGroupRetry ?? false}
           shouldReduceMotion={props.shouldReduceMotion ?? false}
         />
@@ -96,23 +90,16 @@ function CellHarness(props: {
 }
 
 describe('API key group table cell', () => {
-  after(() => {
-    domWindow.close()
-  })
+  after(() => domWindow.close())
 
-  test('renders two unclipped rings and a localized Auto ratio when API data uses a nonlocalized string', async () => {
+  test('renders the configured Auto label with its motion treatment', async () => {
     const container = document.createElement('div')
     document.body.append(container)
     const root = createRoot(container)
 
     await act(async () =>
       root.render(
-        <CellHarness
-          group='auto'
-          ratio='自动'
-          crossGroupRetry
-          shouldReduceMotion={false}
-        />
+        <CellHarness group='auto' ratioLabel='Automatic tier' crossGroupRetry />
       )
     )
 
@@ -121,113 +108,67 @@ describe('API key group table cell', () => {
     )
     assert.ok(badgeCell)
     assert.equal(badgeCell.classList.contains('overflow-visible'), true)
-    assert.equal(badgeCell.classList.contains('overflow-hidden'), false)
-
-    const frames = container.querySelectorAll('[data-auto-group-frame]')
-    const movingRings = container.querySelectorAll(
-      '[data-auto-group-flow-border]'
+    assert.equal(
+      container.querySelectorAll('[data-auto-group-frame]').length,
+      1
     )
-    assert.equal(frames.length, 2)
-    assert.equal(movingRings.length, 2)
-    for (const frame of frames) {
-      assert.equal(frame.classList.contains('relative'), true)
-      assert.equal(frame.classList.contains('overflow-visible'), true)
-      assert.equal(frame.classList.contains('rounded-4xl'), true)
-      assert.equal(frame.classList.contains('p-px'), true)
-    }
-
-    const ratio = container.querySelector<HTMLElement>(
-      '[data-auto-group-effect="ratio"]'
+    assert.equal(
+      container.querySelectorAll('[data-auto-group-flow-border]').length,
+      1
     )
-    assert.ok(ratio)
-    assert.equal(ratio.textContent, 'Auto Ratio')
-    assert.equal(ratio.textContent?.includes('x'), false)
-    assert.equal(container.textContent?.includes('自动'), false)
+    assert.equal(
+      container.querySelector('[data-auto-group-effect="ratio"]')?.textContent,
+      'Automatic tier'
+    )
     assert.equal(container.textContent?.includes('Cross-group'), true)
-
-    const crossGroupBadge = [
-      ...container.querySelectorAll<HTMLElement>('[data-slot="status-badge"]'),
-    ].find((badge) => badge.textContent === 'Cross-group')
-    assert.ok(crossGroupBadge)
-    assert.equal(crossGroupBadge.closest('[data-auto-group-frame]'), null)
-
-    await act(async () => root.unmount())
-    container.remove()
-  })
-
-  test('keeps static Auto frames but omits both moving layers for reduced motion', async () => {
-    const container = document.createElement('div')
-    document.body.append(container)
-    const root = createRoot(container)
-
-    await act(async () =>
-      root.render(<CellHarness group='auto' ratio='Auto' shouldReduceMotion />)
-    )
-
-    assert.equal(
-      container.querySelectorAll('[data-auto-group-frame]').length,
-      2
-    )
-    assert.equal(
-      container.querySelectorAll('[data-auto-group-flow-border]').length,
-      0
-    )
-
-    await act(async () => root.unmount())
-    container.remove()
-  })
-
-  test('shows only the Auto badge when ratio data is unavailable', async () => {
-    const container = document.createElement('div')
-    document.body.append(container)
-    const root = createRoot(container)
-
-    await act(async () =>
-      root.render(<CellHarness group='auto' shouldReduceMotion={false} />)
-    )
-
-    assert.equal(
-      container.querySelectorAll('[data-auto-group-frame]').length,
-      1
-    )
-    assert.equal(
-      container.querySelectorAll('[data-auto-group-flow-border]').length,
-      1
-    )
-    assert.equal(
-      container.querySelector('[data-auto-group-effect="ratio"]'),
-      null
-    )
-    assert.equal(container.textContent?.includes('Auto'), true)
     assert.equal(container.textContent?.includes('Ratio'), false)
 
     await act(async () => root.unmount())
     container.remove()
   })
 
-  test('narrows normal group ratios to numbers and never applies Auto rings', async () => {
+  test('keeps the Auto label but omits moving layers for reduced motion', async () => {
     const container = document.createElement('div')
     document.body.append(container)
     const root = createRoot(container)
 
     await act(async () =>
       root.render(
-        <CellHarness group='vip' ratio='自动' shouldReduceMotion={false} />
+        <CellHarness
+          group='auto'
+          ratioLabel='Automatic tier'
+          shouldReduceMotion
+        />
       )
+    )
+
+    assert.equal(
+      container.querySelectorAll('[data-auto-group-frame]').length,
+      1
+    )
+    assert.equal(
+      container.querySelectorAll('[data-auto-group-flow-border]').length,
+      0
+    )
+    assert.equal(container.textContent?.includes('Automatic tier'), true)
+
+    await act(async () => root.unmount())
+    container.remove()
+  })
+
+  test('shows a normal group label without exposing a numeric ratio', async () => {
+    const container = document.createElement('div')
+    document.body.append(container)
+    const root = createRoot(container)
+
+    await act(async () =>
+      root.render(<CellHarness group='vip' ratioLabel='Premium tier' />)
     )
 
     assert.equal(container.textContent?.includes('vip'), true)
-    assert.equal(container.textContent?.includes('自动'), false)
-    assert.equal(container.querySelector('[data-auto-group-frame]'), null)
-    assert.equal(container.querySelector('[data-auto-group-flow-border]'), null)
-
-    await act(async () =>
-      root.render(
-        <CellHarness group='vip' ratio={3} shouldReduceMotion={false} />
-      )
-    )
-
-    assert.equal(container.textContent?.includes('3x'), true)
+    assert.equal(container.textContent?.includes('Premium tier'), true)
+    assert.equal(container.textContent?.includes('3x'), false)
+    assert.equal(container.textContent?.includes('Ratio'), false)
     assert.equal(container.querySelector('[data-auto-group-frame]'), null)
 
     await act(async () => root.unmount())

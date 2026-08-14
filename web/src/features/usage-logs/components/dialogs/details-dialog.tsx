@@ -216,7 +216,7 @@ function quotaSaturationKindLabel(
   return t('Invalid (NaN)')
 }
 
-function BillingBreakdown(props: {
+export function BillingBreakdown(props: {
   log: UsageLog
   other: LogOtherData
   isAdmin: boolean
@@ -232,6 +232,18 @@ function BillingBreakdown(props: {
   const priceOpts = { digitsLarge: 4, digitsSmall: 6, abbreviate: false }
   const fmtPrice = (usd: number) => formatBillingCurrencyFromUSD(usd, priceOpts)
   const baseInputUSD = other.model_ratio != null ? other.model_ratio * 2.0 : 0
+
+  if (!isAdmin) {
+    return (
+      <DetailSection label={t('Billing Details')}>
+        <DetailRow
+          label={t('Total Cost')}
+          value={formatLogQuota(log.quota)}
+          mono
+        />
+      </DetailSection>
+    )
+  }
 
   if (isTieredExpr) {
     rows.push({
@@ -491,6 +503,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
   const isManage = props.log.type === 3
   const isSubscription = other?.billing_source === 'subscription'
   const isTieredBilling =
+    props.isAdmin &&
     isConsume &&
     !isViolation &&
     other?.billing_mode === 'tiered_expr' &&

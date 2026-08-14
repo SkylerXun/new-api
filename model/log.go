@@ -113,6 +113,37 @@ func assignDisplayLogIds(logs []*Log, startIdx int) {
 	}
 }
 
+var userLogSensitiveBillingFields = []string{
+	"model_price",
+	"model_ratio",
+	"completion_ratio",
+	"group_ratio",
+	"user_group_ratio",
+	"cache_ratio",
+	"cache_creation_ratio",
+	"cache_creation_ratio_5m",
+	"cache_creation_ratio_1h",
+	"audio_ratio",
+	"audio_completion_ratio",
+	"image_ratio",
+	"web_search_price",
+	"file_search_price",
+	"image_generation_call_price",
+	"audio_input_seperate_price",
+	"audio_input_price",
+	"tool_surcharges",
+	"billing_mode",
+	"expr_b64",
+	"matched_tier",
+	"request_rules",
+}
+
+func stripUserLogSensitiveBillingFields(other map[string]interface{}) {
+	for _, field := range userLogSensitiveBillingFields {
+		delete(other, field)
+	}
+}
+
 func formatUserLogs(logs []*Log, startIdx int) {
 	for i := range logs {
 		logs[i].ChannelName = ""
@@ -123,6 +154,7 @@ func formatUserLogs(logs []*Log, startIdx int) {
 			delete(otherMap, "admin_info")
 			// Remove operation-audit details (operator/route info), admin-only.
 			delete(otherMap, "audit_info")
+			stripUserLogSensitiveBillingFields(otherMap)
 			// delete(otherMap, "reject_reason")
 			// delete(otherMap, "stream_status")
 		}
