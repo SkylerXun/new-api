@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/sjson"
 )
 
 func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
@@ -94,9 +95,19 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			sr.Error(err)
 			return
 		}
+		if streamResponse.Type == "response.done" {
+			normalizedData, err := sjson.Set(data, "type", "response.completed")
+			if err != nil {
+				logger.LogError(c, "failed to normalize responses terminal event: "+err.Error())
+				sr.Error(err)
+				return
+			}
+			streamResponse.Type = "response.completed"
+			data = normalizedData
+		}
 		sendResponsesStreamData(c, streamResponse, data)
 		switch streamResponse.Type {
-		case "response.completed", "response.done":
+		case "response.completed":
 			if streamResponse.Response != nil {
 				if streamResponse.Response.Usage != nil {
 					if streamResponse.Response.Usage.InputTokens != 0 {
