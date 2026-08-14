@@ -120,6 +120,11 @@ export function SidebarModulesCard() {
           title: t('Personal Settings'),
           description: t('Personal info settings'),
         },
+        {
+          key: 'checkin',
+          title: t('Daily Check-in'),
+          description: t('Check in daily to receive random quota rewards'),
+        },
       ],
     },
   ]

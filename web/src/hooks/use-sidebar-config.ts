@@ -54,6 +54,7 @@ const DEFAULT_SIDEBAR_MODULES: SidebarModulesAdminConfig = {
     enabled: true,
     topup: true,
     personal: true,
+    checkin: true,
   },
   admin: {
     enabled: true,
@@ -107,6 +108,7 @@ const URL_TO_CONFIG_MAP: Record<string, { section: string; module: string }> = {
   '/usage-logs/task': { section: 'console', module: 'task' },
   '/wallet': { section: 'personal', module: 'topup' },
   '/profile': { section: 'personal', module: 'personal' },
+  '/checkin': { section: 'personal', module: 'checkin' },
   '/channels': { section: 'admin', module: 'channel' },
   '/models': { section: 'admin', module: 'models' },
   '/models/metadata': { section: 'admin', module: 'models' },
@@ -254,6 +256,25 @@ function filterNavItems(
       return item
     })
     .filter((item) => isNavItemVisible(item, adminConfig, userConfig))
+}
+
+export function filterSidebarNavGroups(
+  navGroups: NavGroup[],
+  adminConfigValue: string | null | undefined,
+  userConfigValue: string | null | undefined,
+  applyUserConfig = true
+): NavGroup[] {
+  const adminConfig = parseSidebarConfig(adminConfigValue)
+  const userConfig = applyUserConfig
+    ? parseUserSidebarConfig(userConfigValue)
+    : null
+
+  return navGroups
+    .map((group) => ({
+      ...group,
+      items: filterNavItems(group.items, adminConfig, userConfig),
+    }))
+    .filter((group) => group.items.length > 0)
 }
 
 /**

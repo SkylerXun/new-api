@@ -21,8 +21,29 @@ var (
 		"light-green": true, "teal": true, "light-blue": true, "indigo": true,
 		"violet": true, "grey": true, "slate": true,
 	}
-	slugRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+	slugRegex      = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+	guideSlugRegex = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 )
+
+const (
+	maxGuideCount         = 100
+	maxGuideTitleLength   = 120
+	maxGuideSummaryLength = 300
+	maxGuideSlugLength    = 100
+	maxGuideContentLength = 200000
+)
+
+type Guide struct {
+	ID        int    `json:"id"`
+	Slug      string `json:"slug"`
+	Title     string `json:"title"`
+	Summary   string `json:"summary"`
+	Content   string `json:"content"`
+	Format    string `json:"format"`
+	UpdatedAt string `json:"updatedAt"`
+	Order     int    `json:"order"`
+	Published bool   `json:"published"`
+}
 
 func parseJSONArray(jsonStr string, typeName string) ([]map[string]interface{}, error) {
 	var list []map[string]interface{}
@@ -79,9 +100,99 @@ func ValidateConsoleSettings(settingsStr string, settingType string) error {
 		return validateFAQ(settingsStr)
 	case "UptimeKumaGroups":
 		return validateUptimeKumaGroups(settingsStr)
+	case "Guides":
+		return ValidateGuides(settingsStr)
 	default:
 		return fmt.Errorf("未知的设置类型：%s", settingType)
 	}
+}
+
+func ValidateGuides(guidesStr string) error {
+	var guides []Guide
+	if err := common.UnmarshalJsonStr(guidesStr, &guides); err != nil {
+		return fmt.Errorf("invalid guides JSON: %s", err.Error())
+	}
+	if len(guides) > maxGuideCount {
+		return fmt.Errorf("guide count cannot exceed %d", maxGuideCount)
+	}
+
+	ids := make(map[int]struct{}, len(guides))
+	slugs := make(map[string]struct{}, len(guides))
+	for index, guide := range guides {
+		position := index + 1
+		if guide.ID <= 0 {
+			return fmt.Errorf("guide %d must have a positive id", position)
+		}
+		if _, exists := ids[guide.ID]; exists {
+			return fmt.Errorf("guide %d has a duplicate id", position)
+		}
+		ids[guide.ID] = struct{}{}
+
+		guide.Slug = strings.TrimSpace(guide.Slug)
+		guide.Title = strings.TrimSpace(guide.Title)
+		guide.Content = strings.TrimSpace(guide.Content)
+		if guide.Slug == "" || !guideSlugRegex.MatchString(guide.Slug) {
+			return fmt.Errorf("guide %d slug must use lowercase letters, numbers, and single hyphens", position)
+		}
+		if _, exists := slugs[guide.Slug]; exists {
+			return fmt.Errorf("guide %d has a duplicate slug", position)
+		}
+		slugs[guide.Slug] = struct{}{}
+
+		if guide.Title == "" {
+			return fmt.Errorf("guide %d title is required", position)
+		}
+		if guide.Content == "" {
+			return fmt.Errorf("guide %d content is required", position)
+		}
+		if guide.Format != "markdown" && guide.Format != "html" {
+			return fmt.Errorf("guide %d format must be markdown or html", position)
+		}
+		if _, err := time.Parse(time.RFC3339, guide.UpdatedAt); err != nil {
+			return fmt.Errorf("guide %d updatedAt must be an RFC3339 timestamp", position)
+		}
+		if exceedsMaxCharacters(guide.Slug, maxGuideSlugLength) {
+			return fmt.Errorf("guide %d slug cannot exceed %d characters", position, maxGuideSlugLength)
+		}
+		if exceedsMaxCharacters(guide.Title, maxGuideTitleLength) {
+			return fmt.Errorf("guide %d title cannot exceed %d characters", position, maxGuideTitleLength)
+		}
+		if exceedsMaxCharacters(guide.Summary, maxGuideSummaryLength) {
+			return fmt.Errorf("guide %d summary cannot exceed %d characters", position, maxGuideSummaryLength)
+		}
+		if exceedsMaxCharacters(guide.Content, maxGuideContentLength) {
+			return fmt.Errorf("guide %d content cannot exceed %d characters", position, maxGuideContentLength)
+		}
+
+		lowerContent := strings.ToLower(guide.Content)
+		for _, dangerous := range []string{"<script", "javascript:", "onload=", "onerror=", "onclick="} {
+			if strings.Contains(lowerContent, dangerous) {
+				return fmt.Errorf("guide %d content contains unsafe HTML", position)
+			}
+		}
+	}
+	return nil
+}
+
+func GetPublishedGuides() []Guide {
+	var guides []Guide
+	if err := common.UnmarshalJsonStr(GetConsoleSetting().Guides, &guides); err != nil {
+		return []Guide{}
+	}
+
+	published := make([]Guide, 0, len(guides))
+	for _, guide := range guides {
+		if guide.Published {
+			published = append(published, guide)
+		}
+	}
+	sort.SliceStable(published, func(i, j int) bool {
+		if published[i].Order == published[j].Order {
+			return published[i].UpdatedAt > published[j].UpdatedAt
+		}
+		return published[i].Order < published[j].Order
+	})
+	return published
 }
 
 func validateApiInfo(apiInfoStr string) error {

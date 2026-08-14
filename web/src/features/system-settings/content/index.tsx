@@ -28,6 +28,7 @@ const defaultContentSettings: ContentSettings = {
   'console_setting.api_info': '[]',
   'console_setting.announcements': '[]',
   'console_setting.faq': '[]',
+  'console_setting.guides': '[]',
   'console_setting.uptime_kuma_groups': '[]',
   'console_setting.api_info_enabled': true,
   'console_setting.announcements_enabled': true,

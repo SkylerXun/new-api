@@ -19,6 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 import {
   Activity,
   Box,
+  BookOpen,
+  CalendarCheck,
   CreditCard,
   FileText,
   FlaskConical,
@@ -38,7 +40,10 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import type { SidebarData } from '@/components/layout/types'
+import { useStatus } from '@/hooks/use-status'
 import { ROLE } from '@/lib/roles'
+
+type Translate = ReturnType<typeof useTranslation>['t']
 
 /**
  * Root navigation groups for the application sidebar.
@@ -46,9 +51,10 @@ import { ROLE } from '@/lib/roles'
  * These are shown when the URL does not match any nested sidebar view
  * registered in `layout/lib/sidebar-view-registry.ts`.
  */
-export function useSidebarData(): SidebarData {
-  const { t } = useTranslation()
-
+export function getSidebarData(
+  t: Translate,
+  checkinEnabled: boolean
+): SidebarData {
   return {
     navGroups: [
       {
@@ -105,6 +111,12 @@ export function useSidebarData(): SidebarData {
         title: t('Personal'),
         items: [
           {
+            title: t('Guides'),
+            url: '/guides',
+            activeUrls: ['/guides'],
+            icon: BookOpen,
+          },
+          {
             title: t('Purchase Credits'),
             url: '/purchase',
             icon: ShoppingBag,
@@ -119,6 +131,15 @@ export function useSidebarData(): SidebarData {
             url: '/profile',
             icon: User,
           },
+          ...(checkinEnabled
+            ? [
+                {
+                  title: t('Daily Check-in'),
+                  url: '/checkin' as const,
+                  icon: CalendarCheck,
+                },
+              ]
+            : []),
         ],
       },
       {
@@ -166,4 +187,10 @@ export function useSidebarData(): SidebarData {
       },
     ],
   }
+}
+
+export function useSidebarData(): SidebarData {
+  const { t } = useTranslation()
+  const { status } = useStatus()
+  return getSidebarData(t, status?.checkin_enabled === true)
 }

@@ -16,12 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { RedemptionsCreatedDialog } from './redemptions-created-dialog'
 import { RedemptionsDeleteDialog } from './redemptions-delete-dialog'
 import { RedemptionsMutateDrawer } from './redemptions-mutate-drawer'
 import { useRedemptions } from './redemptions-provider'
 
 export function RedemptionsDialogs() {
-  const { open, setOpen, currentRow } = useRedemptions()
+  const { open, setOpen, currentRow, createdCodes, setCreatedCodes } =
+    useRedemptions()
   const isUpdate = open === 'update'
 
   return (
@@ -30,6 +32,10 @@ export function RedemptionsDialogs() {
         open={open === 'create' || isUpdate}
         onOpenChange={(isOpen) => !isOpen && setOpen(null)}
         currentRow={isUpdate ? currentRow || undefined : undefined}
+      />
+      <RedemptionsCreatedDialog
+        codes={createdCodes}
+        onOpenChange={(isOpen) => !isOpen && setCreatedCodes(null)}
       />
       <RedemptionsDeleteDialog />
     </>

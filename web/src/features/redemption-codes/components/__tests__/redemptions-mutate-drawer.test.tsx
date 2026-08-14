@@ -71,6 +71,7 @@ const { I18nextProvider, initReactI18next } = await import('react-i18next')
 const { Toaster, toast } = await import('sonner')
 const { api } = await import('@/lib/api')
 const { useSystemConfigStore } = await import('@/stores/system-config-store')
+const { RedemptionsDialogs } = await import('../redemptions-dialogs')
 const { RedemptionsProvider } = await import('../redemptions-provider')
 const { RedemptionsMutateDrawer } = await import('../redemptions-mutate-drawer')
 
@@ -96,6 +97,7 @@ reactTestGlobals.IS_REACT_ACT_ENVIRONMENT = true
 type ApiMethod = (url: string, data?: unknown) => Promise<{ data: unknown }>
 type MockableApi = {
   get: ApiMethod
+  post: ApiMethod
   put: ApiMethod
 }
 type RenderedDrawer = {
@@ -109,8 +111,13 @@ type CurrencyFixture = {
 
 const apiClient = api as unknown as MockableApi
 const originalGet = apiClient.get
+const originalPost = apiClient.post
 const originalPut = apiClient.put
 const originalConsoleLog = Reflect.get(console, 'log')
+const originalClipboardDescriptor = Object.getOwnPropertyDescriptor(
+  domWindow.navigator,
+  'clipboard'
+)
 let renderedDrawer: RenderedDrawer | null = null
 
 function redemption(id: number, quota = 500001): Redemption {
@@ -138,7 +145,7 @@ function deferred<T>() {
   return { promise, reject, resolve }
 }
 
-function drawerTree(currentRow: Redemption) {
+function drawerTree(currentRow?: Redemption) {
   return (
     <I18nextProvider i18n={i18n}>
       <RedemptionsProvider>
@@ -147,6 +154,7 @@ function drawerTree(currentRow: Redemption) {
           currentRow={currentRow}
           onOpenChange={() => undefined}
         />
+        <RedemptionsDialogs />
       </RedemptionsProvider>
       <Toaster duration={60_000} />
     </I18nextProvider>
@@ -154,7 +162,7 @@ function drawerTree(currentRow: Redemption) {
 }
 
 async function renderDrawer(
-  currentRow: Redemption,
+  currentRow?: Redemption,
   currency: CurrencyFixture = {
     quotaDisplayType: 'USD',
     usdExchangeRate: 1,
@@ -275,8 +283,18 @@ async function waitForLoadedForm(): Promise<void> {
 
 afterEach(async () => {
   apiClient.get = originalGet
+  apiClient.post = originalPost
   apiClient.put = originalPut
   Reflect.set(console, 'log', originalConsoleLog)
+  if (originalClipboardDescriptor) {
+    Object.defineProperty(
+      domWindow.navigator,
+      'clipboard',
+      originalClipboardDescriptor
+    )
+  } else {
+    Reflect.deleteProperty(domWindow.navigator, 'clipboard')
+  }
   toast.dismiss()
   domWindow.localStorage.clear()
   if (renderedDrawer) {
@@ -436,4 +454,49 @@ test('redemption drawer ignores an older response after switching records', asyn
 
   assert.equal(updates[0]?.id, 2)
   assert.equal(updates[0]?.quota, 1000001)
+})
+
+test('creating redemption codes shows every code on its own line and copies all codes', async () => {
+  const copiedValues: string[] = []
+  Object.defineProperty(domWindow.navigator, 'clipboard', {
+    configurable: true,
+    value: {
+      writeText: async (value: string) => {
+        copiedValues.push(value)
+      },
+    },
+  })
+  apiClient.post = async () => ({
+    data: {
+      success: true,
+      data: ['redeem-code-one', 'redeem-code-two'],
+    },
+  })
+
+  await renderDrawer()
+  await waitForLoadedForm()
+  await submitForm()
+  await act(async () =>
+    waitForCondition(
+      () =>
+        document.querySelector<HTMLTextAreaElement>(
+          'textarea[aria-label="Redemption Codes"]'
+        ) !== null,
+      'created redemption codes dialog was not shown'
+    )
+  )
+
+  const codes = document.querySelector<HTMLTextAreaElement>(
+    'textarea[aria-label="Redemption Codes"]'
+  )
+  assert.ok(codes)
+  assert.equal(codes.value, 'redeem-code-one\nredeem-code-two')
+
+  const copyButton = document.querySelector<HTMLButtonElement>(
+    'button[aria-label="Copy All Codes"]'
+  )
+  assert.ok(copyButton)
+  await act(async () => copyButton.click())
+
+  assert.deepEqual(copiedValues, ['redeem-code-one\nredeem-code-two'])
 })

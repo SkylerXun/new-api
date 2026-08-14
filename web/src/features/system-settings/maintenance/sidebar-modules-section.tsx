@@ -128,6 +128,10 @@ export function SidebarModulesSection({
         title: t('Profile'),
         description: t('Personal settings and profile management.'),
       },
+      checkin: {
+        title: t('Daily Check-in'),
+        description: t('Check in daily to receive random quota rewards'),
+      },
     },
     admin: {
       channel: {

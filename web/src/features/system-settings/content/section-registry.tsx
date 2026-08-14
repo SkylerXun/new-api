@@ -24,6 +24,7 @@ import { ChatSettingsSection } from './chat-settings-section'
 import { DashboardSection } from './dashboard-section'
 import { DrawingSettingsSection } from './drawing-settings-section'
 import { FAQSection } from './faq-section'
+import { GuidesSection } from './guides-section'
 import { UptimeKumaSection } from './uptime-kuma-section'
 
 /**
@@ -61,6 +62,13 @@ const CONTENT_SECTIONS = [
         enabled={settings['console_setting.announcements_enabled']}
         data={settings['console_setting.announcements']}
       />
+    ),
+  },
+  {
+    id: 'guides',
+    titleKey: 'Guides',
+    build: (settings: ContentSettings) => (
+      <GuidesSection data={settings['console_setting.guides']} />
     ),
   },
   {

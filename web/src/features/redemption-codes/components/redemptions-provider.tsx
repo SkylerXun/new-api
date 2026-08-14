@@ -20,7 +20,7 @@ import React, { useState } from 'react'
 
 import useDialogState from '@/hooks/use-dialog'
 
-import { type Redemption, type RedemptionsDialogType } from '../types'
+import type { Redemption, RedemptionsDialogType } from '../types'
 
 type RedemptionsContextType = {
   open: RedemptionsDialogType | null
@@ -29,6 +29,8 @@ type RedemptionsContextType = {
   setCurrentRow: React.Dispatch<React.SetStateAction<Redemption | null>>
   refreshTrigger: number
   triggerRefresh: () => void
+  createdCodes: string[] | null
+  setCreatedCodes: React.Dispatch<React.SetStateAction<string[] | null>>
 }
 
 const RedemptionsContext = React.createContext<RedemptionsContextType | null>(
@@ -42,6 +44,7 @@ export function RedemptionsProvider({
 }) {
   const [open, setOpen] = useDialogState<RedemptionsDialogType>(null)
   const [currentRow, setCurrentRow] = useState<Redemption | null>(null)
+  const [createdCodes, setCreatedCodes] = useState<string[] | null>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   const triggerRefresh = () => setRefreshTrigger((prev) => prev + 1)
@@ -53,6 +56,8 @@ export function RedemptionsProvider({
         setOpen,
         currentRow,
         setCurrentRow,
+        createdCodes,
+        setCreatedCodes,
         refreshTrigger,
         triggerRefresh,
       }}
