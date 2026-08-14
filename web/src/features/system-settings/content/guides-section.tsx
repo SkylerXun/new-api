@@ -241,10 +241,13 @@ export function GuidesSection({ data }: GuidesSectionProps) {
 
   const saveAll = async () => {
     try {
-      await updateOption.mutateAsync({
+      const result = await updateOption.mutateAsync({
         key: 'console_setting.guides',
         value: JSON.stringify(guides),
       })
+      if (!result.success) {
+        return
+      }
       setHasChanges(false)
       toast.success(t('Guides saved successfully'))
     } catch {
