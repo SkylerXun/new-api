@@ -19,11 +19,38 @@ For commercial licensing, please contact support@quantumnous.com
 // Static translation keys that don't get picked up by the t('...') regex.
 // These cover dynamic labels (e.g. constants, configs) that are passed into t at runtime.
 export const STATIC_I18N_KEYS = [
+  // Activity center
+  'Activity Center',
+  'New user recharge bonus',
+  'Redeem codes within {{days}} days of registration for an extra {{percent}}% credit each time.',
+  'Days',
+  'Hours',
+  'Minutes',
+  'Seconds',
+  'active',
+  'claimable',
+  'claimed',
+  'credited',
+  'expired',
+  'closed',
+  'unavailable',
+  'Recharge now',
+  'Claim now',
+  'Cumulative bonus received',
+  'Credit received',
+  'Active',
+  'Queued',
+  'Running',
+  'Completed',
+  'Failed',
+  'Closed',
+
   // Header navigation
   'Home',
   'Console',
   'Model Square',
   'Rankings',
+  'Price List',
   'Docs',
   'About',
 
@@ -45,6 +72,9 @@ export const STATIC_I18N_KEYS = [
   'Routing Reliability',
   'Maintenance',
 
+  // Billing section registry
+  'Progressive Billing',
+
   // System info
   'online',
   'stale',
@@ -60,6 +90,24 @@ export const STATIC_I18N_KEYS = [
   'Token-based',
   'Per Request',
   'All Types',
+  'Actual price',
+  'Official price',
+  'Official Pricing',
+  'Official input price',
+  'Official output price',
+  'Official cache read price',
+  'Official cache write price',
+  'Cache read',
+  'Cache write',
+  'Compare actual and official model pricing by group.',
+  'Grouped model price comparison page.',
+  'Require login to view price list',
+  'Users must authenticate before accessing the price comparison page.',
+  'Search model name',
+  'Reset filters',
+  'No groups match the current filters.',
+  'Unable to load price list',
+  'USD per 1M tokens. Leave a field empty when unavailable.',
   'Chat',
   'Response',
   'Anthropic',

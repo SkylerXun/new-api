@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 )
 
 // LogTaskConsumption 记录任务消费日志和统计信息（仅记录，不涉及实际扣费）。
@@ -51,6 +52,7 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 		other["is_model_mapped"] = true
 		other["upstream_model_name"] = info.UpstreamModelName
 	}
+	appendBillingCurveInfo(info, other)
 	attachQuotaSaturation(c, info, other)
 	model.RecordConsumeLog(c, info.UserId, model.RecordConsumeLogParams{
 		ChannelId: info.ChannelId,
@@ -132,6 +134,11 @@ func taskBillingOther(task *model.Task) map[string]interface{} {
 				other[k] = v
 			}
 		}
+		if bc.BillingCurveSnapshot != nil {
+			other["admin_info"] = map[string]interface{}{
+				"billing_curve": bc.BillingCurveSnapshot,
+			}
+		}
 	}
 	props := task.Properties
 	if props.UpstreamModelName != "" && props.UpstreamModelName != props.OriginModelName {
@@ -150,6 +157,49 @@ func taskBillingContextPriceData(bc *model.TaskBillingContext) *types.PriceData 
 		return nil
 	}
 	return priceData
+}
+
+func applyDeferredTaskBillingCurveForBaseUsage(task *model.Task, normalQuota int, baseUsageMicroUSD int64) (int, error) {
+	if task == nil || task.PrivateData.BillingContext == nil {
+		return normalQuota, nil
+	}
+	bc := task.PrivateData.BillingContext
+	if !bc.BillingCurveDeferred || !ShouldDeferBillingCurveForTokenTask(bc.BillingCurveConfig, false) {
+		return normalQuota, nil
+	}
+	if snapshot := bc.BillingCurveSnapshot; snapshot != nil {
+		if snapshot.NormalQuota != normalQuota {
+			return 0, fmt.Errorf("deferred task billing curve already applied to a different quota")
+		}
+		return snapshot.ChargedQuota, nil
+	}
+	curve := *bc.BillingCurveConfig
+	relayInfo := &relaycommon.RelayInfo{
+		UserId:             task.UserId,
+		BillingSource:      task.PrivateData.BillingSource,
+		BillingCurveConfig: &curve,
+	}
+	chargedQuota, err := ApplyBillingCurveForBaseUsage(relayInfo, normalQuota, baseUsageMicroUSD)
+	if err != nil {
+		return 0, err
+	}
+	if relayInfo.BillingCurveSnapshot == nil {
+		return chargedQuota, nil
+	}
+	bc.BillingCurveSnapshot = relayInfo.BillingCurveSnapshot
+	if err := model.DB.Model(task).Update("private_data", task.PrivateData).Error; err != nil {
+		return 0, fmt.Errorf("persist deferred task billing curve snapshot: %w", err)
+	}
+	return chargedQuota, nil
+}
+
+func recalculateTaskQuotaWithBaseUsage(ctx context.Context, task *model.Task, normalQuota int, baseUsageMicroUSD int64, reason string, clamps ...*common.QuotaClamp) {
+	actualQuota, err := applyDeferredTaskBillingCurveForBaseUsage(task, normalQuota, baseUsageMicroUSD)
+	if err != nil {
+		logger.LogError(ctx, fmt.Sprintf("apply deferred task billing curve failed task %s: %s", task.TaskID, err.Error()))
+		return
+	}
+	RecalculateTaskQuota(ctx, task, actualQuota, reason, clamps...)
 }
 
 // taskModelName 从 BillingContext 或 Properties 中获取模型名称。
@@ -321,7 +371,14 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 
 	// 计算实际应扣费额度: totalTokens * modelRatio * groupRatio * otherMultiplier（饱和转换，防止溢出成负数）
 	actualQuota, clamp := common.QuotaFromFloatChecked(float64(totalTokens) * modelRatio * finalGroupRatio * otherMultiplier)
-
+	baseQuotaBeforeGroup := decimal.NewFromInt(int64(totalTokens)).
+		Mul(decimal.NewFromFloat(modelRatio)).
+		Mul(decimal.NewFromFloat(otherMultiplier))
+	baseUsageMicroUSD, baseUsageErr := billingCurveBaseUsageMicroUSD(baseQuotaBeforeGroup)
+	if baseUsageErr != nil {
+		logger.LogError(ctx, fmt.Sprintf("calculate task billing curve base usage failed task %s: %s", task.TaskID, baseUsageErr.Error()))
+		return
+	}
 	reason := fmt.Sprintf("token重算：tokens=%d, modelRatio=%.2f, groupRatio=%.2f, otherMultiplier=%.4f", totalTokens, modelRatio, finalGroupRatio, otherMultiplier)
-	RecalculateTaskQuota(ctx, task, actualQuota, reason, clamp)
+	recalculateTaskQuotaWithBaseUsage(ctx, task, actualQuota, baseUsageMicroUSD, reason, clamp)
 }

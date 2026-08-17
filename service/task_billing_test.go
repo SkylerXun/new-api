@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/glebarez/sqlite"
 	"github.com/shopspring/decimal"
@@ -236,6 +237,112 @@ func TestTaskBillingContextPriceDataFiltersMultiplier(t *testing.T) {
 		"size":     3,
 		"identity": 1,
 	}, priceData.OtherRatios())
+}
+
+func TestRecalculateTaskQuotaByTokensAppliesDeferredBillingCurve(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, tokenID, channelID = 40, 40, 40
+	const initialQuota, initialTokenQuota = 10_000, 10_000
+
+	require.NoError(t, model.DB.AutoMigrate(&model.UserBillingCurveProgress{}))
+	model.DB.Where("user_id = ?", userID).Delete(&model.UserBillingCurveProgress{})
+	t.Cleanup(func() {
+		model.DB.Where("user_id = ?", userID).Delete(&model.UserBillingCurveProgress{})
+	})
+
+	originalQuotaPerUnit := common.QuotaPerUnit
+	common.QuotaPerUnit = 1
+	t.Cleanup(func() {
+		common.QuotaPerUnit = originalQuotaPerUnit
+	})
+
+	originalRatios := ratio_setting.GetModelRatioCopy()
+	originalRatiosJSON, err := common.Marshal(originalRatios)
+	require.NoError(t, err)
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"task-curve-regression": 1}`))
+	t.Cleanup(func() {
+		_ = ratio_setting.UpdateModelRatioByJSONString(string(originalRatiosJSON))
+	})
+
+	seedUser(t, userID, initialQuota)
+	seedToken(t, tokenID, userID, "sk-task-curve", initialTokenQuota)
+	seedChannel(t, channelID)
+
+	task := makeTask(userID, channelID, 100, tokenID, BillingSourceWallet, 0)
+	task.Properties.OriginModelName = "task-curve-regression"
+	task.PrivateData.BillingContext = &model.TaskBillingContext{
+		ModelRatio:      1,
+		GroupRatio:      1,
+		OriginModelName: "task-curve-regression",
+		BillingCurveConfig: &types.BillingCurveConfig{
+			Enabled:        true,
+			K1:             5,
+			K2:             15,
+			ThresholdUSD:   1_000,
+			WindowUSD:      100,
+			TargetAverageK: 5,
+		},
+		BillingCurveDeferred: true,
+	}
+	require.NoError(t, model.DB.Create(task).Error)
+
+	RecalculateTaskQuotaByTokens(ctx, task, 100)
+
+	// The normal token bill is 100. The task began below the threshold, so the
+	// deferred settlement must charge it at K1 rather than refund it back to 100.
+	assert.Equal(t, 500, task.Quota)
+	assert.Equal(t, initialQuota-400, getUserQuota(t, userID))
+	assert.Equal(t, initialTokenQuota-400, getTokenRemainQuota(t, tokenID))
+
+	var progress model.UserBillingCurveProgress
+	require.NoError(t, model.DB.Where("user_id = ?", userID).First(&progress).Error)
+	assert.Equal(t, int64(100_000_000), progress.TotalBaseUsageMicroUSD)
+}
+
+func TestSettleTaskBillingUsesEstimatedCurveWhenTokensAreUnavailable(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, tokenID, channelID = 41, 41, 41
+	const initialQuota, initialTokenQuota = 10_000, 10_000
+
+	require.NoError(t, model.DB.AutoMigrate(&model.UserBillingCurveProgress{}))
+	model.DB.Where("user_id = ?", userID).Delete(&model.UserBillingCurveProgress{})
+	t.Cleanup(func() {
+		model.DB.Where("user_id = ?", userID).Delete(&model.UserBillingCurveProgress{})
+	})
+
+	seedUser(t, userID, initialQuota)
+	seedToken(t, tokenID, userID, "sk-task-curve-estimate", initialTokenQuota)
+	seedChannel(t, channelID)
+
+	task := makeTask(userID, channelID, 100, tokenID, BillingSourceWallet, 0)
+	task.PrivateData.BillingContext.BillingCurveConfig = &types.BillingCurveConfig{
+		Enabled:        true,
+		K1:             5,
+		K2:             15,
+		ThresholdUSD:   1_000,
+		WindowUSD:      100,
+		TargetAverageK: 5,
+	}
+	task.PrivateData.BillingContext.BillingCurveDeferred = true
+	task.PrivateData.BillingContext.BillingCurveNormalQuota = 100
+	task.PrivateData.BillingContext.BillingCurveBaseUsageMicroUSD = 100_000_000
+	require.NoError(t, model.DB.Create(task).Error)
+
+	settleTaskBillingOnComplete(ctx, &mockAdaptor{}, task, &relaycommon.TaskInfo{Status: model.TaskStatusSuccess})
+
+	assert.Equal(t, 500, task.Quota)
+	assert.Equal(t, initialQuota-400, getUserQuota(t, userID))
+	assert.Equal(t, initialTokenQuota-400, getTokenRemainQuota(t, tokenID))
+	require.NotNil(t, task.PrivateData.BillingContext.BillingCurveSnapshot)
+
+	other := taskBillingOther(task)
+	adminInfo, ok := other["admin_info"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Same(t, task.PrivateData.BillingContext.BillingCurveSnapshot, adminInfo["billing_curve"])
 }
 
 // ---------------------------------------------------------------------------

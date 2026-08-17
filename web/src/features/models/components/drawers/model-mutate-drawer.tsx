@@ -87,6 +87,16 @@ import { modelsQueryKeys, vendorsQueryKeys, parseModelTags } from '../../lib'
 import type { Model } from '../../types'
 
 // Extended schema for ratio configuration (internal form state only)
+const optionalNonNegativePrice = z.string().refine(
+  (value) => {
+    const normalized = value.trim()
+    if (normalized === '') return true
+    const parsed = Number.parseFloat(normalized)
+    return Number.isFinite(parsed) && parsed >= 0
+  },
+  { message: 'Enter a non-negative price' }
+)
+
 const extendedModelFormSchema = z.object({
   id: z.number().optional(),
   model_name: z.string().min(1, 'Model name is required'),
@@ -98,6 +108,10 @@ const extendedModelFormSchema = z.object({
   name_rule: z.number(),
   status: z.boolean(),
   sync_official: z.boolean(),
+  officialInputPrice: optionalNonNegativePrice,
+  officialOutputPrice: optionalNonNegativePrice,
+  officialCacheReadPrice: optionalNonNegativePrice,
+  officialCacheWritePrice: optionalNonNegativePrice,
   price: z.string().optional(),
   ratio: z.string().optional(),
   cacheRatio: z.string().optional(),
@@ -370,6 +384,10 @@ export function ModelMutateDrawer({
       name_rule: 0,
       status: true,
       sync_official: true,
+      officialInputPrice: '',
+      officialOutputPrice: '',
+      officialCacheReadPrice: '',
+      officialCacheWritePrice: '',
       price: '',
       ratio: '',
       cacheRatio: '',
@@ -438,6 +456,12 @@ export function ModelMutateDrawer({
         name_rule: model.name_rule || 0,
         status: model.status === 1,
         sync_official: model.sync_official === 1,
+        officialInputPrice: model.official_input_price?.toString() || '',
+        officialOutputPrice: model.official_output_price?.toString() || '',
+        officialCacheReadPrice:
+          model.official_cache_read_price?.toString() || '',
+        officialCacheWritePrice:
+          model.official_cache_write_price?.toString() || '',
         ...pricing.fields,
       })
     } else if (open && !isEditing) {
@@ -463,6 +487,10 @@ export function ModelMutateDrawer({
         name_rule: 0,
         status: true,
         sync_official: true,
+        officialInputPrice: '',
+        officialOutputPrice: '',
+        officialCacheReadPrice: '',
+        officialCacheWritePrice: '',
         ...pricing.fields,
       })
     }
@@ -472,12 +500,24 @@ export function ModelMutateDrawer({
     async (values: ExtendedModelFormValues): Promise<void> => {
       setIsSubmitting(true)
       try {
+        const parseOfficialPrice = (value: string): number | null => {
+          const normalized = value.trim()
+          return normalized === '' ? null : Number.parseFloat(normalized)
+        }
         const submitData = {
           ...values,
           id: isEditing ? currentModelId : undefined,
           tags: Array.isArray(values.tags) ? values.tags.join(',') : '',
           status: values.status ? 1 : 0,
           sync_official: values.sync_official ? 1 : 0,
+          official_input_price: parseOfficialPrice(values.officialInputPrice),
+          official_output_price: parseOfficialPrice(values.officialOutputPrice),
+          official_cache_read_price: parseOfficialPrice(
+            values.officialCacheReadPrice
+          ),
+          official_cache_write_price: parseOfficialPrice(
+            values.officialCacheWritePrice
+          ),
         }
 
         // Remove ratio fields from model data (they're stored in system settings)
@@ -489,6 +529,10 @@ export function ModelMutateDrawer({
           imageRatio,
           audioRatio,
           audioCompletionRatio,
+          officialInputPrice,
+          officialOutputPrice,
+          officialCacheReadPrice,
+          officialCacheWritePrice,
           ...modelData
         } = submitData
 
@@ -875,6 +919,51 @@ export function ModelMutateDrawer({
                   </FormItem>
                 )}
               />
+            </SideDrawerSection>
+
+            <SideDrawerSection>
+              <div>
+                <h3 className='text-sm font-semibold'>
+                  {t('Official Pricing')}
+                </h3>
+                <p className='text-muted-foreground mt-1 text-xs'>
+                  {t('USD per 1M tokens. Leave a field empty when unavailable.')}
+                </p>
+              </div>
+              <div className='grid gap-4 sm:grid-cols-2'>
+                {[
+                  ['officialInputPrice', 'Official input price'],
+                  ['officialOutputPrice', 'Official output price'],
+                  ['officialCacheReadPrice', 'Official cache read price'],
+                  ['officialCacheWritePrice', 'Official cache write price'],
+                ].map(([name, label]) => (
+                  <FormField
+                    key={name}
+                    control={form.control}
+                    name={name as keyof ExtendedModelFormValues}
+                    render={({ field }) => {
+                      const { value, ...inputField } = field
+                      return (
+                        <FormItem>
+                          <FormLabel>{t(label)}</FormLabel>
+                          <FormControl>
+                            <Input
+                              type='number'
+                              min='0'
+                              step='any'
+                              inputMode='decimal'
+                              placeholder='0.00'
+                              value={typeof value === 'string' ? value : ''}
+                              {...inputField}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )
+                    }}
+                  />
+                ))}
+              </div>
             </SideDrawerSection>
 
             {/* Matching Configuration */}

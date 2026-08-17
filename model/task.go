@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	commonRelay "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	hosttypes "github.com/QuantumNous/new-api/types"
 )
 
 type TaskStatus string
@@ -120,6 +121,13 @@ type TaskBillingContext struct {
 	OtherRatios     map[string]float64 `json:"other_ratios,omitempty"`      // 附加倍率（时长、分辨率等）
 	OriginModelName string             `json:"origin_model_name,omitempty"` // 模型名称，必须为OriginModelName
 	PerCallBilling  bool               `json:"per_call_billing,omitempty"`  // 按次计费：跳过轮询阶段的差额结算
+	// BillingCurveConfig is the request-time snapshot used when an async
+	// token-priced task reaches its final token settlement.
+	BillingCurveConfig            *hosttypes.BillingCurveConfig   `json:"billing_curve_config,omitempty"`
+	BillingCurveDeferred          bool                            `json:"billing_curve_deferred,omitempty"`
+	BillingCurveNormalQuota       int                             `json:"billing_curve_normal_quota,omitempty"`
+	BillingCurveBaseUsageMicroUSD int64                           `json:"billing_curve_base_usage_micro_usd,omitempty"`
+	BillingCurveSnapshot          *hosttypes.BillingCurveSnapshot `json:"billing_curve_snapshot,omitempty"`
 }
 
 // GetUpstreamTaskID 获取上游真实 task ID（用于与 provider 通信）

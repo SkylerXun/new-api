@@ -60,6 +60,10 @@ export type PricingModel = {
   billing_mode?: string
   /** Raw expression describing dynamic / tiered billing */
   billing_expr?: string
+  official_input_price?: number | null
+  official_output_price?: number | null
+  official_cache_read_price?: number | null
+  official_cache_write_price?: number | null
   /** Pricing version returned by backend, useful for cache busting */
   pricing_version?: string
   /**

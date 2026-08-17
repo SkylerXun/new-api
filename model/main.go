@@ -288,12 +288,18 @@ func migrateDB() error {
 		&UserOAuthBinding{},
 		&PerfMetric{},
 		&SystemInstance{},
+		&UserBillingCurveProgress{},
+		&ActivityGrant{},
+		&ActivityCampaign{},
 		&SystemTask{},
 		&SystemTaskLock{},
 		&CasbinRule{},
 		&AuthzRole{},
 	)
 	if err != nil {
+		return err
+	}
+	if err := MigrateActivityGrantIndexes(); err != nil {
 		return err
 	}
 	if err := InitializeUserAuthVersions(); err != nil {
@@ -351,6 +357,9 @@ func migrateDBFast() error {
 		{&UserOAuthBinding{}, "UserOAuthBinding"},
 		{&PerfMetric{}, "PerfMetric"},
 		{&SystemInstance{}, "SystemInstance"},
+		{&UserBillingCurveProgress{}, "UserBillingCurveProgress"},
+		{&ActivityGrant{}, "ActivityGrant"},
+		{&ActivityCampaign{}, "ActivityCampaign"},
 		{&SystemTask{}, "SystemTask"},
 		{&SystemTaskLock{}, "SystemTaskLock"},
 	}
@@ -376,6 +385,9 @@ func migrateDBFast() error {
 		if err != nil {
 			return err
 		}
+	}
+	if err := MigrateActivityGrantIndexes(); err != nil {
+		return err
 	}
 	if err := InitializeUserAuthVersions(); err != nil {
 		return err

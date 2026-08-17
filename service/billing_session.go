@@ -392,7 +392,11 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 	}
 
 	trySubscription := func() (*BillingSession, *types.NewAPIError) {
-		subConsume := int64(preConsumedQuota)
+		subscriptionPreConsumeQuota := preConsumedQuota
+		if relayInfo.BillingCurveConfig != nil && relayInfo.BillingCurveConfig.Enabled {
+			subscriptionPreConsumeQuota = relayInfo.BillingCurveNormalPreConsumeQuota
+		}
+		subConsume := int64(subscriptionPreConsumeQuota)
 		if subConsume <= 0 {
 			subConsume = 1
 		}

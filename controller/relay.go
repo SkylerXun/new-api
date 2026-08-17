@@ -579,6 +579,27 @@ func RelayTask(c *gin.Context) {
 
 	// ── 成功：结算 + 日志 + 插入任务 ──
 	if taskErr == nil {
+		taskPerCallBilling := common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName) || relayInfo.PriceData.UsePrice
+		deferBillingCurve := service.ShouldDeferBillingCurveForTokenTask(relayInfo.BillingCurveConfig, taskPerCallBilling)
+		var billingCurveBaseUsageMicroUSD int64
+		billingCurveNormalQuota := 0
+		if deferBillingCurve {
+			var baseUsageErr error
+			billingCurveBaseUsageMicroUSD, baseUsageErr = service.PerCallBillingBaseUsageMicroUSD(&relayInfo.PriceData)
+			if baseUsageErr != nil {
+				common.SysError("capture deferred task billing curve base usage error: " + baseUsageErr.Error())
+				deferBillingCurve = false
+			} else {
+				billingCurveNormalQuota = result.Quota
+			}
+		}
+		if !deferBillingCurve {
+			if curveErr := service.ApplyBillingCurveToPerCallPrice(relayInfo, &relayInfo.PriceData); curveErr != nil {
+				common.SysError("apply task billing curve error: " + curveErr.Error())
+			} else {
+				result.Quota = relayInfo.PriceData.Quota
+			}
+		}
 		if settleErr := service.SettleBilling(c, relayInfo, result.Quota); settleErr != nil {
 			common.SysError("settle task billing error: " + settleErr.Error())
 		}
@@ -591,12 +612,16 @@ func RelayTask(c *gin.Context) {
 		task.PrivateData.TokenId = relayInfo.TokenId
 		task.PrivateData.NodeName = common.NodeName
 		task.PrivateData.BillingContext = &model.TaskBillingContext{
-			ModelPrice:      relayInfo.PriceData.ModelPrice,
-			GroupRatio:      relayInfo.PriceData.GroupRatioInfo.GroupRatio,
-			ModelRatio:      relayInfo.PriceData.ModelRatio,
-			OtherRatios:     relayInfo.PriceData.OtherRatios(),
-			OriginModelName: relayInfo.OriginModelName,
-			PerCallBilling:  common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName) || relayInfo.PriceData.UsePrice,
+			ModelPrice:                    relayInfo.PriceData.ModelPrice,
+			GroupRatio:                    relayInfo.PriceData.GroupRatioInfo.GroupRatio,
+			ModelRatio:                    relayInfo.PriceData.ModelRatio,
+			OtherRatios:                   relayInfo.PriceData.OtherRatios(),
+			OriginModelName:               relayInfo.OriginModelName,
+			PerCallBilling:                taskPerCallBilling,
+			BillingCurveConfig:            relayInfo.BillingCurveConfig,
+			BillingCurveDeferred:          deferBillingCurve,
+			BillingCurveNormalQuota:       billingCurveNormalQuota,
+			BillingCurveBaseUsageMicroUSD: billingCurveBaseUsageMicroUSD,
 		}
 		task.Quota = result.Quota
 		task.Data = result.TaskData

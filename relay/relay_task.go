@@ -201,12 +201,25 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		info.PriceData.Quota = quota
 		noteTaskQuotaClamp(info, clamp)
 	}
+	reservedQuota, reserveErr := service.ReserveBillingCurveQuota(info, info.PriceData.Quota)
+	if reserveErr != nil {
+		return nil, service.TaskErrorWrapper(reserveErr, "billing_curve_reserve_failed", http.StatusBadRequest)
+	}
+	info.PriceData.QuotaToPreConsume = reservedQuota
 
 	// 7. 预扣费（仅首次 — 重试时 info.Billing 已存在，跳过）
 	if info.Billing == nil && !info.PriceData.FreeModel {
 		info.ForcePreConsume = true
-		if apiErr := service.PreConsumeBilling(c, info.PriceData.Quota, info); apiErr != nil {
+		if apiErr := service.PreConsumeBilling(c, info.PriceData.QuotaToPreConsume, info); apiErr != nil {
 			return nil, service.TaskErrorFromAPIError(apiErr)
+		}
+	} else if info.Billing != nil {
+		targetQuota := info.PriceData.QuotaToPreConsume
+		if info.BillingSource == service.BillingSourceSubscription {
+			targetQuota = info.BillingCurveNormalPreConsumeQuota
+		}
+		if reserveErr := info.Billing.Reserve(targetQuota); reserveErr != nil {
+			return nil, service.TaskErrorWrapper(reserveErr, "billing_reserve_failed", http.StatusForbidden)
 		}
 	}
 
@@ -250,6 +263,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 			info.PriceData.Quota = finalQuota
 		}
 	}
+	info.PriceData.Quota = finalQuota
 
 	return &TaskSubmitResult{
 		UpstreamTaskID: upstreamTaskID,

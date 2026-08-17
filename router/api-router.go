@@ -33,6 +33,7 @@ func SetApiRouter(router *gin.Engine) {
 		//apiRouter.GET("/midjourney", controller.GetMidjourney)
 		apiRouter.GET("/home_page_content", controller.GetHomePageContent)
 		apiRouter.GET("/pricing", middleware.HeaderNavModuleAuth("pricing"), controller.GetPricing)
+		apiRouter.GET("/price-list", middleware.HeaderNavModuleAuth("priceList"), controller.GetPriceList)
 		perfMetricsRoute := apiRouter.Group("/perf-metrics")
 		perfMetricsRoute.Use(middleware.HeaderNavModulePublicOrUserAuth("pricing"))
 		{
@@ -87,6 +88,8 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.DELETE("/sessions/:sid", middleware.DisableCache(), controller.DeleteLoginSession)
 				selfRoute.POST("/sessions/revoke-others", middleware.DisableCache(), controller.RevokeOtherLoginSessions)
 				selfRoute.GET("/self/groups", controller.GetUserGroups)
+				selfRoute.GET("/activities", controller.GetUserActivities)
+				selfRoute.POST("/activities/:key/claim", middleware.CriticalRateLimit(), controller.ClaimUserActivity)
 				selfRoute.GET("/self", controller.GetSelf)
 				selfRoute.GET("/models", controller.GetUserModels)
 				selfRoute.PUT("/self", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.UpdateSelf)
@@ -151,6 +154,15 @@ func SetApiRouter(router *gin.Engine) {
 				adminRoute.GET("/2fa/stats", controller.Admin2FAStats)
 				adminRoute.DELETE("/:id/2fa", controller.AdminDisable2FA)
 			}
+		}
+
+		activityAdminRoute := apiRouter.Group("/activity/admin")
+		activityAdminRoute.Use(middleware.RootAuth())
+		{
+			activityAdminRoute.GET("/campaigns", controller.ListActivityCampaigns)
+			activityAdminRoute.POST("/campaigns", middleware.CriticalRateLimit(), controller.CreateActivityCampaign)
+			activityAdminRoute.POST("/campaigns/:key/close", middleware.CriticalRateLimit(), controller.CloseActivityCampaign)
+			activityAdminRoute.POST("/grant-all", middleware.CriticalRateLimit(), controller.GrantAllUsersActivityQuota)
 		}
 
 		// Subscription billing (plans, purchase, admin management)

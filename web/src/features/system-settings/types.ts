@@ -94,6 +94,117 @@ export type LogCleanupTask = SystemTask<
   LogCleanupTaskResult
 >
 
+export type AllUsersActivityGrantPayload = {
+  amount_usd: number
+  quota: number
+  reason: string
+  issued_by: number
+  max_user_id: number
+  batch_size: number
+  activity_key: string
+}
+
+export type AllUsersActivityGrantState = {
+  total: number
+  processed: number
+  granted: number
+  skipped: number
+  last_user_id: number
+  progress: number
+}
+
+export type AllUsersActivityGrantResult = {
+  activity_key: string
+  amount_usd: number
+  quota: number
+  reason: string
+  issued_by: number
+  total: number
+  processed: number
+  granted: number
+  skipped: number
+  total_quota: number
+}
+
+export type AllUsersActivityGrantTask = SystemTask<
+  AllUsersActivityGrantPayload,
+  AllUsersActivityGrantState,
+  AllUsersActivityGrantResult
+>
+
+export type StartAllUsersActivityGrantRequest = {
+  amount_usd: string
+  reason: string
+  activity_key?: string
+}
+
+export type StartAllUsersActivityGrantResponse = {
+  success: boolean
+  message: string
+  data?: {
+    created: boolean
+    task: AllUsersActivityGrantTask
+  }
+}
+
+export type ActivityCampaignType = 'claimable' | 'immediate'
+
+export type ActivityCampaignStatus =
+  | 'active'
+  | 'queued'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'closed'
+
+export type ActivityCampaign = {
+  id: number
+  activity_key: string
+  type: ActivityCampaignType
+  status: ActivityCampaignStatus
+  title: string
+  description: string
+  reason: string
+  amount_usd: string
+  quota: number
+  starts_at: number
+  ends_at: number
+  recipient_max_user_id: number
+  recipient_count: number
+  task_id?: string
+  failure_reason?: string
+  created_by: number
+  closed_by?: number
+  closed_at?: number
+  created_at: number
+  updated_at: number
+}
+
+export type CreateActivityCampaignRequest = {
+  type: ActivityCampaignType
+  title: string
+  description?: string
+  reason?: string
+  amount_usd: string
+  starts_at?: number
+  ends_at?: number
+}
+
+export type ActivityCampaignListResponse = {
+  success: boolean
+  message: string
+  data?: ActivityCampaign[]
+}
+
+export type ActivityCampaignResponse = {
+  success: boolean
+  message: string
+  data?: {
+    campaign: ActivityCampaign
+    task?: AllUsersActivityGrantTask
+  }
+}
+
 export type SystemTaskResponse<TTask = SystemTask | null> = {
   success: boolean
   message: string
@@ -259,6 +370,9 @@ export type BillingSettings = {
   TopUpLink: string
   'general_setting.docs_link': string
   'quota_setting.enable_free_model_pre_consume': boolean
+  'activity_setting.new_user_redeem_bonus_enabled': boolean
+  'activity_setting.new_user_redeem_bonus_percent': number
+  'activity_setting.new_user_redeem_bonus_window_days': number
   QuotaPerUnit: number
   USDExchangeRate: number
   'general_setting.quota_display_type': string
@@ -277,6 +391,7 @@ export type BillingSettings = {
   ExposeRatioEnabled: boolean
   'billing_setting.billing_mode': string
   'billing_setting.billing_expr': string
+  'billing_curve_setting.config': string
   'tool_price_setting.prices': string
   TopupGroupRatio: string
   GroupRatio: string

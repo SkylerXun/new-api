@@ -161,6 +161,14 @@ type RelayInfo struct {
 	// and again before settlement. Non-nil only when billing mode is "tiered_expr".
 	TieredBillingSnapshot *billingexpr.BillingSnapshot
 	BillingRequestInput   *billingexpr.RequestInput
+	// BillingCurveConfig is frozen before pre-consume so an administrator's
+	// settings change affects the next request, never a request in flight.
+	BillingCurveConfig   *hosttypes.BillingCurveConfig
+	BillingCurveSnapshot *hosttypes.BillingCurveSnapshot
+	// BillingCurveNormalPreConsumeQuota is the non-curve estimate retained so
+	// subscription funding can reserve its normal charge while still advancing
+	// the same usage progress at settlement.
+	BillingCurveNormalPreConsumeQuota int
 
 	Request dto.Request
 

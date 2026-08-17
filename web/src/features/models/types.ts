@@ -43,6 +43,10 @@ export interface Model {
   endpoints?: string
   status: number
   sync_official: number
+  official_input_price?: number | null
+  official_output_price?: number | null
+  official_cache_read_price?: number | null
+  official_cache_write_price?: number | null
   created_time: number
   updated_time: number
   name_rule: number

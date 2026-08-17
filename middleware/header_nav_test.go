@@ -114,6 +114,22 @@ func TestHeaderNavModuleAuthRequiresLoginForRankings(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, recorder.Code)
 }
 
+func TestHeaderNavModuleAuthRequiresLoginForPriceListByDefault(t *testing.T) {
+	withHeaderNavModules(t, "")
+
+	recorder := performHeaderNavRequest(t, HeaderNavModuleAuth("priceList"), false)
+
+	require.Equal(t, http.StatusUnauthorized, recorder.Code)
+}
+
+func TestHeaderNavModuleAuthRejectsDisabledPriceList(t *testing.T) {
+	withHeaderNavModules(t, `{"priceList":{"enabled":false,"requireAuth":true}}`)
+
+	recorder := performHeaderNavRequest(t, HeaderNavModuleAuth("priceList"), true)
+
+	require.Equal(t, http.StatusForbidden, recorder.Code)
+}
+
 func TestHeaderNavModuleAuthRejectsLegacyDisabledModule(t *testing.T) {
 	raw := `{"rankings":false}`
 	withHeaderNavModules(t, raw)

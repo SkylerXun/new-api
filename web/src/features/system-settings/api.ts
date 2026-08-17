@@ -19,12 +19,19 @@ For commercial licensing, please contact support@quantumnous.com
 import { api } from '@/lib/api'
 
 import type {
+  ActivityCampaign,
+  ActivityCampaignListResponse,
+  ActivityCampaignResponse,
+  AllUsersActivityGrantTask,
   ConfirmPaymentComplianceResponse,
+  CreateActivityCampaignRequest,
   FetchUpstreamRatiosRequest,
   LogCleanupTask,
   SystemOptionsResponse,
   SystemTaskListResponse,
   SystemTaskResponse,
+  StartAllUsersActivityGrantRequest,
+  StartAllUsersActivityGrantResponse,
   UpdateOptionRequest,
   UpdateOptionResponse,
   UpstreamChannelsResponse,
@@ -70,8 +77,8 @@ export async function getCurrentLogCleanupTask() {
   return res.data
 }
 
-export async function getSystemTask(taskId: string) {
-  const res = await api.get<SystemTaskResponse<LogCleanupTask>>(
+export async function getSystemTask<TTask = LogCleanupTask>(taskId: string) {
+  const res = await api.get<SystemTaskResponse<TTask>>(
     `/api/system-task/${taskId}`
   )
   return res.data
@@ -82,6 +89,71 @@ export async function listSystemTasks(limit = 20) {
     params: { limit },
   })
   return res.data
+}
+
+export async function startAllUsersActivityGrant(
+  request: StartAllUsersActivityGrantRequest
+) {
+  const res = await api.post<StartAllUsersActivityGrantResponse>(
+    '/api/activity/admin/grant-all',
+    request
+  )
+  return res.data
+}
+
+export async function getLatestAllUsersActivityGrantTask(): Promise<
+  AllUsersActivityGrantTask | null
+> {
+  const current = await api.get<
+    SystemTaskResponse<AllUsersActivityGrantTask | null>
+  >('/api/system-task/current', {
+    params: { type: 'quota_grant_all' },
+  })
+  if (!current.data.success) {
+    throw new Error(current.data.message || 'Failed to load grant status')
+  }
+  if (current.data.data) return current.data.data
+
+  const history = await listSystemTasks(50)
+  if (!history.success) {
+    throw new Error(history.message || 'Failed to load grant status')
+  }
+  const latest = history.data?.find((task) => task.type === 'quota_grant_all')
+  return (latest as AllUsersActivityGrantTask | undefined) ?? null
+}
+
+export async function getActivityCampaigns(): Promise<ActivityCampaign[]> {
+  const res = await api.get<ActivityCampaignListResponse>(
+    '/api/activity/admin/campaigns'
+  )
+  if (!res.data.success) {
+    throw new Error(res.data.message || 'Failed to load activity campaigns')
+  }
+  return res.data.data ?? []
+}
+
+export async function createActivityCampaign(
+  request: CreateActivityCampaignRequest
+): Promise<ActivityCampaignResponse> {
+  const res = await api.post<ActivityCampaignResponse>(
+    '/api/activity/admin/campaigns',
+    request
+  )
+  return res.data
+}
+
+export async function closeActivityCampaign(
+  activityKey: string
+): Promise<ActivityCampaign> {
+  const res = await api.post<{
+    success: boolean
+    message: string
+    data?: ActivityCampaign
+  }>(`/api/activity/admin/campaigns/${encodeURIComponent(activityKey)}/close`)
+  if (!res.data.success || !res.data.data) {
+    throw new Error(res.data.message || 'Failed to close activity campaign')
+  }
+  return res.data.data
 }
 
 export async function resetModelRatios() {

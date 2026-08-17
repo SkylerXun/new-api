@@ -24,6 +24,7 @@ import {
   CreditCard,
   FileText,
   FlaskConical,
+  Gift,
   Key,
   LayoutDashboard,
   ListTodo,
@@ -120,6 +121,11 @@ export function getSidebarData(
             title: t('Purchase Credits'),
             url: '/purchase',
             icon: ShoppingBag,
+          },
+          {
+            title: t('Activity Center'),
+            url: '/activities',
+            icon: Gift,
           },
           {
             title: t('Wallet'),

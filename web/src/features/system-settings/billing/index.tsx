@@ -32,6 +32,9 @@ const defaultBillingSettings: BillingSettings = {
   TopUpLink: '',
   'general_setting.docs_link': '',
   'quota_setting.enable_free_model_pre_consume': true,
+  'activity_setting.new_user_redeem_bonus_enabled': true,
+  'activity_setting.new_user_redeem_bonus_percent': 30,
+  'activity_setting.new_user_redeem_bonus_window_days': 1,
   QuotaPerUnit: 500000,
   USDExchangeRate: 7,
   'general_setting.quota_display_type': 'USD',
@@ -50,6 +53,8 @@ const defaultBillingSettings: BillingSettings = {
   ExposeRatioEnabled: false,
   'billing_setting.billing_mode': '{}',
   'billing_setting.billing_expr': '{}',
+  'billing_curve_setting.config':
+    '{"enabled":false,"k1":5,"k2":15,"threshold_usd":75,"window_usd":150,"target_average_k":10}',
   'tool_price_setting.prices': '{}',
   TopupGroupRatio: '',
   GroupRatio: '',

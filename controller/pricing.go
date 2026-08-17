@@ -4,6 +4,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
@@ -82,6 +83,42 @@ func GetPricing(c *gin.Context) {
 		"auto_groups":        service.GetUserAutoGroup(group),
 		"pricing_version":    "a42d372ccf0b5dd13ecf71203521f9d2",
 	})
+}
+
+// GetPriceList returns every configured group and the token-priced models that
+// can be represented in the public price comparison table.
+func GetPriceList(c *gin.Context) {
+	pricing := filterPriceListPricing(model.GetPricing())
+
+	groupRatio := ratio_setting.GetGroupRatioCopy()
+	groupInfo := make(map[string]map[string]interface{}, len(groupRatio))
+	configuredGroups := setting.GetUserUsableGroupsCopy()
+	for groupName, ratio := range groupRatio {
+		groupInfo[groupName] = buildUserGroupInfo(
+			groupName,
+			configuredGroups[groupName],
+			ratio,
+		)
+	}
+
+	c.JSON(200, gin.H{
+		"success":     true,
+		"data":        pricing,
+		"vendors":     model.GetVendors(),
+		"group_ratio": groupRatio,
+		"group_info":  groupInfo,
+	})
+}
+
+func filterPriceListPricing(pricing []model.Pricing) []model.Pricing {
+	filtered := make([]model.Pricing, 0, len(pricing))
+	for _, item := range pricing {
+		if item.QuotaType != 0 || item.BillingMode == "tiered_expr" {
+			continue
+		}
+		filtered = append(filtered, item)
+	}
+	return filtered
 }
 
 func ResetModelRatio(c *gin.Context) {

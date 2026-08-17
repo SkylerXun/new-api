@@ -1,10 +1,12 @@
 package model
 
 import (
+	"context"
 	"sync"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -102,10 +104,16 @@ func TestSearchRedemptionsFiltersAndPaginates(t *testing.T) {
 
 func setupRedeemFixture(t *testing.T, quota int) (userId int, key string) {
 	t.Helper()
-	require.NoError(t, DB.AutoMigrate(&Redemption{}))
+	require.NoError(t, DB.AutoMigrate(&Redemption{}, &ActivityGrant{}))
 	require.NoError(t, DB.Session(&gorm.Session{AllowGlobalUpdate: true}).Unscoped().Delete(&Redemption{}).Error)
+	require.NoError(t, DB.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&ActivityGrant{}).Error)
+	activitySetting := operation_setting.GetActivitySetting()
+	previousActivitySetting := *activitySetting
+	activitySetting.NewUserRedeemBonusEnabled = false
 	t.Cleanup(func() {
+		*activitySetting = previousActivitySetting
 		require.NoError(t, DB.Session(&gorm.Session{AllowGlobalUpdate: true}).Unscoped().Delete(&Redemption{}).Error)
+		require.NoError(t, DB.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&ActivityGrant{}).Error)
 		DB.Exec("DELETE FROM users")
 		DB.Exec("DELETE FROM logs")
 	})
@@ -123,6 +131,63 @@ func setupRedeemFixture(t *testing.T, quota int) (userId int, key string) {
 	}
 	require.NoError(t, DB.Create(redemption).Error)
 	return user.Id, key
+}
+
+func TestRedeemCreditsConfigurableNewUserBonusForEachEligibleCode(t *testing.T) {
+	userId, key := setupRedeemFixture(t, 1000)
+	activitySetting := operation_setting.GetActivitySetting()
+	activitySetting.NewUserRedeemBonusEnabled = true
+	activitySetting.NewUserRedeemBonusPercent = 12.5
+	activitySetting.NewUserRedeemBonusWindowDays = 1
+
+	totalQuota, err := Redeem(key, userId)
+	require.NoError(t, err)
+	assert.Equal(t, 1125, totalQuota)
+
+	secondRedemption := Redemption{
+		Name:        "redeem-test-second",
+		Key:         "10000000000000000000000000000002",
+		Status:      common.RedemptionCodeStatusEnabled,
+		Quota:       500,
+		CreatedTime: common.GetTimestamp(),
+	}
+	require.NoError(t, DB.Create(&secondRedemption).Error)
+	secondTotal, err := Redeem(secondRedemption.Key, userId)
+	require.NoError(t, err)
+	assert.Equal(t, 563, secondTotal)
+
+	var user User
+	require.NoError(t, DB.First(&user, "id = ?", userId).Error)
+	assert.Equal(t, 1688, user.Quota)
+
+	grant, err := GetActivityGrantForUser(userId, ActivityKeyNewUserRedeemBonus)
+	require.NoError(t, err)
+	require.NotNil(t, grant)
+	assert.Equal(t, 63, grant.Quota)
+	count, err := CountActivityGrants(context.Background(), ActivityKeyNewUserRedeemBonus)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), count)
+	cumulative, err := SumActivityGrantQuotaForUser(context.Background(), userId, ActivityKeyNewUserRedeemBonus)
+	require.NoError(t, err)
+	assert.Equal(t, int64(188), cumulative)
+}
+
+func TestRedeemDoesNotCreditBonusAfterRegistrationWindow(t *testing.T) {
+	userId, key := setupRedeemFixture(t, 1000)
+	activitySetting := operation_setting.GetActivitySetting()
+	activitySetting.NewUserRedeemBonusEnabled = true
+	activitySetting.NewUserRedeemBonusPercent = 30
+	activitySetting.NewUserRedeemBonusWindowDays = 1
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", userId).
+		Update("created_at", common.GetTimestamp()-24*60*60-1).Error)
+
+	totalQuota, err := Redeem(key, userId)
+	require.NoError(t, err)
+	assert.Equal(t, 1000, totalQuota)
+
+	grant, err := GetActivityGrantForUser(userId, ActivityKeyNewUserRedeemBonus)
+	require.NoError(t, err)
+	assert.Nil(t, grant)
 }
 
 func TestRedeemCreditsQuotaExactlyOnce(t *testing.T) {

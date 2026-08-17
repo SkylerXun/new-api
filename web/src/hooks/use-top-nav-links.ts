@@ -86,6 +86,13 @@ export function useTopNavLinks(): TopNavLink[] {
     links.push({ title: t('Rankings'), href: '/rankings', requiresAuth })
   }
 
+  // Price list
+  const priceList = modules?.priceList
+  if (priceList && typeof priceList === 'object' && priceList.enabled) {
+    const requiresAuth = priceList.requireAuth && !isAuthed
+    links.push({ title: t('Price List'), href: '/price-list', requiresAuth })
+  }
+
   // Docs (supports external links)
   if (modules?.docs !== false) {
     if (docsLink) {

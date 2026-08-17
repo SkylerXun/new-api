@@ -3,11 +3,14 @@ package model
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
@@ -142,6 +145,7 @@ func Redeem(key string, userId int) (quota int, err error) {
 		return 0, errors.New("无效的 user id")
 	}
 	redemption := &Redemption{}
+	bonusQuota := 0
 
 	keyCol := "`key`"
 	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
@@ -156,8 +160,14 @@ func Redeem(key string, userId int) (quota int, err error) {
 		if redemption.Status != common.RedemptionCodeStatusEnabled {
 			return errors.New("该兑换码已被使用")
 		}
-		if redemption.ExpiredTime != 0 && redemption.ExpiredTime < common.GetTimestamp() {
+		now := common.GetTimestamp()
+		if redemption.ExpiredTime != 0 && redemption.ExpiredTime < now {
 			return errors.New("该兑换码已过期")
+		}
+
+		var user User
+		if err := lockForUpdate(tx).Select("id", "quota", "created_at").Where("id = ?", userId).First(&user).Error; err != nil {
+			return err
 		}
 		// Compare-and-swap on status: only the transaction that flips
 		// enabled -> used may credit quota, so a concurrent redeem of the
@@ -165,7 +175,7 @@ func Redeem(key string, userId int) (quota int, err error) {
 		result := tx.Model(&Redemption{}).
 			Where("id = ? AND status = ?", redemption.Id, common.RedemptionCodeStatusEnabled).
 			Updates(map[string]interface{}{
-				"redeemed_time": common.GetTimestamp(),
+				"redeemed_time": now,
 				"status":        common.RedemptionCodeStatusUsed,
 				"used_user_id":  userId,
 			})
@@ -175,15 +185,71 @@ func Redeem(key string, userId int) (quota int, err error) {
 		if result.RowsAffected == 0 {
 			return errors.New("该兑换码已被使用")
 		}
-		return tx.Model(&User{}).Where("id = ?", userId).Update("quota", gorm.Expr("quota + ?", redemption.Quota)).Error
+
+		result = tx.Model(&User{}).
+			Where("id = ? AND quota <= ?", userId, common.MaxQuota-redemption.Quota).
+			Update("quota", gorm.Expr("quota + ?", redemption.Quota))
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return errors.New("用户额度超出可支持范围")
+		}
+
+		activitySetting := operation_setting.GetActivitySetting()
+		bonusPercent := activitySetting.NewUserRedeemBonusPercent
+		windowDays := activitySetting.NewUserRedeemBonusWindowDays
+		windowSeconds := int64(windowDays) * 24 * 60 * 60
+		eligible := activitySetting.NewUserRedeemBonusEnabled &&
+			!math.IsNaN(bonusPercent) &&
+			!math.IsInf(bonusPercent, 0) &&
+			bonusPercent > 0 && bonusPercent <= 1000 &&
+			windowDays >= 1 && windowDays <= 3650 &&
+			user.CreatedAt > 0 &&
+			now < user.CreatedAt+windowSeconds
+		if !eligible {
+			return nil
+		}
+
+		calculatedBonus, err := common.QuotaFromDecimalStrict(
+			decimal.NewFromInt(int64(redemption.Quota)).
+				Mul(decimal.NewFromFloat(bonusPercent)).
+				Div(decimal.NewFromInt(100)),
+		)
+		if err != nil {
+			return err
+		}
+		if calculatedBonus <= 0 {
+			return nil
+		}
+		granted, err := GrantActivityQuotaTx(
+			tx,
+			userId,
+			ActivityKeyNewUserRedeemBonus,
+			ActivityGrantSourceRedeem,
+			"redemption:"+strconv.Itoa(redemption.Id),
+			calculatedBonus,
+		)
+		if err != nil {
+			return err
+		}
+		if granted {
+			bonusQuota = calculatedBonus
+		}
+		return nil
 	})
 	if err != nil {
 		common.SysError("redemption failed: " + err.Error())
 		return 0, ErrRedeemFailed
 	}
-	syncCreditUserQuotaCache(userId, redemption.Quota, "redemption")
-	RecordLog(userId, LogTypeTopup, fmt.Sprintf("通过兑换码充值 %s，兑换码ID %d", logger.LogQuota(redemption.Quota), redemption.Id))
-	return redemption.Quota, nil
+	totalQuota := redemption.Quota + bonusQuota
+	syncCreditUserQuotaCache(userId, totalQuota, "redemption")
+	content := fmt.Sprintf("通过兑换码充值 %s，兑换码ID %d", logger.LogQuota(redemption.Quota), redemption.Id)
+	if bonusQuota > 0 {
+		content += fmt.Sprintf("，新用户活动赠送 %s", logger.LogQuota(bonusQuota))
+	}
+	RecordLog(userId, LogTypeTopup, content)
+	return totalQuota, nil
 }
 
 func (redemption *Redemption) Insert() error {

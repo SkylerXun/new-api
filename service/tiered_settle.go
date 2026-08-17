@@ -145,11 +145,19 @@ func PrepareTieredBillingForSelectedGroup(c *gin.Context, relayInfo *relaycommon
 	// The selected group is paid; clear a FreeModel flag frozen when the
 	// initial group was free so downstream state stays consistent.
 	relayInfo.PriceData.FreeModel = false
+	reserveQuota, reserveErr := ReserveBillingCurveQuota(relayInfo, snap.EstimatedQuotaAfterGroup)
+	if reserveErr != nil {
+		return types.NewError(reserveErr, types.ErrorCodeModelPriceError, types.ErrOptionWithSkipRetry())
+	}
 
 	if relayInfo.Billing == nil {
-		return PreConsumeBilling(c, snap.EstimatedQuotaAfterGroup, relayInfo)
+		return PreConsumeBilling(c, reserveQuota, relayInfo)
 	}
-	if err := relayInfo.Billing.Reserve(snap.EstimatedQuotaAfterGroup); err != nil {
+	targetQuota := reserveQuota
+	if relayInfo.BillingSource == BillingSourceSubscription {
+		targetQuota = snap.EstimatedQuotaAfterGroup
+	}
+	if err := relayInfo.Billing.Reserve(targetQuota); err != nil {
 		return types.NewError(err, types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry())
 	}
 	relayInfo.FinalPreConsumedQuota = relayInfo.Billing.GetPreConsumedQuota()

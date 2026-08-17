@@ -19,6 +19,9 @@ func getHeaderNavAccess(module string) headerNavAccess {
 		Enabled:     true,
 		RequireAuth: false,
 	}
+	if module == "priceList" {
+		fallback.RequireAuth = true
+	}
 
 	common.OptionMapRWMutex.RLock()
 	raw := common.OptionMap["HeaderNavModules"]

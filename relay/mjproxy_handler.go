@@ -219,7 +219,7 @@ func RelaySwapFace(c *gin.Context, info *relaycommon.RelayInfo) *dto.MidjourneyR
 		}
 	}
 
-	if userQuota-priceData.Quota < 0 {
+	if userQuota-priceData.QuotaToPreConsume < 0 {
 		return &dto.MidjourneyResponse{
 			Code:        4,
 			Description: "quota_not_enough",
@@ -231,6 +231,11 @@ func RelaySwapFace(c *gin.Context, info *relaycommon.RelayInfo) *dto.MidjourneyR
 	mjResp, _, err := service.DoMidjourneyHttpRequest(c, time.Second*60, fullRequestURL)
 	if err != nil {
 		return &mjResp.Response
+	}
+	if mjResp.StatusCode == http.StatusOK && mjResp.Response.Code == 1 {
+		if curveErr := service.ApplyBillingCurveToPerCallPrice(info, &priceData); curveErr != nil {
+			common.SysError("apply Midjourney billing curve error: " + curveErr.Error())
+		}
 	}
 	defer func() {
 		if mjResp.StatusCode == 200 && mjResp.Response.Code == 1 {
@@ -526,7 +531,7 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 		}
 	}
 
-	if consumeQuota && userQuota-priceData.Quota < 0 {
+	if consumeQuota && userQuota-priceData.QuotaToPreConsume < 0 {
 		return &dto.MidjourneyResponse{
 			Code:        4,
 			Description: "quota_not_enough",
@@ -603,6 +608,11 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 		//非1-提交成功,21-任务已存在和22-排队中，则记录错误原因
 		midjourneyTask.FailReason = midjResponse.Description
 		consumeQuota = false
+	}
+	if consumeQuota && midjResponseWithStatus.StatusCode == http.StatusOK {
+		if curveErr := service.ApplyBillingCurveToPerCallPrice(relayInfo, &priceData); curveErr != nil {
+			common.SysError("apply Midjourney billing curve error: " + curveErr.Error())
+		}
 	}
 
 	if midjResponse.Code == 21 { //21-任务已存在（处理中或者有结果了）

@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { parseCurrencyDisplayType } from '@/lib/currency'
 
+import { ActivitySettingsSection } from '../general/activity-settings'
 import { CheckinSettingsSection } from '../general/checkin-settings-section'
 import { PricingSection } from '../general/pricing-section'
 import { QuotaSettingsSection } from '../general/quota-settings-section'
@@ -25,6 +26,7 @@ import { PaymentSettingsSection } from '../integrations/payment-settings-section
 import { RatioSettingsCard } from '../models/ratio-settings-card'
 import type { BillingSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
+import { ProgressiveBillingSection } from './progressive-billing-section'
 
 const getModelDefaults = (settings: BillingSettings) => ({
   ModelPrice: settings.ModelPrice,
@@ -77,6 +79,15 @@ const BILLING_SECTIONS = [
           (settings['payment_setting.compliance_confirmed'] ?? false) &&
           settings['payment_setting.compliance_terms_version'] === 'v1'
         }
+      />
+    ),
+  },
+  {
+    id: 'progressive-billing',
+    titleKey: 'Progressive Billing',
+    build: (settings: BillingSettings) => (
+      <ProgressiveBillingSection
+        defaultValue={settings['billing_curve_setting.config']}
       />
     ),
   },
@@ -198,6 +209,24 @@ const BILLING_SECTIONS = [
           enabled: settings['checkin_setting.enabled'],
           minQuota: settings['checkin_setting.min_quota'],
           maxQuota: settings['checkin_setting.max_quota'],
+        }}
+      />
+    ),
+  },
+  {
+    id: 'activities',
+    titleKey: 'Activities',
+    build: (settings: BillingSettings) => (
+      <ActivitySettingsSection
+        defaultValues={{
+          activity_setting: {
+            new_user_redeem_bonus_enabled:
+              settings['activity_setting.new_user_redeem_bonus_enabled'],
+            new_user_redeem_bonus_percent:
+              settings['activity_setting.new_user_redeem_bonus_percent'],
+            new_user_redeem_bonus_window_days:
+              settings['activity_setting.new_user_redeem_bonus_window_days'],
+          },
         }}
       />
     ),

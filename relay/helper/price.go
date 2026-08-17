@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/billing_curve_setting"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -68,6 +69,31 @@ func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) hostty
 	}
 
 	return groupRatioInfo
+}
+
+// reserveBillingCurveQuota freezes the curve configuration for this request
+// and reserves the maximum configured multiplier. Final settlement uses the
+// interval-average multiplier and refunds any excess reservation.
+func reserveBillingCurveQuota(info *relaycommon.RelayInfo, normalQuota int) (int, error) {
+	if normalQuota < 0 {
+		return 0, fmt.Errorf("billing curve normal quota cannot be negative")
+	}
+	if info != nil {
+		info.BillingCurveNormalPreConsumeQuota = normalQuota
+	}
+	curve := billing_curve_setting.GetConfig()
+	if info != nil {
+		if info.BillingCurveConfig != nil {
+			curve = *info.BillingCurveConfig
+		} else {
+			copy := curve
+			info.BillingCurveConfig = &copy
+		}
+	}
+	if !curve.Enabled || normalQuota == 0 {
+		return normalQuota, nil
+	}
+	return common.QuotaRoundStrict(float64(normalQuota) * curve.K2)
 }
 
 func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta) (hosttypes.PriceData, error) {
@@ -129,25 +155,6 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		}
 	}
 
-	// check if free model pre-consume is disabled
-	if !operation_setting.GetQuotaSetting().EnableFreeModelPreConsume {
-		// if model price or ratio is 0, do not pre-consume quota
-		if groupRatioInfo.GroupRatio == 0 {
-			preConsumedQuota = 0
-			freeModel = true
-		} else if usePrice {
-			if modelPrice == 0 {
-				preConsumedQuota = 0
-				freeModel = true
-			}
-		} else {
-			if modelRatio == 0 {
-				preConsumedQuota = 0
-				freeModel = true
-			}
-		}
-	}
-
 	priceData := hosttypes.PriceData{
 		FreeModel:            freeModel,
 		ModelPrice:           modelPrice,
@@ -173,8 +180,28 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		if err != nil {
 			return hosttypes.PriceData{}, err
 		}
-		priceData.QuotaToPreConsume = quota
+		preConsumedQuota = quota
 	}
+
+	// check if free model pre-consume is disabled
+	if !operation_setting.GetQuotaSetting().EnableFreeModelPreConsume {
+		if groupRatioInfo.GroupRatio == 0 {
+			preConsumedQuota = 0
+			freeModel = true
+		} else if usePrice && modelPrice == 0 {
+			preConsumedQuota = 0
+			freeModel = true
+		} else if !usePrice && modelRatio == 0 {
+			preConsumedQuota = 0
+			freeModel = true
+		}
+	}
+	reservedQuota, reserveErr := reserveBillingCurveQuota(info, preConsumedQuota)
+	if reserveErr != nil {
+		return hosttypes.PriceData{}, reserveErr
+	}
+	priceData.FreeModel = freeModel
+	priceData.QuotaToPreConsume = reservedQuota
 
 	if common.DebugEnabled {
 		logger.LogDebug(c, "model_price_helper result: %s", priceData.ToSetting())
@@ -240,14 +267,19 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (hostt
 			}
 		}
 	}
+	reservedQuota, err := reserveBillingCurveQuota(info, quota)
+	if err != nil {
+		return hosttypes.PriceData{}, err
+	}
 
 	priceData := hosttypes.PriceData{
-		FreeModel:      freeModel,
-		ModelPrice:     modelPrice,
-		ModelRatio:     modelRatio,
-		UsePrice:       usePrice,
-		Quota:          quota,
-		GroupRatioInfo: groupRatioInfo,
+		FreeModel:         freeModel,
+		ModelPrice:        modelPrice,
+		ModelRatio:        modelRatio,
+		UsePrice:          usePrice,
+		Quota:             quota,
+		QuotaToPreConsume: reservedQuota,
+		GroupRatioInfo:    groupRatioInfo,
 	}
 	return priceData, nil
 }
@@ -305,6 +337,10 @@ func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, promptT
 			freeModel = true
 		}
 	}
+	reservedQuota, err := reserveBillingCurveQuota(info, preConsumedQuota)
+	if err != nil {
+		return hosttypes.PriceData{}, err
+	}
 
 	exprHash := billingexpr.ExprHashString(exprStr)
 	snapshot := &billingexpr.BillingSnapshot{
@@ -327,10 +363,10 @@ func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, promptT
 	priceData := hosttypes.PriceData{
 		FreeModel:         freeModel,
 		GroupRatioInfo:    groupRatioInfo,
-		QuotaToPreConsume: preConsumedQuota,
+		QuotaToPreConsume: reservedQuota,
 	}
 
-	logger.LogDebug(c, "model_price_helper_tiered result: model=%s preConsume=%d quotaBeforeGroup=%.2f groupRatio=%.2f tier=%s", info.OriginModelName, preConsumedQuota, quotaBeforeGroup, groupRatioInfo.GroupRatio, trace.MatchedTier)
+	logger.LogDebug(c, "model_price_helper_tiered result: model=%s preConsume=%d quotaBeforeGroup=%.2f groupRatio=%.2f tier=%s", info.OriginModelName, reservedQuota, quotaBeforeGroup, groupRatioInfo.GroupRatio, trace.MatchedTier)
 
 	info.PriceData = priceData
 	return priceData, nil

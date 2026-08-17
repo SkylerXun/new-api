@@ -190,6 +190,41 @@ func TestPricingNativeChannelEndpointTypesUnchanged(t *testing.T) {
 	assert.Equal(t, []constant.EndpointType{constant.EndpointTypeAnthropic, constant.EndpointTypeOpenAI}, byModel["claude-3-5-sonnet"])
 }
 
+func TestPricingIncludesOfficialPricesFromModelMetadata(t *testing.T) {
+	resetPricingEndpointTestTables(t)
+
+	insertPricingEndpointChannel(t, 303, constant.ChannelTypeOpenAI, dto.ChannelOtherSettings{})
+	insertPricingEndpointAbility(t, 303, "official-price-model")
+
+	inputPrice := 2.5
+	outputPrice := 10.0
+	cacheReadPrice := 0.25
+	cacheWritePrice := 3.75
+	require.NoError(t, DB.Create(&Model{
+		ModelName:               "official-price-model",
+		Status:                  1,
+		OfficialInputPrice:      &inputPrice,
+		OfficialOutputPrice:     &outputPrice,
+		OfficialCacheReadPrice:  &cacheReadPrice,
+		OfficialCacheWritePrice: &cacheWritePrice,
+	}).Error)
+
+	pricing := GetPricing()
+	var item *Pricing
+	for index := range pricing {
+		if pricing[index].ModelName == "official-price-model" {
+			item = &pricing[index]
+			break
+		}
+	}
+
+	require.NotNil(t, item)
+	require.Equal(t, inputPrice, *item.OfficialInputPrice)
+	require.Equal(t, outputPrice, *item.OfficialOutputPrice)
+	require.Equal(t, cacheReadPrice, *item.OfficialCacheReadPrice)
+	require.Equal(t, cacheWritePrice, *item.OfficialCacheWritePrice)
+}
+
 func TestInitChannelCacheInvalidatesPricingCache(t *testing.T) {
 	resetPricingEndpointTestTables(t)
 

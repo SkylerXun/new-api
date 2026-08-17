@@ -321,6 +321,9 @@ func InitResources() error {
 		if err := model.MigrateRetiredFrontendOptions(); err != nil {
 			common.SysError("failed to migrate retired frontend options: " + err.Error())
 		}
+		if err := model.MigrateLegacyActivityOptions(); err != nil {
+			common.SysError("failed to migrate legacy activity options: " + err.Error())
+		}
 	}
 	model.InitOptionMap()
 
