@@ -33,6 +33,7 @@ import {
   ServerCog,
   ShoppingBag,
   Settings,
+  Tags,
   Ticket,
   User,
   Users,
@@ -87,6 +88,11 @@ export function getSidebarData(
             title: t('Dashboard'),
             url: '/dashboard/models',
             icon: LayoutDashboard,
+          },
+          {
+            title: t('模型价格清单'),
+            url: '/price-list',
+            icon: Tags,
           },
           {
             title: t('API Keys'),

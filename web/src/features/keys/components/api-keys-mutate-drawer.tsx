@@ -306,6 +306,12 @@ export function ApiKeysMutateDrawer({
       setFetchedModels(nextModels)
       if (nextModels.length === 0) {
         toast.info(t('No models fetched from upstream'))
+      } else {
+        toast.success(
+          t('Fetched {{count}} model(s) from upstream', {
+            count: nextModels.length,
+          })
+        )
       }
     } catch (error) {
       toast.error(

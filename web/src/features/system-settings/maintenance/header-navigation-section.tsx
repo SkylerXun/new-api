@@ -55,8 +55,6 @@ const headerNavSchema = z.object({
   pricingRequireAuth: z.boolean(),
   rankingsEnabled: z.boolean(),
   rankingsRequireAuth: z.boolean(),
-  priceListEnabled: z.boolean(),
-  priceListRequireAuth: z.boolean(),
   docs: z.boolean(),
   about: z.boolean(),
 })
@@ -91,14 +89,6 @@ const toFormValues = (config: HeaderNavModulesConfig): HeaderNavFormValues => ({
     config.rankings?.requireAuth === undefined
       ? HEADER_NAV_DEFAULT.rankings.requireAuth
       : Boolean(config.rankings.requireAuth),
-  priceListEnabled:
-    config.priceList?.enabled === undefined
-      ? HEADER_NAV_DEFAULT.priceList.enabled
-      : Boolean(config.priceList.enabled),
-  priceListRequireAuth:
-    config.priceList?.requireAuth === undefined
-      ? HEADER_NAV_DEFAULT.priceList.requireAuth
-      : Boolean(config.priceList.requireAuth),
   docs:
     config.docs === undefined ? HEADER_NAV_DEFAULT.docs : Boolean(config.docs),
   about:
@@ -140,11 +130,6 @@ export function HeaderNavigationSection({
         ...(config.rankings ?? HEADER_NAV_DEFAULT.rankings),
         enabled: values.rankingsEnabled,
         requireAuth: values.rankingsRequireAuth,
-      },
-      priceList: {
-        ...(config.priceList ?? HEADER_NAV_DEFAULT.priceList),
-        enabled: values.priceListEnabled,
-        requireAuth: values.priceListRequireAuth,
       },
     }
 
@@ -196,7 +181,6 @@ export function HeaderNavigationSection({
     requireAuthDependsOn:
       | 'pricingEnabled'
       | 'rankingsEnabled'
-      | 'priceListEnabled'
     title: string
     description: string
     requireAuthTitle: string
@@ -222,17 +206,6 @@ export function HeaderNavigationSection({
       requireAuthTitle: t('Require login to view rankings'),
       requireAuthDescription: t(
         'Visitors must authenticate before accessing the rankings page.'
-      ),
-    },
-    {
-      enabledKey: 'priceListEnabled',
-      requireAuthKey: 'priceListRequireAuth',
-      requireAuthDependsOn: 'priceListEnabled',
-      title: t('Price List'),
-      description: t('Grouped model price comparison page.'),
-      requireAuthTitle: t('Require login to view price list'),
-      requireAuthDescription: t(
-        'Users must authenticate before accessing the price comparison page.'
       ),
     },
   ]

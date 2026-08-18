@@ -196,6 +196,43 @@ func (channel *Channel) GetKeys() []string {
 	return keys
 }
 
+// GetEnabledKeyIndexes returns the key indexes that can be used for this
+// request. A regular single-key channel is represented by index 0 so retry
+// selection can treat channels and keys as one uniform candidate space.
+func (channel *Channel) GetEnabledKeyIndexes() []int {
+	if !channel.ChannelInfo.IsMultiKey {
+		return []int{0}
+	}
+	keys := channel.GetKeys()
+	indexes := make([]int, 0, len(keys))
+	for i := range keys {
+		if status, ok := channel.ChannelInfo.MultiKeyStatusList[i]; !ok || status == common.ChannelStatusEnabled {
+			indexes = append(indexes, i)
+		}
+	}
+	return indexes
+}
+
+// GetKeyAt returns a specific enabled key for retry candidate selection.
+func (channel *Channel) GetKeyAt(index int) (string, error) {
+	if !channel.ChannelInfo.IsMultiKey {
+		if index != 0 {
+			return "", errors.New("invalid key index")
+		}
+		return channel.Key, nil
+	}
+	keys := channel.GetKeys()
+	if index < 0 || index >= len(keys) {
+		return "", errors.New("invalid key index")
+	}
+	for _, enabledIndex := range channel.GetEnabledKeyIndexes() {
+		if enabledIndex == index {
+			return keys[index], nil
+		}
+	}
+	return "", errors.New("key is disabled")
+}
+
 func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
 	// If not in multi-key mode, return the original key string directly.
 	if !channel.ChannelInfo.IsMultiKey {

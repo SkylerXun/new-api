@@ -127,3 +127,64 @@ func TestCacheGetRandomSatisfiedChannelUsesTokenAutoGroupsWhenGlobalAutoIsEmpty(
 	assert.Equal(t, "default", selectedGroup)
 	assert.Equal(t, "default", common.GetContextKeyString(ctx, constant.ContextKeyAutoGroup))
 }
+
+func TestRetrySelectionEnumeratesEveryChannelKeyBeforeIncrementingRetry(t *testing.T) {
+	db := setupChannelSelectAutoGroupsTest(t)
+	const modelName = "retry-channel-key-model"
+	priority := int64(0)
+	weight := uint(100)
+	for _, id := range []int{2201, 2202} {
+		channel := &model.Channel{
+			Id:       id,
+			Type:     constant.ChannelTypeOpenAI,
+			Key:      "key-a\nkey-b",
+			Status:   common.ChannelStatusEnabled,
+			Name:     fmt.Sprintf("channel-%d", id),
+			Weight:   &weight,
+			Models:   modelName,
+			Group:    "default",
+			Priority: &priority,
+			ChannelInfo: model.ChannelInfo{
+				IsMultiKey:   true,
+				MultiKeySize: 2,
+				MultiKeyMode: constant.MultiKeyModePolling,
+			},
+		}
+		require.NoError(t, db.Create(channel).Error)
+		require.NoError(t, db.Create(&model.Ability{Group: "default", Model: modelName, ChannelId: id, Enabled: true, Priority: &priority, Weight: weight}).Error)
+	}
+	model.InitChannelCache()
+
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	retry := 0
+	param := &RetryParam{Ctx: ctx, TokenGroup: "default", ModelName: modelName, RequestPath: "/v1/chat/completions", Retry: &retry, EnumerateCandidates: true}
+	seen := make(map[string]struct{})
+	for i := 0; i < 4; i++ {
+		channel, _, err := CacheGetRandomSatisfiedChannel(param)
+		require.NoError(t, err)
+		require.NotNil(t, channel)
+		pair := fmt.Sprintf("%d/%d", channel.Id, param.SelectedKeyIndex)
+		_, exists := seen[pair]
+		assert.False(t, exists, "candidate %s was selected twice in one retry round", pair)
+		seen[pair] = struct{}{}
+		assert.True(t, param.AdvanceRetry(1) || i == 3)
+	}
+	assert.Len(t, seen, 4)
+	assert.Equal(t, 1, param.GetRetry(), "retry count increments only after the full channel/key sweep")
+
+	channel, _, err := CacheGetRandomSatisfiedChannel(param)
+	require.NoError(t, err)
+	require.NotNil(t, channel)
+	assert.Contains(t, []int{2201, 2202}, channel.Id)
+	for i := 0; i < 2; i++ {
+		channel, _, err = CacheGetRandomSatisfiedChannel(param)
+		require.NoError(t, err)
+		require.NotNil(t, channel)
+		assert.True(t, param.AdvanceRetry(1), "remaining candidates in the final retry round must still be tried")
+	}
+	channel, _, err = CacheGetRandomSatisfiedChannel(param)
+	require.NoError(t, err)
+	require.NotNil(t, channel)
+	assert.False(t, param.AdvanceRetry(1), "a new round must not begin after RetryTimes is exhausted")
+}

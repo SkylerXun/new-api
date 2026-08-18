@@ -1952,6 +1952,7 @@
     "Failed to fetch checkin status": "获取签到状态失败",
     "Failed to fetch deployment details": "获取部署详情失败",
     "Failed to fetch models": "获取模型失败",
+    "Fetch upstream models": "获取上游模型",
     "Failed to fetch OIDC configuration. Please check the URL and network status": "获取 OIDC 配置失败。请检查 URL 和网络状态",
     "Failed to fetch reset credit details": "获取重置次数详情失败",
     "Failed to fetch upstream prices": "获取上游价格失败",

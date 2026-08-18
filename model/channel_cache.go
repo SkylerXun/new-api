@@ -208,6 +208,79 @@ func GetRandomSatisfiedChannel(group string, model string, retry int, requestPat
 	return nil, errors.New("channel not found")
 }
 
+// GetSatisfiedChannels returns all enabled channels that support the group,
+// model, and request path. Retry selection needs the complete channel set so
+// it can enumerate channel/key pairs instead of consuming one retry per key.
+func GetSatisfiedChannels(group string, modelName string, requestPath string) ([]*Channel, error) {
+	if !common.MemoryCacheEnabled {
+		models := []string{modelName}
+		normalized := ratio_setting.FormatMatchingModelName(modelName)
+		if normalized != modelName {
+			models = append(models, normalized)
+		}
+		var abilities []Ability
+		if err := DB.Where(commonGroupCol+" = ? and model IN ? and enabled = ?", group, models, true).Find(&abilities).Error; err != nil {
+			return nil, err
+		}
+		ids := make([]int, 0, len(abilities))
+		seen := make(map[int]struct{}, len(abilities))
+		for _, ability := range abilities {
+			if _, ok := seen[ability.ChannelId]; !ok {
+				seen[ability.ChannelId] = struct{}{}
+				ids = append(ids, ability.ChannelId)
+			}
+		}
+		if len(ids) == 0 {
+			return nil, nil
+		}
+		var channels []*Channel
+		if err := DB.Where("id IN ? and status = ?", ids, common.ChannelStatusEnabled).Find(&channels).Error; err != nil {
+			return nil, err
+		}
+		return filterChannelsByRequestPathAndModelDB(channels, requestPath, modelName), nil
+	}
+
+	channelSyncLock.RLock()
+	defer channelSyncLock.RUnlock()
+	channels := filterChannelsByRequestPathAndModel(group2model2channels[group][modelName], requestPath, modelName)
+	if len(channels) == 0 {
+		normalized := ratio_setting.FormatMatchingModelName(modelName)
+		channels = filterChannelsByRequestPathAndModel(group2model2channels[group][normalized], requestPath, modelName)
+	}
+	result := make([]*Channel, 0, len(channels))
+	seen := make(map[int]struct{}, len(channels))
+	for _, id := range channels {
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		channel, ok := channelsIDM[id]
+		if !ok {
+			return nil, fmt.Errorf("channel #%d not found", id)
+		}
+		seen[id] = struct{}{}
+		result = append(result, channel)
+	}
+	return result, nil
+}
+
+func filterChannelsByRequestPathAndModelDB(channels []*Channel, requestPath string, modelName string) []*Channel {
+	if requestPath == "" || len(channels) == 0 {
+		return channels
+	}
+	result := make([]*Channel, 0, len(channels))
+	for _, channel := range channels {
+		if channel.Type != constant.ChannelTypeAdvancedCustom {
+			result = append(result, channel)
+			continue
+		}
+		config := channel.GetOtherSettings().AdvancedCustom
+		if config != nil && config.SupportsPathForModel(requestPath, modelName) {
+			result = append(result, channel)
+		}
+	}
+	return result
+}
+
 // filterChannelsByRequestPathAndModel restricts candidates by request path and
 // model. Only Advanced Custom (type 58) channels are path-checked: they are kept
 // only when one of their configured routes matches requestPath and model. All

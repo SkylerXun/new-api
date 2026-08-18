@@ -3,7 +3,6 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 
-import { PublicLayout } from '@/components/layout'
 import { PageTransition } from '@/components/page-transition'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -52,13 +51,11 @@ export function PriceList() {
 
   if (!data || !data.success) {
     return (
-      <PublicLayout showMainContainer={false}>
-        <main className='mx-auto w-full max-w-[1600px] px-4 pt-24 pb-10 sm:px-6'>
+        <main className='mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6'>
           <p className='text-muted-foreground text-sm'>
-            {t('Unable to load price list')}
+            {t('无法加载模型价格清单')}
           </p>
         </main>
-      </PublicLayout>
     )
   }
 
@@ -69,12 +66,11 @@ export function PriceList() {
   })
 
   return (
-    <PublicLayout showMainContainer={false}>
-      <PageTransition className='mx-auto w-full max-w-[1600px] px-3 pt-20 pb-10 sm:px-6 sm:pt-24'>
+      <PageTransition className='mx-auto w-full max-w-[1600px] px-3 py-6 sm:px-6'>
         <header className='border-b pb-5'>
-          <h1 className='text-2xl font-semibold'>{t('Price List')}</h1>
+          <h1 className='text-2xl font-semibold'>{t('模型价格清单')}</h1>
           <p className='text-muted-foreground mt-1 text-sm'>
-            {t('Compare actual and official model pricing by group.')}
+            {t('按分组对比实际价格与官方模型价格。')}
           </p>
           <div className='mt-5 grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto]'>
             <label className='relative block max-w-md'>
@@ -83,10 +79,10 @@ export function PriceList() {
                 className='text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2'
               />
               <Input
-                aria-label={t('Search model name')}
+                aria-label={t('搜索模型名称')}
                 className='pl-9'
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder={t('Search model name')}
+                placeholder={t('搜索模型名称')}
                 value={query}
               />
             </label>
@@ -102,25 +98,25 @@ export function PriceList() {
                 type='button'
                 variant='outline'
               >
-                {t('Reset filters')}
+                {t('重置筛选')}
               </Button>
             </div>
           </div>
         </header>
 
         <FilterRow
-          label={t('Vendor')}
+          label={t('供应商')}
           options={[
-            { value: 'all', label: t('All') },
+            { value: 'all', label: t('全部') },
             ...data.vendors.map((vendor) => ({ value: String(vendor.id), label: vendor.name })),
           ]}
           value={vendorID}
           onChange={setVendorID}
         />
         <FilterRow
-          label={t('Group')}
+          label={t('分组')}
           options={[
-            { value: 'all', label: t('All') },
+            { value: 'all', label: t('全部') },
             ...groups.map(([name]) => ({
               value: name,
               label: data.group_info[name]?.ratio_label || name,
@@ -130,9 +126,9 @@ export function PriceList() {
           onChange={setGroupFilter}
         />
         <FilterRow
-          label={t('Multiplier')}
+          label={t('倍率')}
           options={[
-            { value: 'all', label: t('All') },
+            { value: 'all', label: t('全部') },
             ...ratios.map((ratio) => ({ value: String(ratio), label: `${ratio}x` })),
           ]}
           value={ratioFilter}
@@ -158,12 +154,11 @@ export function PriceList() {
             ))}
           {groupSections.length === 0 && (
             <p className='text-muted-foreground py-12 text-center text-sm'>
-              {t('No groups match the current filters.')}
+              {t('没有符合当前筛选条件的分组。')}
             </p>
           )}
         </main>
       </PageTransition>
-    </PublicLayout>
   )
 }
 
@@ -197,11 +192,9 @@ function FilterRow(props: {
 
 function PriceListLoading() {
   return (
-    <PublicLayout showMainContainer={false}>
-      <div className='mx-auto w-full max-w-[1600px] space-y-5 px-3 pt-20 sm:px-6 sm:pt-24'>
+    <div className='mx-auto w-full max-w-[1600px] space-y-5 px-3 py-6 sm:px-6'>
         <Skeleton className='h-32 w-full' />
         <Skeleton className='h-96 w-full' />
       </div>
-    </PublicLayout>
   )
 }

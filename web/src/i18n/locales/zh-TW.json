@@ -1951,6 +1951,7 @@
     "Failed to fetch checkin status": "獲取簽到狀態失敗",
     "Failed to fetch deployment details": "獲取部署詳情失敗",
     "Failed to fetch models": "獲取模型失敗",
+    "Fetch upstream models": "獲取上游模型",
     "Failed to fetch OIDC configuration. Please check the URL and network status": "獲取 OIDC 設定失敗。請檢查 URL 和網絡狀態",
     "Failed to fetch reset credit details": "獲取重置次數詳情失敗",
     "Failed to fetch upstream prices": "獲取上游價格失敗",

@@ -152,6 +152,7 @@ export const STATIC_I18N_KEYS = [
   'Successfully deleted {{count}} API key(s)',
   'Enter API key for this channel',
   'Fetch upstream models',
+  'Fetched {{count}} model(s) from upstream',
   'Failed to fetch models',
   'Failed to fetch models from upstream',
   'No models fetched from upstream',

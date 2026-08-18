@@ -11,10 +11,10 @@ import {
 import type { PriceField } from '../types'
 
 const PRICE_FIELDS: Array<{ key: PriceField; label: string }> = [
-  { key: 'input', label: 'Input' },
-  { key: 'output', label: 'Output' },
-  { key: 'cache_read', label: 'Cache read' },
-  { key: 'cache_write', label: 'Cache write' },
+  { key: 'input', label: '输入' },
+  { key: 'output', label: '输出' },
+  { key: 'cache_read', label: '缓存读取' },
+  { key: 'cache_write', label: '缓存写入' },
 ]
 
 type PriceListTableProps = {
@@ -37,13 +37,13 @@ export function PriceListTable(props: PriceListTableProps) {
               className='border-l border-emerald-200 bg-emerald-50/70 px-3 py-3 text-center font-medium text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300'
               colSpan={4}
             >
-              {t('Actual price')} <span className='font-normal'>USD / 1M tokens</span>
+              {t('实际价格')} <span className='font-normal'>USD / 1M tokens</span>
             </th>
             <th className='border-l px-3 py-3 text-center font-medium' colSpan={4}>
-              {t('Official price')} <span className='font-normal'>USD / 1M tokens</span>
+              {t('官方价格')} <span className='font-normal'>USD / 1M tokens</span>
             </th>
             <th className='border-l px-4 py-3 text-right font-medium' rowSpan={2}>
-              {t('Discount')}
+              {t('折扣')}
             </th>
           </tr>
           <tr className='border-b bg-muted/20 text-xs text-muted-foreground'>
