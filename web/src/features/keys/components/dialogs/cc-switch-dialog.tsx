@@ -28,12 +28,10 @@ import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { getUserModels } from '@/lib/api'
 
-import { resolveCcSwitchServerAddress } from '../../lib/cc-switch-url'
-
 const APP_CONFIGS = {
   claude: {
     label: 'Claude',
-    defaultName: 'My Claude',
+    defaultName: '通用词元',
     modelFields: [
       { key: 'model', labelKey: 'Primary Model', required: true },
       { key: 'haikuModel', labelKey: 'Haiku Model', required: false },
@@ -43,12 +41,12 @@ const APP_CONFIGS = {
   },
   codex: {
     label: 'Codex',
-    defaultName: 'My Codex',
+    defaultName: '通用词元',
     modelFields: [{ key: 'model', labelKey: 'Primary Model', required: true }],
   },
   gemini: {
     label: 'Gemini',
-    defaultName: 'My Gemini',
+    defaultName: '通用词元',
     modelFields: [{ key: 'model', labelKey: 'Primary Model', required: true }],
   },
 } as const
@@ -56,19 +54,16 @@ const APP_CONFIGS = {
 type AppType = keyof typeof APP_CONFIGS
 
 function getServerAddress(): string {
-  let configuredAddress: string | undefined
   try {
     const raw = localStorage.getItem('status')
     if (raw) {
       const status = JSON.parse(raw)
-      if (typeof status.server_address === 'string') {
-        configuredAddress = status.server_address
-      }
+      if (status.server_address) return status.server_address
     }
   } catch {
     /* empty */
   }
-  return resolveCcSwitchServerAddress(configuredAddress, window.location.origin)
+  return window.location.origin
 }
 
 function buildCCSwitchURL(

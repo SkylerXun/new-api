@@ -19,6 +19,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/authz"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/billing_curve_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/QuantumNous/new-api/constant"
@@ -331,6 +332,10 @@ func GetAllUsers(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if err = attachUserBillingCurveMultipliers(users); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(users)
@@ -361,11 +366,31 @@ func SearchUsers(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if err = attachUserBillingCurveMultipliers(users); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(users)
 	common.ApiSuccess(c, pageInfo)
 	return
+}
+
+func attachUserBillingCurveMultipliers(users []*model.User) error {
+	curve := billing_curve_setting.GetConfig()
+	userIDs := make([]int, 0, len(users))
+	for _, user := range users {
+		userIDs = append(userIDs, user.Id)
+	}
+	progresses, err := model.GetUserBillingCurveProgresses(userIDs)
+	if err != nil {
+		return err
+	}
+	for _, user := range users {
+		user.BillingCurveMultiplier = service.CurrentBillingCurveMultiplier(curve, progresses[user.Id])
+	}
+	return nil
 }
 
 func canManageTargetRole(myRole int, targetRole int) bool {

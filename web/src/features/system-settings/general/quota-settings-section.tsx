@@ -33,6 +33,11 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from '@/components/ui/input-group'
 import { Switch } from '@/components/ui/switch'
 import { formatQuota } from '@/lib/format'
 
@@ -53,14 +58,16 @@ import { useUpdateOption } from '../hooks/use-update-option'
 const quotaSchema = z.object({
   QuotaForNewUser: z.coerce.number().min(0),
   PreConsumedQuota: z.coerce.number().min(0),
-  QuotaForInviter: z.coerce.number().min(0),
-  QuotaForInvitee: z.coerce.number().min(0),
   TopUpLink: z.string(),
   general_setting: z.object({
     docs_link: z.string(),
   }),
   quota_setting: z.object({
     enable_free_model_pre_consume: z.boolean(),
+  }),
+  affiliate_setting: z.object({
+    redeem_rebate_enabled: z.boolean(),
+    redeem_rebate_percent: z.coerce.number().min(0).max(100),
   }),
 })
 
@@ -106,6 +113,8 @@ export function QuotaSettingsSection({
         }
       },
     })
+
+  const disabled = updateOption.isPending || isSubmitting
 
   return (
     <SettingsSection title={t('Quota Settings')}>
@@ -182,55 +191,58 @@ export function QuotaSettingsSection({
               )}
             />
 
-            <FormField
-              control={form.control}
-              name='QuotaForInviter'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Inviter Reward')}</FormLabel>
-                  <FormControl>
-                    <Input
-                      type='number'
-                      value={field.value ?? ''}
-                      onChange={handleNumberChange(field.onChange)}
-                      name={field.name}
-                      onBlur={field.onBlur}
-                      ref={field.ref}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    {t(
-                      'Quota given to users who invite others ({{formattedQuota}})',
-                      {
-                        formattedQuota: formatQuotaInputValue(field.value),
-                      }
-                    )}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <SettingsFormGridItem span='full'>
+              <FormField
+                control={form.control}
+                name='affiliate_setting.redeem_rebate_enabled'
+                render={({ field }) => (
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>
+                        {t('Enable affiliate redemption rebate')}
+                      </FormLabel>
+                      <FormDescription>
+                        {t(
+                          'Give inviters a percentage of each balance code redeemed by their invitees.'
+                        )}
+                      </FormDescription>
+                    </SettingsSwitchContent>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        disabled={disabled}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </SettingsSwitchItem>
+                )}
+              />
+            </SettingsFormGridItem>
 
             <FormField
               control={form.control}
-              name='QuotaForInvitee'
+              name='affiliate_setting.redeem_rebate_percent'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('Invitee Reward')}</FormLabel>
+                  <FormLabel>{t('Affiliate rebate percentage')}</FormLabel>
                   <FormControl>
-                    <Input
-                      type='number'
-                      value={field.value ?? ''}
-                      onChange={handleNumberChange(field.onChange)}
-                      name={field.name}
-                      onBlur={field.onBlur}
-                      ref={field.ref}
-                    />
+                    <InputGroup>
+                      <InputGroupInput
+                        type='number'
+                        min={0}
+                        max={100}
+                        step='0.1'
+                        {...field}
+                        disabled={disabled}
+                      />
+                      <InputGroupAddon align='inline-end'>%</InputGroupAddon>
+                    </InputGroup>
                   </FormControl>
                   <FormDescription>
-                    {t('Quota given to invited users ({{formattedQuota}})', {
-                      formattedQuota: formatQuotaInputValue(field.value),
-                    })}
+                    {t(
+                      'Percentage of redeemed balance quota credited to the inviter.'
+                    )}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

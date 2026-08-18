@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -216,6 +217,18 @@ func validateOptionValue(key string, value string) error {
 	}
 	if key == "MaxTokenAutoGroups" {
 		return setting.ValidateMaxTokenAutoGroups(value)
+	}
+	if key == "affiliate_setting.redeem_rebate_enabled" {
+		if _, err := strconv.ParseBool(strings.TrimSpace(value)); err != nil {
+			return fmt.Errorf("invalid affiliate rebate enabled value: %w", err)
+		}
+	}
+	if key == "affiliate_setting.redeem_rebate_percent" {
+		percent, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
+		if err != nil {
+			return fmt.Errorf("invalid affiliate rebate percent: %w", err)
+		}
+		return operation_setting.ValidateRedeemRebatePercent(percent)
 	}
 	return nil
 }

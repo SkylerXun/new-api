@@ -94,7 +94,6 @@ export function ProgressiveBillingSection(
 
   const disabled = updateOption.isPending || isSubmitting
   const k1 = form.watch('k1')
-  const k2 = form.watch('k2')
 
   return (
     <SettingsSection title={t('Progressive Billing')}>
@@ -251,36 +250,6 @@ export function ProgressiveBillingSection(
               )}
             />
 
-            <SettingsFormGridItem span='full'>
-              <FormField
-                control={form.control}
-                name='target_average_k'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Target average multiplier')}</FormLabel>
-                    <FormControl>
-                      <InputGroup>
-                        <InputGroupInput
-                          type='number'
-                          min={k1 || 0.000001}
-                          max={k2 || 1_000_000}
-                          step='0.01'
-                          {...safeNumberFieldProps(field)}
-                          disabled={disabled}
-                        />
-                        <InputGroupAddon align='inline-end'>x</InputGroupAddon>
-                      </InputGroup>
-                    </FormControl>
-                    <FormDescription>
-                      {t(
-                        'Operational target for the long-run weighted average multiplier.'
-                      )}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </SettingsFormGridItem>
           </SettingsFormGrid>
         </SettingsForm>
       </Form>

@@ -34,6 +34,24 @@ func (progress *UserBillingCurveProgress) BeforeCreate(_ *gorm.DB) error {
 	return nil
 }
 
+// GetUserBillingCurveProgresses returns the persisted progress for a page of
+// users. Users without a row have not accumulated any base usage yet.
+func GetUserBillingCurveProgresses(userIDs []int) (map[int]int64, error) {
+	result := make(map[int]int64, len(userIDs))
+	if len(userIDs) == 0 {
+		return result, nil
+	}
+
+	var progresses []UserBillingCurveProgress
+	if err := DB.Select("user_id", "total_base_usage_micro_usd").Where("user_id IN ?", userIDs).Find(&progresses).Error; err != nil {
+		return nil, err
+	}
+	for _, progress := range progresses {
+		result[progress.UserId] = progress.TotalBaseUsageMicroUSD
+	}
+	return result, nil
+}
+
 // AdvanceUserBillingCurveProgress atomically allocates one user's next curve
 // interval. Locking the user row also serializes creation of the progress row
 // on SQLite, MySQL, and PostgreSQL.

@@ -75,7 +75,7 @@ export function createBillingCurveConfigSchema(t: Translate) {
           MAX_USAGE_USD,
           t('Enter a value no greater than the allowed maximum')
         ),
-      target_average_k: finiteNumberSchema(t),
+      target_average_k: z.number().optional().default(10),
     })
     .superRefine((config, context) => {
       if (config.k2 < config.k1) {
@@ -88,18 +88,6 @@ export function createBillingCurveConfigSchema(t: Translate) {
         })
       }
 
-      if (
-        config.target_average_k < config.k1 ||
-        config.target_average_k > config.k2
-      ) {
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['target_average_k'],
-          message: t(
-            'The target average multiplier must be between the initial and final multipliers.'
-          ),
-        })
-      }
     })
 }
 

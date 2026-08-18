@@ -53,7 +53,6 @@ func ValidateConfig(candidate Config) error {
 		candidate.K2,
 		candidate.ThresholdUSD,
 		candidate.WindowUSD,
-		candidate.TargetAverageK,
 	}
 	for _, value := range values {
 		if math.IsNaN(value) || math.IsInf(value, 0) {
@@ -71,9 +70,6 @@ func ValidateConfig(candidate Config) error {
 	}
 	if candidate.WindowUSD <= 0 || candidate.WindowUSD > 1_000_000_000_000 {
 		return fmt.Errorf("billing curve window must be between 0 and 1000000000000")
-	}
-	if candidate.TargetAverageK < candidate.K1 || candidate.TargetAverageK > candidate.K2 {
-		return fmt.Errorf("billing curve target average must be between K1 and K2")
 	}
 	return nil
 }

@@ -152,6 +152,8 @@ func Redeem(key string, userId int) (quota int, err error) {
 		keyCol = `"key"`
 	}
 	common.RandomSleep()
+	rebateQuota := 0
+	rebateInviterId := 0
 	err = DB.Transaction(func(tx *gorm.DB) error {
 		err := lockForUpdate(tx).Where(keyCol+" = ?", key).First(redemption).Error
 		if err != nil {
@@ -166,7 +168,7 @@ func Redeem(key string, userId int) (quota int, err error) {
 		}
 
 		var user User
-		if err := lockForUpdate(tx).Select("id", "quota", "created_at").Where("id = ?", userId).First(&user).Error; err != nil {
+		if err := lockForUpdate(tx).Select("id", "quota", "created_at", "inviter_id").Where("id = ?", userId).First(&user).Error; err != nil {
 			return err
 		}
 		// Compare-and-swap on status: only the transaction that flips
@@ -207,35 +209,100 @@ func Redeem(key string, userId int) (quota int, err error) {
 			windowDays >= 1 && windowDays <= 3650 &&
 			user.CreatedAt > 0 &&
 			now < user.CreatedAt+windowSeconds
-		if !eligible {
+		if eligible {
+			calculatedBonus, err := common.QuotaFromDecimalStrict(
+				decimal.NewFromInt(int64(redemption.Quota)).
+					Mul(decimal.NewFromFloat(bonusPercent)).
+					Div(decimal.NewFromInt(100)),
+			)
+			if err != nil {
+				return err
+			}
+			if calculatedBonus > 0 {
+				granted, err := GrantActivityQuotaTx(
+					tx,
+					userId,
+					ActivityKeyNewUserRedeemBonus,
+					ActivityGrantSourceRedeem,
+					"redemption:"+strconv.Itoa(redemption.Id),
+					calculatedBonus,
+				)
+				if err != nil {
+					return err
+				}
+				if granted {
+					bonusQuota = calculatedBonus
+				}
+			}
+		}
+
+		// Invitation rebate is independent from the new-user activity bonus.
+		// It is calculated from the original redemption quota only, so an
+		// invitee's promotional bonus never increases the inviter's rebate.
+		affiliateSetting := operation_setting.GetAffiliateSetting()
+		rebatePercent := affiliateSetting.RedeemRebatePercent
+		rebateEligible := affiliateSetting.RedeemRebateEnabled &&
+			!math.IsNaN(rebatePercent) &&
+			!math.IsInf(rebatePercent, 0) &&
+			rebatePercent > 0 && rebatePercent <= 100 &&
+			redemption.Quota > 0 &&
+			user.InviterId > 0 && user.InviterId != user.Id
+		if !rebateEligible {
 			return nil
 		}
 
-		calculatedBonus, err := common.QuotaFromDecimalStrict(
+		calculatedRebate, err := common.QuotaFromDecimalStrict(
 			decimal.NewFromInt(int64(redemption.Quota)).
-				Mul(decimal.NewFromFloat(bonusPercent)).
+				Mul(decimal.NewFromFloat(rebatePercent)).
 				Div(decimal.NewFromInt(100)),
 		)
 		if err != nil {
+			// A malformed/oversized historical redemption must not prevent the
+			// invitee from using the code. The strict conversion protects the
+			// int32 quota columns; skip only this optional rebate on saturation.
+			var clamp *common.QuotaClamp
+			if errors.As(err, &clamp) {
+				common.SysError("affiliate rebate skipped: " + clamp.Error())
+				return nil
+			}
 			return err
 		}
-		if calculatedBonus <= 0 {
+		if calculatedRebate <= 0 {
 			return nil
 		}
-		granted, err := GrantActivityQuotaTx(
-			tx,
-			userId,
-			ActivityKeyNewUserRedeemBonus,
-			ActivityGrantSourceRedeem,
-			"redemption:"+strconv.Itoa(redemption.Id),
-			calculatedBonus,
-		)
-		if err != nil {
+
+		var inviter User
+		if err := lockForUpdate(tx).
+			Select("id", "aff_quota", "aff_history").
+			Where("id = ?", user.InviterId).
+			First(&inviter).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
 			return err
 		}
-		if granted {
-			bonusQuota = calculatedBonus
+		if inviter.Id == user.Id ||
+			inviter.AffQuota > common.MaxQuota-calculatedRebate ||
+			inviter.AffHistoryQuota > common.MaxQuota-calculatedRebate {
+			// Rebate balances are bounded by the same int32 quota ceiling as
+			// wallet balances. Reaching the ceiling skips this optional credit.
+			return nil
 		}
+
+		result = tx.Model(&User{}).
+			Where("id = ? AND aff_quota <= ? AND aff_history <= ?", user.InviterId, common.MaxQuota-calculatedRebate, common.MaxQuota-calculatedRebate).
+			Updates(map[string]interface{}{
+				"aff_quota":   gorm.Expr("aff_quota + ?", calculatedRebate),
+				"aff_history": gorm.Expr("aff_history + ?", calculatedRebate),
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return nil
+		}
+		rebateQuota = calculatedRebate
+		rebateInviterId = inviter.Id
 		return nil
 	})
 	if err != nil {
@@ -249,6 +316,13 @@ func Redeem(key string, userId int) (quota int, err error) {
 		content += fmt.Sprintf("，新用户活动赠送 %s", logger.LogQuota(bonusQuota))
 	}
 	RecordLog(userId, LogTypeTopup, content)
+	if rebateQuota > 0 {
+		RecordLog(
+			rebateInviterId,
+			LogTypeTopup,
+			fmt.Sprintf("邀请返利 %s（被邀请人兑换码ID %d）", logger.LogQuota(rebateQuota), redemption.Id),
+		)
+	}
 	return totalQuota, nil
 }
 

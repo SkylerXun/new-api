@@ -64,8 +64,6 @@ const BILLING_SECTIONS = [
         defaultValues={{
           QuotaForNewUser: settings.QuotaForNewUser,
           PreConsumedQuota: settings.PreConsumedQuota,
-          QuotaForInviter: settings.QuotaForInviter,
-          QuotaForInvitee: settings.QuotaForInvitee,
           TopUpLink: settings.TopUpLink,
           general_setting: {
             docs_link: settings['general_setting.docs_link'],
@@ -73,6 +71,12 @@ const BILLING_SECTIONS = [
           quota_setting: {
             enable_free_model_pre_consume:
               settings['quota_setting.enable_free_model_pre_consume'],
+          },
+          affiliate_setting: {
+            redeem_rebate_enabled:
+              settings['affiliate_setting.redeem_rebate_enabled'],
+            redeem_rebate_percent:
+              settings['affiliate_setting.redeem_rebate_percent'],
           },
         }}
         complianceConfirmed={

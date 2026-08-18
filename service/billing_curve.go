@@ -248,3 +248,24 @@ func EffectiveBillingCurveMultiplier(curve billing_curve_setting.Config, beforeM
 	}
 	return area / total
 }
+
+// CurrentBillingCurveMultiplier returns the point multiplier at a user's
+// current cumulative base usage, for display in administrative user lists.
+func CurrentBillingCurveMultiplier(curve billing_curve_setting.Config, usageMicroUSD int64) float64 {
+	if !curve.Enabled {
+		return 1
+	}
+	if usageMicroUSD <= 0 {
+		return curve.K1
+	}
+	threshold := curve.ThresholdUSD * billingCurveMicroUSD
+	window := curve.WindowUSD * billingCurveMicroUSD
+	usage := float64(usageMicroUSD)
+	if usage <= threshold {
+		return curve.K1
+	}
+	if window <= 0 || usage >= threshold+window {
+		return curve.K2
+	}
+	return curve.K1 + (curve.K2-curve.K1)*(usage-threshold)/window
+}

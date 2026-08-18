@@ -156,6 +156,26 @@ func UpdateOption(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": "新用户活动有效天数必须在 1 到 3650 天之间"})
 			return
 		}
+	case "affiliate_setting.redeem_rebate_enabled":
+		enabled, parseErr := strconv.ParseBool(strings.TrimSpace(option.Value.(string)))
+		if parseErr != nil {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": "邀请兑换返利开关值无效"})
+			return
+		}
+		if enabled && !operation_setting.IsPaymentComplianceConfirmed() {
+			common.ApiErrorI18n(c, i18n.MsgPaymentComplianceRequired)
+			return
+		}
+	case "affiliate_setting.redeem_rebate_percent":
+		percent, parseErr := strconv.ParseFloat(strings.TrimSpace(option.Value.(string)), 64)
+		if parseErr != nil || math.IsNaN(percent) || math.IsInf(percent, 0) || percent < 0 || percent > 100 {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": "邀请兑换返利比例必须在 0 到 100 之间"})
+			return
+		}
+		if percent > 0 && !operation_setting.IsPaymentComplianceConfirmed() {
+			common.ApiErrorI18n(c, i18n.MsgPaymentComplianceRequired)
+			return
+		}
 	case "QuotaForInviter", "QuotaForInvitee":
 		if isPositiveOptionValue(option.Value.(string)) && !operation_setting.IsPaymentComplianceConfirmed() {
 			common.ApiErrorI18n(c, i18n.MsgPaymentComplianceRequired)

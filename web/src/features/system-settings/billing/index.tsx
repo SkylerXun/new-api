@@ -27,11 +27,11 @@ import {
 const defaultBillingSettings: BillingSettings = {
   QuotaForNewUser: 0,
   PreConsumedQuota: 0,
-  QuotaForInviter: 0,
-  QuotaForInvitee: 0,
   TopUpLink: '',
   'general_setting.docs_link': '',
   'quota_setting.enable_free_model_pre_consume': true,
+  'affiliate_setting.redeem_rebate_enabled': false,
+  'affiliate_setting.redeem_rebate_percent': 0,
   'activity_setting.new_user_redeem_bonus_enabled': true,
   'activity_setting.new_user_redeem_bonus_percent': 30,
   'activity_setting.new_user_redeem_bonus_window_days': 1,

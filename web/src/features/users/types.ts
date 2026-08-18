@@ -45,6 +45,7 @@ export const userSchema = z.object({
   quota: z.number(),
   used_quota: z.number(),
   request_count: z.number(),
+  billing_curve_multiplier: z.number().optional().default(1),
   group: z.string(),
   aff_code: z.string().optional(),
   aff_count: z.number().optional(),

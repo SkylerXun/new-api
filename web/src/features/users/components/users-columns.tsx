@@ -192,6 +192,18 @@ export function useUsersColumns(): ColumnDef<User>[] {
       meta: { mobileOrder: 30 },
     },
     {
+      accessorKey: 'billing_curve_multiplier',
+      header: t('Current multiplier'),
+      cell: ({ row }) => (
+        <span className='tabular-nums'>
+          {(row.getValue('billing_curve_multiplier') as number).toFixed(1)}x
+        </span>
+      ),
+      enableSorting: false,
+      size: 120,
+      meta: { mobileOrder: 35 },
+    },
+    {
       accessorKey: 'role',
       header: t('Role'),
       cell: ({ row }) => {

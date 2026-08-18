@@ -67,11 +67,9 @@ describe('progressive billing configuration', () => {
     assert.equal(result.success, true)
   })
 
-  test('rejects invalid multiplier ordering and target averages', () => {
+  test('rejects invalid multiplier ordering and usage windows', () => {
     for (const config of [
       { ...DEFAULT_BILLING_CURVE_CONFIG, k2: 4 },
-      { ...DEFAULT_BILLING_CURVE_CONFIG, target_average_k: 16 },
-      { ...DEFAULT_BILLING_CURVE_CONFIG, target_average_k: 4 },
       { ...DEFAULT_BILLING_CURVE_CONFIG, window_usd: 0 },
     ]) {
       assert.equal(schema.safeParse(config).success, false)
