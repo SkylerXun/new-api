@@ -26,7 +26,10 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/models", middleware.UserAuth(), controller.DashboardListModels)
 		apiRouter.GET("/guides", middleware.UserAuth(), middleware.DisableCache(), controller.GetPublishedGuides)
 		apiRouter.POST("/guides/media", middleware.AdminAuth(), middleware.UploadRateLimit(), controller.UploadGuideMedia)
-		apiRouter.GET("/guides/media/:filename", middleware.UserAuth(), controller.GetGuideMedia)
+		// Media is embedded in HTML img/video tags, whose browser requests cannot
+		// attach the dashboard Bearer token. UUID filenames provide unguessable
+		// access URLs while the guide itself remains protected by UserAuth().
+		apiRouter.GET("/guides/media/:filename", controller.GetGuideMedia)
 		apiRouter.GET("/status/test", middleware.AdminAuth(), controller.TestStatus)
 		apiRouter.GET("/notice", controller.GetNotice)
 		apiRouter.GET("/user-agreement", controller.GetUserAgreement)

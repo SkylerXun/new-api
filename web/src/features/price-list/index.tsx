@@ -20,7 +20,6 @@ export function PriceList() {
   const [query, setQuery] = useState('')
   const [vendorID, setVendorID] = useState('all')
   const [groupFilter, setGroupFilter] = useState('all')
-  const [ratioFilter, setRatioFilter] = useState('all')
   const priceListQuery = useQuery({
     queryKey: ['price-list'],
     queryFn: getPriceList,
@@ -35,17 +34,12 @@ export function PriceList() {
         .sort(([a], [b]) => a.localeCompare(b)),
     [data?.group_ratio]
   )
-  const ratios = useMemo(
-    () => [...new Set(groups.map(([, ratio]) => ratio))].sort((a, b) => a - b),
-    [groups]
-  )
   const visibleGroups = useMemo(
     () =>
-      groups.filter(([group, ratio]) => {
-        if (groupFilter !== 'all' && group !== groupFilter) return false
-        return ratioFilter === 'all' || ratio === Number(ratioFilter)
-      }),
-    [groupFilter, groups, ratioFilter]
+      groups.filter(
+        ([group]) => groupFilter === 'all' || group === groupFilter
+      ),
+    [groupFilter, groups]
   )
 
   if (priceListQuery.isLoading) {
@@ -56,9 +50,9 @@ export function PriceList() {
     return (
       <main className='mx-auto w-full max-w-[1600px] space-y-3 px-4 py-6 sm:px-6'>
         <div>
-          <p className='text-sm font-medium'>{t('无法加载模型价格清单')}</p>
+          <p className='text-sm font-medium'>{t('无法加载模型清单')}</p>
           <p className='text-muted-foreground mt-1 text-sm'>
-            {t('请确认侧边栏中的模型价格清单已启用，然后重试。')}
+            {t('请确认侧边栏中的模型清单已启用，然后重试。')}
           </p>
         </div>
         <Button
@@ -83,9 +77,9 @@ export function PriceList() {
       <header className='border-b pb-5'>
         <div className='flex flex-wrap items-start justify-between gap-4'>
           <div>
-            <h1 className='text-2xl font-semibold'>{t('模型价格清单')}</h1>
+            <h1 className='text-2xl font-semibold'>{t('模型清单')}</h1>
             <p className='text-muted-foreground mt-1 text-sm'>
-              {t('按分组对比实际价格与官方模型价格。')}
+              {t('按分组查看模型实际价格与官方价格。')}
             </p>
           </div>
           {isAdmin && (
@@ -96,7 +90,7 @@ export function PriceList() {
                 <Link to='/models/$section' params={{ section: 'metadata' }} />
               }
             >
-              {t('编辑模型官方价格')}
+              {t('进入模型管理')}
             </Button>
           )}
         </div>
@@ -120,7 +114,6 @@ export function PriceList() {
                 setQuery('')
                 setVendorID('all')
                 setGroupFilter('all')
-                setRatioFilter('all')
               }}
               size='sm'
               type='button'
@@ -156,19 +149,6 @@ export function PriceList() {
         value={groupFilter}
         onChange={setGroupFilter}
       />
-      <FilterRow
-        label={t('倍率')}
-        options={[
-          { value: 'all', label: t('全部') },
-          ...ratios.map((ratio) => ({
-            value: String(ratio),
-            label: `${ratio}x`,
-          })),
-        ]}
-        value={ratioFilter}
-        onChange={setRatioFilter}
-      />
-
       <main className='mt-6 space-y-5'>
         {groupSections.map(({ group, ratio, models, info }) => (
           <section className='border' key={group}>

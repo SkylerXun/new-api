@@ -103,8 +103,8 @@ export function SidebarModulesSection({
         description: t('Aggregated usage metrics and trend charts.'),
       },
       price_list: {
-        title: t('模型价格清单'),
-        description: t('向用户展示各分组的实际价格和官方价格。'),
+        title: t('模型清单'),
+        description: t('向用户展示各分组的模型实际价格和官方价格。'),
       },
       token: {
         title: t('Token management'),

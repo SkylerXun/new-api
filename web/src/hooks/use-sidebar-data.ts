@@ -90,7 +90,7 @@ export function getSidebarData(
             icon: LayoutDashboard,
           },
           {
-            title: t('模型价格清单'),
+            title: t('模型清单'),
             url: '/price-list',
             icon: Tags,
           },
