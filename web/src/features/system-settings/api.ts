@@ -48,6 +48,18 @@ export async function updateSystemOption(request: UpdateOptionRequest) {
   return res.data
 }
 
+export async function uploadGuideMedia(file: File, kind: 'image' | 'video') {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('kind', kind)
+  const res = await api.post<{
+    success: boolean
+    message?: string
+    url?: string
+  }>('/api/guides/media', formData)
+  return res.data
+}
+
 export async function confirmPaymentCompliance() {
   const res = await api.post<ConfirmPaymentComplianceResponse>(
     '/api/option/payment_compliance',
@@ -101,9 +113,7 @@ export async function startAllUsersActivityGrant(
   return res.data
 }
 
-export async function getLatestAllUsersActivityGrantTask(): Promise<
-  AllUsersActivityGrantTask | null
-> {
+export async function getLatestAllUsersActivityGrantTask(): Promise<AllUsersActivityGrantTask | null> {
   const current = await api.get<
     SystemTaskResponse<AllUsersActivityGrantTask | null>
   >('/api/system-task/current', {

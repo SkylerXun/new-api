@@ -97,6 +97,10 @@ function installApiFixtures(createdPayloads: Array<Record<string, unknown>>) {
         return { data: { data: { default_use_auto_group: true } } }
       case '/api/user/models':
         return { data: { success: true, data: [] } }
+      case '/api/user/models?group=default':
+        return { data: { success: true, data: ['gpt-4o', 'o3-mini'] } }
+      case '/api/user/models?group=vip':
+        return { data: { success: true, data: ['claude-sonnet-4'] } }
       case '/api/user/self/groups':
         return {
           data: {
@@ -387,5 +391,35 @@ describe('API keys mutate drawer Auto group integration', () => {
       )
     )
     assert.deepEqual(createdPayloads[0]?.auto_groups, ['vip'])
+  })
+
+  test('displays fetched models below the group selector and clears them when the group changes', async () => {
+    const createdPayloads: Array<Record<string, unknown>> = []
+    installApiFixtures(createdPayloads)
+    await renderCreateDrawer()
+
+    const groupTrigger = getControlByLabel<HTMLButtonElement>('Group')
+    await selectComboboxOption(groupTrigger, 'Standard access')
+    const fetchButton = findButton('Fetch upstream models', true)
+    await act(async () => fetchButton.click())
+    await act(async () =>
+      waitForCondition(
+        () => document.body.textContent?.includes('gpt-4o') === true,
+        'fetched model names were not displayed'
+      )
+    )
+
+    const expirationLabel = [...document.querySelectorAll<HTMLLabelElement>('label')].find(
+      (candidate) => candidate.textContent?.trim() === 'Expiration Time'
+    )
+    assert.ok(expirationLabel)
+    assert.equal(
+      Boolean(fetchButton.compareDocumentPosition(expirationLabel) & Node.DOCUMENT_POSITION_FOLLOWING),
+      true
+    )
+    assert.equal(document.body.textContent?.includes('o3-mini'), true)
+
+    await selectComboboxOption(groupTrigger, 'Priority access')
+    assert.equal(document.body.textContent?.includes('gpt-4o'), false)
   })
 })

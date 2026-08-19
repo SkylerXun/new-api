@@ -320,7 +320,7 @@ export function UserAuthForm({
             variant='outline'
             disabled={passkeyButtonDisabled}
             onClick={handlePasskeyLogin}
-            className='h-11 w-full justify-center gap-2 rounded-lg'
+            className='h-12 w-full justify-center gap-2 rounded-lg text-base [&_svg]:size-5'
           >
             {isPasskeyLoading ? (
               <Loader2 className='h-4 w-4 animate-spin' />
@@ -352,7 +352,7 @@ export function UserAuthForm({
     <Form {...form}>
       <form
         onSubmit={form.handleSubmit(onSubmit)}
-        className={cn('grid gap-4', className)}
+        className={cn('grid gap-5', className)}
         {...props}
       >
         {hasAlternativeLogin && alternativeLoginMethods}
@@ -368,6 +368,7 @@ export function UserAuthForm({
                   <FormLabel>{t('Username or Email')}</FormLabel>
                   <FormControl>
                     <Input
+                      className='h-10 text-base md:text-base'
                       placeholder={t('Enter your username or email')}
                       {...field}
                     />
@@ -386,6 +387,7 @@ export function UserAuthForm({
                   <FormLabel>{t('Password')}</FormLabel>
                   <FormControl>
                     <PasswordInput
+                      className='[&_input]:h-10 [&_input]:text-base [&_button]:size-8'
                       placeholder={t('Enter password')}
                       {...field}
                     />
@@ -404,7 +406,7 @@ export function UserAuthForm({
             {/* Submit Button */}
             <Button
               type='submit'
-              className='mt-2 w-full justify-center gap-2'
+              className='mt-2 h-11 w-full justify-center gap-2 text-base [&_svg]:size-5'
               disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
             >
               {isLoading ? <Loader2 className='animate-spin' /> : <LogIn />}

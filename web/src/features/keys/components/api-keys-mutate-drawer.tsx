@@ -42,6 +42,7 @@ import {
   sideDrawerSwitchItemClassName,
 } from '@/components/drawer-layout'
 import { MultiSelect } from '@/components/multi-select'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Collapsible,
@@ -557,6 +558,52 @@ export function ApiKeysMutateDrawer({
                 />
               )}
 
+              <FormItem>
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  className='w-fit'
+                  disabled={!selectedGroup || isFetchingModels}
+                  onClick={handleFetchModels}
+                >
+                  {isFetchingModels ? (
+                    <LoaderCircle className='animate-spin' />
+                  ) : (
+                    <Download />
+                  )}
+                  {t('Fetch upstream models')}
+                </Button>
+                {fetchedModels !== null && (
+                  <div
+                    role='status'
+                    aria-live='polite'
+                    className='border-border bg-muted/30 flex max-h-40 flex-col gap-2 overflow-y-auto rounded-md border p-3'
+                  >
+                    {fetchedModels.length > 0 ? (
+                      <>
+                        <p className='text-muted-foreground text-sm'>
+                          {t('Fetched {{count}} model(s) from upstream', {
+                            count: fetchedModels.length,
+                          })}
+                        </p>
+                        <div className='flex flex-wrap gap-1.5'>
+                          {fetchedModels.map((model) => (
+                            <Badge key={model} variant='secondary'>
+                              {model}
+                            </Badge>
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <p className='text-muted-foreground text-sm'>
+                        {t('No models fetched from upstream')}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </FormItem>
+
               <FormField
                 control={form.control}
                 name='expired_time'
@@ -742,24 +789,7 @@ export function ApiKeysMutateDrawer({
                       name='model_limits'
                       render={({ field }) => (
                         <FormItem>
-                          <div className='flex items-center justify-between gap-2'>
-                            <FormLabel>{t('Model Limits')}</FormLabel>
-                            <Button
-                              type='button'
-                              variant='outline'
-                              size='sm'
-                              className='shrink-0'
-                              disabled={!selectedGroup || isFetchingModels}
-                              onClick={handleFetchModels}
-                            >
-                              {isFetchingModels ? (
-                                <LoaderCircle className='animate-spin' />
-                              ) : (
-                                <Download />
-                              )}
-                              {t('Fetch upstream models')}
-                            </Button>
-                          </div>
+                          <FormLabel>{t('Model Limits')}</FormLabel>
                           <FormControl>
                             <MultiSelect
                               options={models.map((m) => ({

@@ -923,19 +923,17 @@ export function ModelMutateDrawer({
 
             <SideDrawerSection>
               <div>
-                <h3 className='text-sm font-semibold'>
-                  {t('Official Pricing')}
-                </h3>
+                <h3 className='text-sm font-semibold'>{t('官方价格')}</h3>
                 <p className='text-muted-foreground mt-1 text-xs'>
-                  {t('USD per 1M tokens. Leave a field empty when unavailable.')}
+                  {t('单位为 USD / 1M tokens，未提供的价格可留空。')}
                 </p>
               </div>
               <div className='grid gap-4 sm:grid-cols-2'>
                 {[
-                  ['officialInputPrice', 'Official input price'],
-                  ['officialOutputPrice', 'Official output price'],
-                  ['officialCacheReadPrice', 'Official cache read price'],
-                  ['officialCacheWritePrice', 'Official cache write price'],
+                  ['officialInputPrice', '官方输入价格'],
+                  ['officialOutputPrice', '官方输出价格'],
+                  ['officialCacheReadPrice', '官方缓存读取价格'],
+                  ['officialCacheWritePrice', '官方缓存写入价格'],
                 ].map(([name, label]) => (
                   <FormField
                     key={name}

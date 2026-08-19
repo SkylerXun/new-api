@@ -17,8 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Plus, Save, Trash2 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { Image, Link2, Plus, Save, Trash2, Video } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -62,6 +62,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import dayjs from '@/lib/dayjs'
 
+import { uploadGuideMedia } from '../api'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
@@ -127,6 +128,13 @@ export function GuidesSection({ data }: GuidesSectionProps) {
   const [showEditor, setShowEditor] = useState(false)
   const [deleteMode, setDeleteMode] = useState<'single' | 'batch' | null>(null)
   const [hasChanges, setHasChanges] = useState(false)
+  const contentTextareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const imageInputRef = useRef<HTMLInputElement | null>(null)
+  const videoInputRef = useRef<HTMLInputElement | null>(null)
+  const selectionRef = useRef({ start: 0, end: 0 })
+  const [uploadingMedia, setUploadingMedia] = useState<
+    'image' | 'video' | null
+  >(null)
 
   const form = useForm<GuideFormValues>({
     resolver: zodResolver(guideSchema),
@@ -252,6 +260,90 @@ export function GuidesSection({ data }: GuidesSectionProps) {
       toast.success(t('Guides saved successfully'))
     } catch {
       toast.error(t('Failed to save guides'))
+    }
+  }
+
+  const insertMediaTag = (kind: 'image' | 'video') => {
+    const url = window.prompt(
+      t(kind === 'image' ? '请输入图片地址' : '请输入视频地址（MP4 直链）')
+    )
+    if (!url) return
+    const trimmedUrl = url.trim()
+    if (!/^https?:\/\//i.test(trimmedUrl)) {
+      toast.error(t('媒体地址必须以 http:// 或 https:// 开头'))
+      return
+    }
+
+    const textarea = contentTextareaRef.current
+    const current = form.getValues('content')
+    const snippet =
+      kind === 'image'
+        ? `<p><img src="${trimmedUrl}" alt="${t('教程图片')}" /></p>`
+        : `<p><video controls preload="metadata" src="${trimmedUrl}"></video></p>`
+    const start = textarea?.selectionStart ?? current.length
+    const end = textarea?.selectionEnd ?? current.length
+    const next = `${current.slice(0, start)}${snippet}${current.slice(end)}`
+
+    form.setValue('format', 'html', { shouldDirty: true })
+    form.setValue('content', next, { shouldDirty: true, shouldValidate: true })
+    requestAnimationFrame(() => {
+      if (!textarea) return
+      const cursor = start + snippet.length
+      textarea.focus()
+      textarea.setSelectionRange(cursor, cursor)
+    })
+  }
+
+  const rememberSelection = () => {
+    const textarea = contentTextareaRef.current
+    const current = form.getValues('content')
+    selectionRef.current = {
+      start: textarea?.selectionStart ?? current.length,
+      end: textarea?.selectionEnd ?? current.length,
+    }
+  }
+
+  const handleMediaFile = async (
+    event: ChangeEvent<HTMLInputElement>,
+    kind: 'image' | 'video'
+  ) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+
+    setUploadingMedia(kind)
+    try {
+      const result = await uploadGuideMedia(file, kind)
+      if (!result.success || !result.url) {
+        toast.error(result.message || t('媒体上传失败'))
+        return
+      }
+
+      const current = form.getValues('content')
+      const { start, end } = selectionRef.current
+      const safeStart = Math.min(start, current.length)
+      const safeEnd = Math.min(Math.max(end, safeStart), current.length)
+      const snippet =
+        kind === 'image'
+          ? `<p><img src="${result.url}" alt="${t('教程图片')}" /></p>`
+          : `<p><video controls preload="metadata" src="${result.url}"></video></p>`
+      const next = `${current.slice(0, safeStart)}${snippet}${current.slice(safeEnd)}`
+      form.setValue('format', 'html', { shouldDirty: true })
+      form.setValue('content', next, {
+        shouldDirty: true,
+        shouldValidate: true,
+      })
+      requestAnimationFrame(() => {
+        const textarea = contentTextareaRef.current
+        if (!textarea) return
+        const cursor = safeStart + snippet.length
+        textarea.focus()
+        textarea.setSelectionRange(cursor, cursor)
+      })
+    } catch {
+      toast.error(t('媒体上传失败'))
+    } finally {
+      setUploadingMedia(null)
     }
   }
 
@@ -506,17 +598,83 @@ export function GuidesSection({ data }: GuidesSectionProps) {
                       <Textarea
                         className='min-h-80 font-mono text-sm'
                         {...field}
+                        ref={(element) => {
+                          field.ref(element)
+                          contentTextareaRef.current = element
+                        }}
                       />
                     </FormControl>
                     <FormDescription>
                       {t(
-                        'Use image links and direct MP4 links in HTML tags. Unsafe HTML is removed when displayed.'
+                        '图片使用可访问的 http(s) 地址，视频使用 MP4 直链；可用下方按钮插入 HTML。显示时会过滤危险 HTML。'
                       )}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+              <div className='flex flex-wrap gap-2'>
+                <Button
+                  type='button'
+                  size='sm'
+                  variant='outline'
+                  disabled={uploadingMedia !== null}
+                  onClick={() => {
+                    rememberSelection()
+                    imageInputRef.current?.click()
+                  }}
+                >
+                  <Image className='mr-2 h-4 w-4' />
+                  {uploadingMedia === 'image' ? t('上传中...') : t('选择图片')}
+                </Button>
+                <Button
+                  type='button'
+                  size='sm'
+                  variant='outline'
+                  disabled={uploadingMedia !== null}
+                  onClick={() => {
+                    rememberSelection()
+                    videoInputRef.current?.click()
+                  }}
+                >
+                  <Video className='mr-2 h-4 w-4' />
+                  {uploadingMedia === 'video' ? t('上传中...') : t('选择视频')}
+                </Button>
+                <Button
+                  type='button'
+                  size='sm'
+                  variant='outline'
+                  disabled={uploadingMedia !== null}
+                  onClick={() => insertMediaTag('image')}
+                >
+                  <Link2 className='mr-2 h-4 w-4' />
+                  {t('插入图片地址')}
+                </Button>
+                <Button
+                  type='button'
+                  size='sm'
+                  variant='outline'
+                  disabled={uploadingMedia !== null}
+                  onClick={() => insertMediaTag('video')}
+                >
+                  <Link2 className='mr-2 h-4 w-4' />
+                  {t('插入视频地址')}
+                </Button>
+                <input
+                  ref={imageInputRef}
+                  className='hidden'
+                  type='file'
+                  accept='image/png,image/jpeg,image/gif,image/webp'
+                  onChange={(event) => void handleMediaFile(event, 'image')}
+                />
+                <input
+                  ref={videoInputRef}
+                  className='hidden'
+                  type='file'
+                  accept='video/mp4,video/webm,video/quicktime'
+                  onChange={(event) => void handleMediaFile(event, 'video')}
+                />
+              </div>
               <div className='grid gap-4 sm:grid-cols-2'>
                 <FormField
                   control={form.control}

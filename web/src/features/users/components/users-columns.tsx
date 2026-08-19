@@ -194,11 +194,18 @@ export function useUsersColumns(): ColumnDef<User>[] {
     {
       accessorKey: 'billing_curve_multiplier',
       header: t('Current multiplier'),
-      cell: ({ row }) => (
-        <span className='tabular-nums'>
-          {(row.getValue('billing_curve_multiplier') as number).toFixed(1)}x
-        </span>
-      ),
+      cell: ({ row }) => {
+        const multiplier = row.getValue('billing_curve_multiplier') as number
+        return (
+          <span className='tabular-nums'>
+            {`${
+              multiplier % 1 === 0
+                ? String(multiplier)
+                : multiplier.toFixed(4).replace(/\.?0+$/, '')
+            }x`}
+          </span>
+        )
+      },
       enableSorting: false,
       size: 120,
       meta: { mobileOrder: 35 },

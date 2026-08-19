@@ -64,9 +64,11 @@ services:
       - "3000:3000"
     volumes:
       - ./data:/data
+      - ./data/guides-media:/data/guides-media
     environment:
       - SESSION_SECRET=your_session_secret_here  # 请修改为随机字符串
       - TZ=Asia/Shanghai
+      - GUIDE_MEDIA_DIR=/data/guides-media
 ```
 
 1. 在终端中进入目录并启动：
@@ -148,4 +150,3 @@ docker-compose down && docker-compose up -d
 ![宝塔面板 Docker 安装](https://github.com/user-attachments/assets/7a6fc03e-c457-45e4-b8f9-184508fc26b0)
 
 > ⚠️ 注意：密钥为环境变量 `SESSION_SECRET`，请务必设置！
-

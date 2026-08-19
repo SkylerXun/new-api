@@ -25,6 +25,8 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/uptime/status", controller.GetUptimeKumaStatus)
 		apiRouter.GET("/models", middleware.UserAuth(), controller.DashboardListModels)
 		apiRouter.GET("/guides", middleware.UserAuth(), middleware.DisableCache(), controller.GetPublishedGuides)
+		apiRouter.POST("/guides/media", middleware.AdminAuth(), middleware.UploadRateLimit(), controller.UploadGuideMedia)
+		apiRouter.GET("/guides/media/:filename", middleware.UserAuth(), controller.GetGuideMedia)
 		apiRouter.GET("/status/test", middleware.AdminAuth(), controller.TestStatus)
 		apiRouter.GET("/notice", controller.GetNotice)
 		apiRouter.GET("/user-agreement", controller.GetUserAgreement)
@@ -33,7 +35,7 @@ func SetApiRouter(router *gin.Engine) {
 		//apiRouter.GET("/midjourney", controller.GetMidjourney)
 		apiRouter.GET("/home_page_content", controller.GetHomePageContent)
 		apiRouter.GET("/pricing", middleware.HeaderNavModuleAuth("pricing"), controller.GetPricing)
-		apiRouter.GET("/price-list", middleware.HeaderNavModuleAuth("priceList"), controller.GetPriceList)
+		apiRouter.GET("/price-list", middleware.SidebarModuleAuth("console", "price_list"), controller.GetPriceList)
 		perfMetricsRoute := apiRouter.Group("/perf-metrics")
 		perfMetricsRoute.Use(middleware.HeaderNavModulePublicOrUserAuth("pricing"))
 		{

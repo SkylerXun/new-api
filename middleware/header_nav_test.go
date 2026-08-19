@@ -36,6 +36,28 @@ func withHeaderNavModules(t *testing.T, raw string) {
 	})
 }
 
+func withSidebarModules(t *testing.T, raw string) {
+	t.Helper()
+
+	common.OptionMapRWMutex.Lock()
+	if common.OptionMap == nil {
+		common.OptionMap = map[string]string{}
+	}
+	previous, hadPrevious := common.OptionMap["SidebarModulesAdmin"]
+	common.OptionMap["SidebarModulesAdmin"] = raw
+	common.OptionMapRWMutex.Unlock()
+
+	t.Cleanup(func() {
+		common.OptionMapRWMutex.Lock()
+		defer common.OptionMapRWMutex.Unlock()
+		if hadPrevious {
+			common.OptionMap["SidebarModulesAdmin"] = previous
+			return
+		}
+		delete(common.OptionMap, "SidebarModulesAdmin")
+	})
+}
+
 func performHeaderNavRequest(t *testing.T, handler gin.HandlerFunc, authenticated bool) *httptest.ResponseRecorder {
 	t.Helper()
 
@@ -114,20 +136,29 @@ func TestHeaderNavModuleAuthRequiresLoginForRankings(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, recorder.Code)
 }
 
-func TestHeaderNavModuleAuthRequiresLoginForPriceListByDefault(t *testing.T) {
-	withHeaderNavModules(t, "")
+func TestSidebarModuleAuthRejectsDisabledPriceList(t *testing.T) {
+	withSidebarModules(t, `{"console":{"enabled":true,"price_list":false}}`)
 
-	recorder := performHeaderNavRequest(t, HeaderNavModuleAuth("priceList"), false)
+	recorder := performHeaderNavRequest(t, SidebarModuleAuth("console", "price_list"), false)
+
+	require.Equal(t, http.StatusForbidden, recorder.Code)
+}
+
+func TestSidebarModuleAuthRequiresLoginForPriceList(t *testing.T) {
+	withSidebarModules(t, `{"console":{"enabled":true,"price_list":true}}`)
+
+	recorder := performHeaderNavRequest(t, SidebarModuleAuth("console", "price_list"), false)
 
 	require.Equal(t, http.StatusUnauthorized, recorder.Code)
 }
 
-func TestHeaderNavModuleAuthRejectsDisabledPriceList(t *testing.T) {
-	withHeaderNavModules(t, `{"priceList":{"enabled":false,"requireAuth":true}}`)
+func TestSidebarModuleAuthIgnoresLegacyHeaderPriceListOption(t *testing.T) {
+	withHeaderNavModules(t, `{"priceList":{"enabled":false}}`)
+	withSidebarModules(t, `{"console":{"enabled":true,"price_list":true}}`)
 
-	recorder := performHeaderNavRequest(t, HeaderNavModuleAuth("priceList"), true)
+	recorder := performHeaderNavRequest(t, SidebarModuleAuth("console", "price_list"), false)
 
-	require.Equal(t, http.StatusForbidden, recorder.Code)
+	require.Equal(t, http.StatusUnauthorized, recorder.Code)
 }
 
 func TestHeaderNavModuleAuthRejectsLegacyDisabledModule(t *testing.T) {

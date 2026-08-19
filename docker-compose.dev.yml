@@ -26,10 +26,12 @@ services:
       - "3000:3000"
     volumes:
       - dev_data:/data
+      - dev_guide_media:/data/guides-media
     environment:
       - SQL_DSN=postgresql://root:123456@postgres:5432/new-api
       - REDIS_CONN_STRING=redis://redis
       - TZ=Asia/Shanghai
+      - GUIDE_MEDIA_DIR=/data/guides-media
       - BATCH_UPDATE_ENABLED=true
       # Local HTTP dev mode: keep Secure=false and leave TRUSTED_URL unset. This disables the refresh/logout OriginGuard so the :5173 -> :3000 dev proxy works.
       - SESSION_COOKIE_SECURE=false
@@ -71,6 +73,7 @@ services:
 
 volumes:
   dev_data:
+  dev_guide_media:
   dev_pg_data:
 
 networks:
