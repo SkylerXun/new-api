@@ -61,6 +61,7 @@ import { safeNumberFieldProps } from '../utils/numeric-field'
 import { AmountDiscountVisualEditor } from './amount-discount-visual-editor'
 import { AmountOptionsVisualEditor } from './amount-options-visual-editor'
 import { CreemProductsVisualEditor } from './creem-products-visual-editor'
+import { HupijiaoPackagesVisualEditor } from './hupijiao-packages-visual-editor'
 import { PaymentMethodsVisualEditor } from './payment-methods-visual-editor'
 import {
   formatJsonForEditor,
@@ -105,15 +106,33 @@ const paymentSchema = z.object({
   Price: z.coerce.number().min(0),
   MinTopUp: z.coerce.number().min(0),
   OnlinePaymentProvider: z.enum(['epay', 'hupijiao']),
-  HupijiaoAPIAddress: z.string(), HupijiaoBackupAPIAddress: z.string(),
-  HupijiaoWechatAppID: z.string(), HupijiaoWechatSecret: z.string(),
-  HupijiaoAlipayAppID: z.string(), HupijiaoAlipaySecret: z.string(),
+  HupijiaoAPIAddress: z.string(),
+  HupijiaoBackupAPIAddress: z.string(),
+  HupijiaoWechatAppID: z.string(),
+  HupijiaoWechatSecret: z.string(),
+  HupijiaoAlipayAppID: z.string(),
+  HupijiaoAlipaySecret: z.string(),
   HupijiaoPackages: z.string().superRefine((value, ctx) => {
-    const error = getJsonError(value, (parsed) => Array.isArray(parsed) && parsed.every((item) => {
-      if (!item || typeof item !== 'object') return false
-      const p = item as Record<string, unknown>
-      return typeof p.id === 'string' && p.id.length > 0 && typeof p.title === 'string' && p.title.length > 0 && Number(p.original_amount) >= 0.01 && Number(p.quota) > 0 && Number(p.discount_rate) >= 0.01 && Number(p.discount_rate) <= 1 && typeof p.enabled === 'boolean'
-    }))
+    const error = getJsonError(
+      value,
+      (parsed) =>
+        Array.isArray(parsed) &&
+        parsed.every((item) => {
+          if (!item || typeof item !== 'object') return false
+          const p = item as Record<string, unknown>
+          return (
+            typeof p.id === 'string' &&
+            p.id.length > 0 &&
+            typeof p.title === 'string' &&
+            p.title.length > 0 &&
+            Number(p.original_amount) >= 0.01 &&
+            Number(p.quota) > 0 &&
+            Number(p.discount_rate) >= 0.01 &&
+            Number(p.discount_rate) <= 1 &&
+            typeof p.enabled === 'boolean'
+          )
+        })
+    )
     if (error) ctx.addIssue({ code: z.ZodIssueCode.custom, message: error })
   }),
   CustomCallbackAddress: z
@@ -257,6 +276,8 @@ export function PaymentSettingsSection({
     React.useState(true)
   const [creemProductsVisualMode, setCreemProductsVisualMode] =
     React.useState(true)
+  const [hupijiaoPackagesVisualMode, setHupijiaoPackagesVisualMode] =
+    React.useState(true)
   const [showComplianceDialog, setShowComplianceDialog] = React.useState(false)
   const [waffoPayMethods, setWaffoPayMethods] = React.useState<PayMethod[]>(
     () => parseWaffoPayMethods(waffoDefaultValues.WaffoPayMethods)
@@ -372,6 +393,10 @@ export function PaymentSettingsSection({
   })
 
   const { isSubmitting } = form.formState
+  const selectedOnlineProvider = form.watch('OnlinePaymentProvider')
+  const savedOnlineProvider = initialFormValues.OnlinePaymentProvider
+  const hasPendingProviderChange =
+    selectedOnlineProvider !== savedOnlineProvider
 
   const setPaymentValue = React.useCallback(
     (
@@ -436,8 +461,15 @@ export function PaymentSettingsSection({
       Price: values.Price,
       MinTopUp: values.MinTopUp,
       OnlinePaymentProvider: values.OnlinePaymentProvider,
-      HupijiaoAPIAddress: removeTrailingSlash(values.HupijiaoAPIAddress.trim()), HupijiaoBackupAPIAddress: removeTrailingSlash(values.HupijiaoBackupAPIAddress.trim()),
-      HupijiaoWechatAppID: values.HupijiaoWechatAppID.trim(), HupijiaoWechatSecret: values.HupijiaoWechatSecret.trim(), HupijiaoAlipayAppID: values.HupijiaoAlipayAppID.trim(), HupijiaoAlipaySecret: values.HupijiaoAlipaySecret.trim(), HupijiaoPackages: values.HupijiaoPackages.trim(),
+      HupijiaoAPIAddress: removeTrailingSlash(values.HupijiaoAPIAddress.trim()),
+      HupijiaoBackupAPIAddress: removeTrailingSlash(
+        values.HupijiaoBackupAPIAddress.trim()
+      ),
+      HupijiaoWechatAppID: values.HupijiaoWechatAppID.trim(),
+      HupijiaoWechatSecret: values.HupijiaoWechatSecret.trim(),
+      HupijiaoAlipayAppID: values.HupijiaoAlipayAppID.trim(),
+      HupijiaoAlipaySecret: values.HupijiaoAlipaySecret.trim(),
+      HupijiaoPackages: values.HupijiaoPackages.trim(),
       CustomCallbackAddress: removeTrailingSlash(values.CustomCallbackAddress),
       PayMethods: values.PayMethods.trim(),
       AmountOptions: values.AmountOptions.trim(),
@@ -481,8 +513,17 @@ export function PaymentSettingsSection({
       Price: initialRef.current.Price,
       MinTopUp: initialRef.current.MinTopUp,
       OnlinePaymentProvider: initialRef.current.OnlinePaymentProvider,
-      HupijiaoAPIAddress: removeTrailingSlash(initialRef.current.HupijiaoAPIAddress.trim()), HupijiaoBackupAPIAddress: removeTrailingSlash(initialRef.current.HupijiaoBackupAPIAddress.trim()),
-      HupijiaoWechatAppID: initialRef.current.HupijiaoWechatAppID.trim(), HupijiaoWechatSecret: initialRef.current.HupijiaoWechatSecret.trim(), HupijiaoAlipayAppID: initialRef.current.HupijiaoAlipayAppID.trim(), HupijiaoAlipaySecret: initialRef.current.HupijiaoAlipaySecret.trim(), HupijiaoPackages: initialRef.current.HupijiaoPackages.trim(),
+      HupijiaoAPIAddress: removeTrailingSlash(
+        initialRef.current.HupijiaoAPIAddress.trim()
+      ),
+      HupijiaoBackupAPIAddress: removeTrailingSlash(
+        initialRef.current.HupijiaoBackupAPIAddress.trim()
+      ),
+      HupijiaoWechatAppID: initialRef.current.HupijiaoWechatAppID.trim(),
+      HupijiaoWechatSecret: initialRef.current.HupijiaoWechatSecret.trim(),
+      HupijiaoAlipayAppID: initialRef.current.HupijiaoAlipayAppID.trim(),
+      HupijiaoAlipaySecret: initialRef.current.HupijiaoAlipaySecret.trim(),
+      HupijiaoPackages: initialRef.current.HupijiaoPackages.trim(),
       CustomCallbackAddress: removeTrailingSlash(
         initialRef.current.CustomCallbackAddress
       ),
@@ -526,11 +567,23 @@ export function PaymentSettingsSection({
 
     const updates: Array<{ key: string; value: string | number | boolean }> = []
 
-    for (const key of ['OnlinePaymentProvider','HupijiaoAPIAddress','HupijiaoBackupAPIAddress','HupijiaoWechatAppID','HupijiaoAlipayAppID','HupijiaoPackages'] as const) {
-      if (sanitized[key] !== initial[key]) updates.push({ key, value: sanitized[key] })
+    for (const key of [
+      'OnlinePaymentProvider',
+      'HupijiaoAPIAddress',
+      'HupijiaoBackupAPIAddress',
+      'HupijiaoWechatAppID',
+      'HupijiaoAlipayAppID',
+      'HupijiaoPackages',
+    ] as const) {
+      if (sanitized[key] !== initial[key])
+        updates.push({ key, value: sanitized[key] })
     }
-    for (const key of ['HupijiaoWechatSecret', 'HupijiaoAlipaySecret'] as const) {
-      if (sanitized[key] && sanitized[key] !== initial[key]) updates.push({ key, value: sanitized[key] })
+    for (const key of [
+      'HupijiaoWechatSecret',
+      'HupijiaoAlipaySecret',
+    ] as const) {
+      if (sanitized[key] && sanitized[key] !== initial[key])
+        updates.push({ key, value: sanitized[key] })
     }
 
     if (sanitized.PayAddress !== initial.PayAddress) {
@@ -902,9 +955,24 @@ export function PaymentSettingsSection({
           />
           <Tabs defaultValue='general' className='min-w-0'>
             <div className='overflow-x-auto pb-1'>
-              <TabsList className='grid min-w-[44rem] grid-cols-6'>
+              <TabsList className='grid min-w-[52rem] grid-cols-7'>
                 <TabsTrigger value='general'>{t('General')}</TabsTrigger>
-                <TabsTrigger value='epay'>Epay</TabsTrigger>
+                <TabsTrigger value='epay' className='gap-1.5'>
+                  EPay
+                  {savedOnlineProvider === 'epay' && (
+                    <span className='rounded-sm bg-sky-100 px-1.5 py-0.5 text-[10px] text-sky-700 dark:bg-sky-950 dark:text-sky-200'>
+                      {t('Provider enabled')}
+                    </span>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value='hupijiao' className='gap-1.5'>
+                  {t('Hupijiao')}
+                  {savedOnlineProvider === 'hupijiao' && (
+                    <span className='rounded-sm bg-sky-100 px-1.5 py-0.5 text-[10px] text-sky-700 dark:bg-sky-950 dark:text-sky-200'>
+                      {t('Provider enabled')}
+                    </span>
+                  )}
+                </TabsTrigger>
                 <TabsTrigger value='stripe'>{t('Stripe')}</TabsTrigger>
                 <TabsTrigger value='creem'>Creem</TabsTrigger>
                 <TabsTrigger value='waffo-pancake'>Waffo Pancake</TabsTrigger>
@@ -919,19 +987,74 @@ export function PaymentSettingsSection({
                     {t('General Settings')}
                   </h3>
                   <p className='text-muted-foreground text-sm'>
-                    {t('Shared configuration for all payment gateways')}
+                    {t(
+                      'Choose which provider handles online top-ups and subscription payments'
+                    )}
                   </p>
                 </div>
 
+                <div className='max-w-xl'>
+                  <FormField
+                    control={form.control}
+                    name='OnlinePaymentProvider'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('当前在线支付方式')}</FormLabel>
+                        <FormDescription>
+                          {t('用户充值和购买订阅时使用的支付渠道')}
+                        </FormDescription>
+                        <FormControl>
+                          <select
+                            className='border-input bg-background h-10 rounded-md border px-3 text-sm'
+                            {...field}
+                          >
+                            <option value='epay'>EPay</option>
+                            <option value='hupijiao'>{t('Hupijiao')}</option>
+                          </select>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <div className='rounded-md border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950 dark:border-sky-900 dark:bg-sky-950 dark:text-sky-100'>
+                  <span className='font-medium'>
+                    {t('Currently enabled')}：
+                  </span>{' '}
+                  {savedOnlineProvider === 'hupijiao' ? t('Hupijiao') : 'EPay'}
+                  <p className='mt-1 text-xs opacity-80'>
+                    {savedOnlineProvider === 'hupijiao'
+                      ? t(
+                          'RMB package pricing is used. EPay USD conversion settings do not apply.'
+                        )
+                      : t('EPay USD conversion and amount settings are used.')}
+                  </p>
+                  {hasPendingProviderChange && (
+                    <p className='mt-2 border-t border-sky-200 pt-2 font-medium dark:border-sky-800'>
+                      {t('Pending provider change')}：
+                      {selectedOnlineProvider === 'hupijiao'
+                        ? t('Hupijiao')
+                        : 'EPay'}
+                      。{t('Save all settings to apply')}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value='epay' className={paymentTabContentClassName}>
+              <div className='space-y-4'>
+                <div>
+                  <h3 className='text-lg font-medium'>
+                    {t('EPay recharge pricing')}
+                  </h3>
+                  <p className='text-muted-foreground text-sm'>
+                    {t(
+                      'These conversion, amount, and discount settings apply only to EPay'
+                    )}
+                  </p>
+                </div>
                 <div className='grid gap-6 md:grid-cols-2'>
-                  <FormField control={form.control} name='OnlinePaymentProvider' render={({ field }) => (<FormItem><FormLabel>{t('Online payment provider')}</FormLabel><FormControl><select className='border-input bg-background h-10 rounded-md border px-3 text-sm' {...field}><option value='epay'>EPay</option><option value='hupijiao'>Hupijiao</option></select></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={form.control} name='HupijiaoAPIAddress' render={({ field }) => (<FormItem><FormLabel>{t('Hupijiao API address')}</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={form.control} name='HupijiaoBackupAPIAddress' render={({ field }) => (<FormItem><FormLabel>{t('Hupijiao backup API address')}</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={form.control} name='HupijiaoWechatAppID' render={({ field }) => (<FormItem><FormLabel>{t('Hupijiao WeChat APPID')}</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={form.control} name='HupijiaoWechatSecret' render={({ field }) => (<FormItem><FormLabel>{t('Hupijiao WeChat SECRET')}</FormLabel><FormControl><Input type='password' {...field} /></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={form.control} name='HupijiaoAlipayAppID' render={({ field }) => (<FormItem><FormLabel>{t('Hupijiao Alipay APPID')}</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={form.control} name='HupijiaoAlipaySecret' render={({ field }) => (<FormItem><FormLabel>{t('Hupijiao Alipay SECRET')}</FormLabel><FormControl><Input type='password' {...field} /></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={form.control} name='HupijiaoPackages' render={({ field }) => (<FormItem className='md:col-span-2'><FormLabel>{t('Hupijiao recharge packages JSON')}</FormLabel><FormControl><textarea className='border-input bg-background min-h-32 w-full rounded-md border p-3 text-sm font-mono' {...field} /></FormControl><FormDescription>{t('Configure id, title, original_amount, quota, discount_rate and enabled')}</FormDescription><FormMessage /></FormItem>)} />
                   <FormField
                     control={form.control}
                     name='Price'
@@ -1164,11 +1287,7 @@ export function PaymentSettingsSection({
                     )}
                   />
                 </div>
-              </div>
-            </TabsContent>
 
-            <TabsContent value='epay' className={paymentTabContentClassName}>
-              <div className='space-y-4'>
                 <div>
                   <h3 className='text-lg font-medium'>{t('Epay Gateway')}</h3>
                   <p className='text-muted-foreground text-sm'>
@@ -1283,6 +1402,208 @@ export function PaymentSettingsSection({
                     )}
                   />
                 </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent
+              value='hupijiao'
+              className={paymentTabContentClassName}
+            >
+              <div className='space-y-6'>
+                <div>
+                  <h3 className='text-lg font-medium'>
+                    {t('Hupijiao payment')}
+                  </h3>
+                  <p className='text-muted-foreground text-sm'>
+                    {t(
+                      'Only enter the credentials from your Hupijiao dashboard. The API addresses normally stay unchanged.'
+                    )}
+                  </p>
+                </div>
+                <div className='rounded-md bg-amber-50 p-4 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100'>
+                  {t(
+                    'Select Hupijiao as the online payment provider on the General tab, then save all settings.'
+                  )}
+                </div>
+                <div className='grid gap-6 md:grid-cols-2'>
+                  <FormField
+                    control={form.control}
+                    name='HupijiaoAPIAddress'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Primary API address')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder='https://api.xunhupay.com'
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t('Usually does not need to be changed')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name='HupijiaoBackupAPIAddress'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Backup API address')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder='https://api.dpweixin.com'
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Tried automatically if the primary address fails'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name='HupijiaoWechatAppID'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('WeChat APPID')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            autoComplete='off'
+                            placeholder={t('Copy from the Hupijiao dashboard')}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name='HupijiaoWechatSecret'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('WeChat SECRET')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='password'
+                            autoComplete='new-password'
+                            placeholder={t(
+                              'Copy from the Hupijiao dashboard; leave blank to keep the current secret'
+                            )}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name='HupijiaoAlipayAppID'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Alipay APPID')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            autoComplete='off'
+                            placeholder={t('Copy from the Hupijiao dashboard')}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name='HupijiaoAlipaySecret'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Alipay SECRET')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='password'
+                            autoComplete='new-password'
+                            placeholder={t(
+                              'Copy from the Hupijiao dashboard; leave blank to keep the current secret'
+                            )}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <FormField
+                  control={form.control}
+                  name='HupijiaoPackages'
+                  render={({ field }) => (
+                    <FormItem>
+                      <div className='mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
+                        <div>
+                          <FormLabel>{t('Recharge packages')}</FormLabel>
+                          <FormDescription>
+                            {t(
+                              'Original prices are in CNY. Credited quota uses the internal system quota unit.'
+                            )}
+                          </FormDescription>
+                        </div>
+                        <Button
+                          type='button'
+                          variant='outline'
+                          size='sm'
+                          onClick={() =>
+                            setHupijiaoPackagesVisualMode(
+                              !hupijiaoPackagesVisualMode
+                            )
+                          }
+                          className='w-full sm:w-auto'
+                        >
+                          {hupijiaoPackagesVisualMode ? (
+                            <>
+                              <Code2 className='mr-2 h-3 w-3' />
+                              {t('切换 JSON')}
+                            </>
+                          ) : (
+                            <>
+                              <Eye className='mr-2 h-3 w-3' />
+                              {t('Visual editor')}
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                      <FormControl>
+                        {hupijiaoPackagesVisualMode ? (
+                          <HupijiaoPackagesVisualEditor
+                            value={field.value}
+                            onChange={field.onChange}
+                          />
+                        ) : (
+                          <JsonCodeEditor
+                            value={field.value}
+                            onChange={field.onChange}
+                            name={field.name}
+                            onBlur={field.onBlur}
+                            textareaRef={field.ref}
+                            placeholder='[{"id":"cny10","title":"10元套餐","original_amount":10,"quota":1000,"discount_rate":0.8,"enabled":true}]'
+                            heightClassName='h-48 min-h-48 max-h-48'
+                            aria-invalid={Boolean(
+                              form.formState.errors.HupijiaoPackages
+                            )}
+                          />
+                        )}
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
             </TabsContent>
 

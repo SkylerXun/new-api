@@ -379,6 +379,18 @@ export function SubscriptionPurchaseDialog(props: Props) {
               )}
             </span>
           </div>
+          {hasHupijiao && Number(plan.hupijiao_discount_rate || 1) < 1 && (
+            <div className='text-muted-foreground flex items-center justify-between text-xs'>
+              <span>{t('Discount')}</span>
+              <span>
+                {(Number(plan.hupijiao_discount_rate || 1) * 10).toFixed(1)}
+                {t('折')} · {t('Save')} ¥
+                {(
+                  Number(plan.price_amount || 0) - Number(hupijiaoPrice)
+                ).toFixed(2)}
+              </span>
+            </div>
+          )}
         </div>
 
         {limitReached && (

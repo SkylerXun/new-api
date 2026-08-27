@@ -380,15 +380,19 @@ func SearchUsers(c *gin.Context) {
 func attachUserBillingCurveMultipliers(users []*model.User) error {
 	curve := billing_curve_setting.GetConfig()
 	userIDs := make([]int, 0, len(users))
+	activeUserIDs := make([]int, 0, len(users))
 	for _, user := range users {
 		userIDs = append(userIDs, user.Id)
+		if !user.DeletedAt.Valid {
+			activeUserIDs = append(activeUserIDs, user.Id)
+		}
 	}
 	progresses, err := model.GetUserBillingCurveProgresses(userIDs)
 	if err != nil {
 		return err
 	}
 	monthStart := service.CurrentBillingMonthStart()
-	if err = service.EnsureCurrentMonthlyBillingBackfill(userIDs, curve, monthStart); err != nil {
+	if err = service.EnsureCurrentMonthlyBillingBackfill(activeUserIDs, curve, monthStart); err != nil {
 		return err
 	}
 	monthlyProgresses, err := model.GetUserMonthlyBillingProgresses(userIDs, monthStart)

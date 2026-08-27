@@ -46,10 +46,7 @@ import {
 import { SettingsPageFormActions } from '../../components/settings-page-context'
 import { useSettingsForm } from '../../hooks/use-settings-form'
 import { useUpdateOption } from '../../hooks/use-update-option'
-import {
-  activitySettingsSchema,
-  type ActivitySettingsFormValues,
-} from './lib'
+import { activitySettingsSchema, type ActivitySettingsFormValues } from './lib'
 
 type ActivitySettingsFormProps = {
   defaultValues: ActivitySettingsFormValues

@@ -69,7 +69,15 @@ interface SubscriptionPlansCardProps {
   onPurchaseSuccess?: () => void | Promise<void>
 }
 
-function getEpayMethods(payMethods: PaymentMethod[] = []): PaymentMethod[] {
+function getOnlinePaymentMethods(
+  payMethods: PaymentMethod[] = [],
+  provider?: 'epay' | 'hupijiao'
+): PaymentMethod[] {
+  if (provider === 'hupijiao') {
+    return payMethods.filter((method) =>
+      ['alipay', 'wxpay'].includes(method?.type)
+    )
+  }
   return payMethods.filter(
     (m) => m?.type && m.type !== 'stripe' && m.type !== 'creem'
   )
@@ -121,8 +129,12 @@ export function SubscriptionPlansCard({
   const enableWaffoPancake = !!topupInfo?.enable_waffo_pancake_topup
   const enableOnlineTopUp = !!topupInfo?.enable_online_topup
   const epayMethods = useMemo(
-    () => getEpayMethods(topupInfo?.pay_methods),
-    [topupInfo?.pay_methods]
+    () =>
+      getOnlinePaymentMethods(
+        topupInfo?.pay_methods,
+        topupInfo?.online_payment_provider
+      ),
+    [topupInfo?.online_payment_provider, topupInfo?.pay_methods]
   )
 
   const fetchPlans = useCallback(async () => {
@@ -535,6 +547,12 @@ export function SubscriptionPlansCard({
               const price = Number(plan.price_amount || 0).toFixed(2)
               const priceSymbol =
                 topupInfo?.online_payment_provider === 'hupijiao' ? '¥' : '$'
+              const hupijiaoDiscountRate = Number(
+                plan.hupijiao_discount_rate || 1
+              )
+              const hupijiaoPrice = (
+                Number(plan.price_amount || 0) * hupijiaoDiscountRate
+              ).toFixed(2)
               const isPopular = index === 0 && plans.length > 1
               const limit = Number(plan.max_purchase_per_user || 0)
               const count = planPurchaseCountMap.get(plan.id) || 0
@@ -626,12 +644,27 @@ export function SubscriptionPlansCard({
                       )}
                     </div>
 
-                    <div className='py-2'>
+                    <div className='flex items-baseline gap-2 py-2'>
+                      {priceSymbol === '¥' && hupijiaoDiscountRate < 1 && (
+                        <span className='text-muted-foreground text-sm line-through'>
+                          ¥{price}
+                        </span>
+                      )}
                       <span className='text-primary text-2xl font-bold'>
                         {priceSymbol}
-                        {price}
+                        {priceSymbol === '¥' ? hupijiaoPrice : price}
                       </span>
                     </div>
+                    {priceSymbol === '¥' && hupijiaoDiscountRate < 1 && (
+                      <p className='text-muted-foreground -mt-1 text-xs'>
+                        {t('Discount rate')}：
+                        {(hupijiaoDiscountRate * 10).toFixed(1)}
+                        {t('折')} · {t('Save')} ¥
+                        {(
+                          Number(plan.price_amount || 0) - Number(hupijiaoPrice)
+                        ).toFixed(2)}
+                      </p>
+                    )}
 
                     <div className='flex-1 space-y-1.5 pb-3'>
                       {benefits.map((label) => (

@@ -49,9 +49,9 @@ export function MonthlyDiscountProgress(props: {
             ${props.progress.spent_usd.toFixed(2)}
           </span>
         </div>
-        <div className='relative h-3 rounded-sm bg-gradient-to-r from-emerald-500 via-amber-400 to-red-500'>
+        <div className='relative h-3 overflow-visible rounded-sm bg-gradient-to-r from-emerald-500 via-amber-400 to-red-500 transition-all duration-700 ease-out'>
           <div
-            className='border-background bg-foreground absolute top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 shadow'
+            className='border-background bg-foreground absolute top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 shadow transition-[left] duration-700 ease-out motion-safe:animate-pulse'
             style={{ left: `${progressPercent}%` }}
           />
           {props.progress.tiers.map((tier, index) => {
@@ -61,15 +61,18 @@ export function MonthlyDiscountProgress(props: {
             )
             return (
               <div
-                className='bg-background/90 absolute top-0 h-3 w-px'
+                className='absolute top-1/2 h-3 w-px -translate-y-1/2 bg-white/70'
                 key={tier.threshold_usd}
                 style={{ left: `${left}%` }}
               >
+                <span className='absolute top-1/2 left-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-sky-200 shadow-sm ring-2 ring-sky-100/80 transition-transform duration-300 hover:scale-125' />
                 <div
                   className={`absolute top-5 -translate-x-1/2 text-center text-xs whitespace-nowrap ${index % 2 ? 'translate-y-4' : ''}`}
                 >
                   <div>${tier.threshold_usd.toLocaleString()}</div>
-                  <div className='font-medium'>{tier.discount_percent}%</div>
+                  <div className='font-medium'>
+                    {t('Discount rate')}：{tier.discount_percent}%
+                  </div>
                 </div>
               </div>
             )

@@ -148,6 +148,10 @@ export function SubscriptionsMutateDrawer({
   // Gate "+ Create on Pancake" on the same checks the mint handler runs.
   const watchedTitle = form.watch('title')
   const watchedPrice = form.watch('price_amount')
+  const watchedHupijiaoDiscountRate = form.watch('hupijiao_discount_rate')
+  const hupijiaoPreviewPrice = (
+    Number(watchedPrice || 0) * Number(watchedHupijiaoDiscountRate || 1)
+  ).toFixed(2)
   const pancakeCreateReady =
     typeof watchedTitle === 'string' &&
     watchedTitle.trim().length > 0 &&
@@ -324,8 +328,18 @@ export function SubscriptionsMutateDrawer({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>{t('Hupijiao discount rate')}</FormLabel>
-                      <FormControl><Input {...field} type='number' min={0.01} max={1} step='0.01' /></FormControl>
-                      <FormDescription>{t('Used only when paying subscriptions with Hupijiao')}</FormDescription>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type='number'
+                          min={0.01}
+                          max={1}
+                          step='0.01'
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t('Used only when paying subscriptions with Hupijiao')}
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -396,6 +410,19 @@ export function SubscriptionsMutateDrawer({
                     </FormItem>
                   )}
                 />
+              </div>
+              <div className='bg-muted/50 rounded-md border px-3 py-2 text-sm'>
+                <span className='text-muted-foreground'>
+                  {t('Hupijiao actual payment')}：
+                </span>{' '}
+                <span className='font-semibold'>¥{hupijiaoPreviewPrice}</span>
+                {Number(watchedHupijiaoDiscountRate || 1) < 1 && (
+                  <span className='text-muted-foreground ml-2'>
+                    (
+                    {(Number(watchedHupijiaoDiscountRate || 1) * 10).toFixed(1)}
+                    {t('折')})
+                  </span>
+                )}
               </div>
 
               <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>

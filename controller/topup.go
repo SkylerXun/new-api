@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -29,6 +30,16 @@ func GetTopUpInfo(c *gin.Context) {
 	payMethods := operation_setting.PayMethods
 	if !complianceConfirmed {
 		payMethods = []map[string]string{}
+	}
+	if complianceConfirmed && operation_setting.OnlinePaymentProvider == model.PaymentProviderHupijiao {
+		// Hupijiao uses its own credentials; do not expose or depend on EPay's method JSON.
+		payMethods = []map[string]string{}
+		if strings.TrimSpace(operation_setting.HupijiaoAlipayAppID) != "" && strings.TrimSpace(operation_setting.HupijiaoAlipaySecret) != "" {
+			payMethods = append(payMethods, map[string]string{"name": "支付宝", "type": "alipay", "icon": "SiAlipay"})
+		}
+		if strings.TrimSpace(operation_setting.HupijiaoWechatAppID) != "" && strings.TrimSpace(operation_setting.HupijiaoWechatSecret) != "" {
+			payMethods = append(payMethods, map[string]string{"name": "微信支付", "type": "wxpay", "icon": "SiWechat"})
+		}
 	}
 
 	// 如果启用了 Stripe 支付，添加到支付方法列表

@@ -49,7 +49,7 @@ function PurchasePage() {
       <iframe
         src={PURCHASE_URL}
         className='min-h-0 flex-1 border-0'
-        title={t('Purchase Credits')}
+        title={t('Lucky Quota')}
       />
     </div>
   )

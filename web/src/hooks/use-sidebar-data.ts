@@ -124,14 +124,14 @@ export function getSidebarData(
             icon: BookOpen,
           },
           {
-            title: t('Purchase Credits'),
-            url: '/purchase',
-            icon: ShoppingBag,
-          },
-          {
             title: t('Activity Center'),
             url: '/activities',
             icon: Gift,
+          },
+          {
+            title: t('My Subscriptions'),
+            url: '/my-subscriptions',
+            icon: CreditCard,
           },
           {
             title: t('Wallet'),
@@ -152,6 +152,11 @@ export function getSidebarData(
                 },
               ]
             : []),
+          {
+            title: t('Lucky Quota'),
+            url: '/purchase',
+            icon: ShoppingBag,
+          },
         ],
       },
       {
