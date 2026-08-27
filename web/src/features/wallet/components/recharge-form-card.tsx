@@ -62,6 +62,8 @@ interface RechargeFormCardProps {
   onTopupAmountChange: (amount: number) => void
   paymentAmount: number
   calculating: boolean
+  selectedPaymentMethod?: PaymentMethod
+  onPaymentMethodChange: (method: PaymentMethod) => void
   onPaymentMethodSelect: (method: PaymentMethod) => void
   paymentLoading: string | null
   redemptionCode: string
@@ -92,6 +94,8 @@ export function RechargeFormCard({
   onTopupAmountChange,
   paymentAmount,
   calculating,
+  selectedPaymentMethod,
+  onPaymentMethodChange,
   onPaymentMethodSelect,
   paymentLoading,
   redemptionCode,
@@ -138,6 +142,20 @@ export function RechargeFormCard({
   const hasAnyTopup = hasConfigurableTopup || enableCreemTopup
   const hasStandardPaymentMethods =
     Array.isArray(topupInfo?.pay_methods) && topupInfo.pay_methods.length > 0
+  const isHupijiao = topupInfo?.online_payment_provider === 'hupijiao'
+  const hupijiaoPaymentMethods = isHupijiao
+    ? [...(topupInfo?.pay_methods || [])]
+        .filter((method) => ['alipay', 'wxpay'].includes(method.type))
+        .sort((a, b) => {
+          if (a.type === 'alipay') return -1
+          if (b.type === 'alipay') return 1
+          return 0
+        })
+    : []
+  const activeHupijiaoMethod =
+    hupijiaoPaymentMethods.find(
+      (method) => method.type === selectedPaymentMethod?.type
+    ) || hupijiaoPaymentMethods[0]
   const hasWaffoPaymentMethods =
     Array.isArray(waffoPayMethods) && waffoPayMethods.length > 0
   const minTopup = getMinTopupAmount(topupInfo)
@@ -256,50 +274,71 @@ export function RechargeFormCard({
                           key={preset.package_id || preset.value}
                           variant='outline'
                           className={cn(
-                            'flex min-h-16 flex-col items-start rounded-lg px-3 py-2.5 text-left whitespace-normal sm:min-h-[72px] sm:p-4',
+                            'flex h-auto min-h-20 flex-col items-stretch justify-center rounded-md px-3 py-3 text-left whitespace-normal sm:min-h-24 sm:p-4',
                             selectedPreset === preset.value
-                              ? 'border-foreground bg-foreground/5 dark:border-foreground dark:bg-foreground/10'
-                              : 'border-muted'
+                              ? 'border-sky-500 bg-sky-50 shadow-sm ring-1 ring-sky-500/20 dark:border-sky-500 dark:bg-sky-950/40'
+                              : 'border-border bg-background hover:border-sky-300 hover:bg-sky-50/50 dark:hover:border-sky-800 dark:hover:bg-sky-950/20'
                           )}
                           onClick={() => onSelectPreset(preset)}
                         >
-                          <div className='flex w-full items-center justify-between'>
-                            <div className='text-base font-semibold sm:text-lg'>
-                              {formatNumber(displayValue)}
-                            </div>
-                            {hasDiscount && (
-                              <div className='text-xs font-medium text-green-600'>
-                                {getDiscountLabel(discount)}
+                          {hupijiaoPackage ? (
+                            <>
+                              <div className='flex w-full items-start justify-between gap-2'>
+                                <span className='text-xl font-bold sm:text-2xl'>
+                                  {formatCurrency(hupijiaoPackage.quota, '$')}
+                                </span>
+                                {hasDiscount && (
+                                  <span className='rounded-sm bg-emerald-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'>
+                                    {t('Discount {{discount}}%', {
+                                      discount: Math.round(
+                                        (1 - discount) * 100
+                                      ),
+                                    })}
+                                  </span>
+                                )}
                               </div>
-                            )}
-                          </div>
-                          <div className='text-muted-foreground mt-1.5 w-full text-xs sm:mt-2'>
-                            {hasDiscount && (
-                              <span className='mr-1 line-through'>
+                              <div className='mt-2 border-t border-sky-100 pt-2 text-sm font-bold text-sky-600 dark:border-sky-900 dark:text-sky-400'>
+                                {t('Pay')} {formatCurrency(actualPrice, '¥')}
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className='flex w-full items-center justify-between'>
+                                <div className='text-base font-semibold sm:text-lg'>
+                                  {formatNumber(displayValue)}
+                                </div>
+                                {hasDiscount && (
+                                  <div className='text-xs font-medium text-green-600'>
+                                    {getDiscountLabel(discount)}
+                                  </div>
+                                )}
+                              </div>
+                              <div className='text-muted-foreground mt-1.5 w-full text-xs sm:mt-2'>
+                                {hasDiscount && (
+                                  <span className='mr-1 line-through'>
+                                    {formatCurrency(
+                                      originalPrice,
+                                      paymentCurrencySymbol
+                                    )}
+                                  </span>
+                                )}
+                                {t('Pay')}{' '}
                                 {formatCurrency(
-                                  originalPrice,
+                                  actualPrice,
                                   paymentCurrencySymbol
                                 )}
-                              </span>
-                            )}
-                            {t('Pay')}{' '}
-                            {formatCurrency(actualPrice, paymentCurrencySymbol)}
-                            {hasDiscount && savedAmount > 0 && (
-                              <span className='text-green-600'>
-                                {' '}
-                                • {t('Save')}{' '}
-                                {formatCurrency(
-                                  savedAmount,
-                                  paymentCurrencySymbol
+                                {hasDiscount && savedAmount > 0 && (
+                                  <span className='text-green-600'>
+                                    {' '}
+                                    • {t('Save')}{' '}
+                                    {formatCurrency(
+                                      savedAmount,
+                                      paymentCurrencySymbol
+                                    )}
+                                  </span>
                                 )}
-                              </span>
-                            )}
-                          </div>
-                          {hupijiaoPackage && (
-                            <div className='text-muted-foreground mt-1 text-xs'>
-                              {t('Get quota')}:{' '}
-                              {formatNumber(hupijiaoPackage.quota)}
-                            </div>
+                              </div>
+                            </>
                           )}
                         </Button>
                       )
@@ -342,89 +381,153 @@ export function RechargeFormCard({
                 </div>
               )}
 
-              <div className='space-y-2.5 sm:space-y-3'>
-                <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
-                  {t('Payment Method')}
-                </Label>
-                {hasStandardPaymentMethods ? (
-                  <div className='grid grid-cols-2 gap-1.5 sm:gap-3 lg:grid-cols-3'>
-                    {topupInfo?.pay_methods?.map((method) => {
-                      const minTopup = Math.max(
-                        method.min_topup || 0,
-                        topupInfo?.online_payment_provider === 'hupijiao'
-                          ? 0
-                          : getMinTopupAmount(topupInfo)
-                      )
-                      const disabled = minTopup > topupAmount
-                      const disabledReason = disabled
-                        ? t('Minimum topup amount: {{amount}}', {
-                            amount: minTopup,
-                          })
-                        : undefined
-                      const disabledLabel = disabled
-                        ? `${t('Minimum:')} ${minTopup}`
-                        : undefined
-
-                      const button = (
-                        <Button
-                          key={method.type}
-                          variant='outline'
-                          onClick={() => onPaymentMethodSelect(method)}
-                          disabled={disabled || !!paymentLoading}
-                          title={disabledReason}
-                          aria-label={
-                            disabledReason
-                              ? `${method.name}. ${disabledReason}`
-                              : method.name
-                          }
-                          className='min-h-14 min-w-0 justify-start gap-2 rounded-lg px-3 py-2 text-left'
-                        >
-                          {paymentLoading === method.type ? (
-                            <Loader2 className='h-4 w-4 animate-spin' />
-                          ) : (
-                            getPaymentIcon(
-                              method.type,
-                              'h-4 w-4',
-                              method.icon,
-                              method.name
-                            )
-                          )}
-                          <span className='flex min-w-0 flex-col items-start gap-0.5'>
-                            <span className='max-w-full truncate'>
+              {activeHupijiaoMethod ? (
+                <div className='space-y-3 sm:max-w-md'>
+                  {hupijiaoPaymentMethods.length > 1 && (
+                    <div className='space-y-2'>
+                      <Label className='text-muted-foreground text-xs font-medium'>
+                        {t('Payment Method')}
+                      </Label>
+                      <div className='grid grid-cols-2 gap-2'>
+                        {hupijiaoPaymentMethods.map((method) => {
+                          const selected =
+                            method.type === activeHupijiaoMethod.type
+                          return (
+                            <Button
+                              key={method.type}
+                              type='button'
+                              variant='outline'
+                              onClick={() => onPaymentMethodChange(method)}
+                              className={cn(
+                                'h-10 justify-start gap-2 rounded-md',
+                                selected &&
+                                  'border-sky-500 bg-sky-50 text-sky-700 ring-1 ring-sky-500/20 dark:bg-sky-950 dark:text-sky-300'
+                              )}
+                            >
+                              {getPaymentIcon(
+                                method.type,
+                                'h-4 w-4',
+                                method.icon,
+                                method.name
+                              )}
                               {method.name}
-                            </span>
-                            {disabledLabel && (
-                              <span className='text-muted-foreground max-w-full truncate text-[11px] leading-4 font-normal'>
-                                {disabledLabel}
-                              </span>
-                            )}
-                          </span>
-                        </Button>
-                      )
-
-                      return disabled ? (
-                        <TooltipProvider key={method.type}>
-                          <Tooltip>
-                            <TooltipTrigger render={button} />
-                            <TooltipContent>{disabledReason}</TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
+                            </Button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  <Button
+                    type='button'
+                    onClick={() => onPaymentMethodSelect(activeHupijiaoMethod)}
+                    disabled={!!paymentLoading || selectedPreset === null}
+                    className='h-12 w-full justify-between rounded-md bg-sky-600 px-4 text-white shadow-sm hover:bg-sky-700'
+                  >
+                    <span className='flex items-center gap-2 font-semibold'>
+                      {paymentLoading === activeHupijiaoMethod.type ? (
+                        <Loader2 className='h-4 w-4 animate-spin' />
                       ) : (
-                        button
-                      )
-                    })}
-                  </div>
-                ) : null}
-                {!hasStandardPaymentMethods && !hasWaffoPaymentMethods && (
-                  <Alert>
-                    <AlertDescription>
-                      {t(
-                        'No payment methods available. Please contact administrator.'
+                        getPaymentIcon(
+                          activeHupijiaoMethod.type,
+                          'h-5 w-5 text-white',
+                          activeHupijiaoMethod.icon,
+                          activeHupijiaoMethod.name
+                        )
                       )}
-                    </AlertDescription>
-                  </Alert>
-                )}
-              </div>
+                      {t('Pay with {{method}}', {
+                        method: activeHupijiaoMethod.name,
+                      })}
+                    </span>
+                    <span className='text-base font-bold'>
+                      {formatCurrency(paymentAmount, '¥')}
+                    </span>
+                  </Button>
+                </div>
+              ) : (
+                <div className='space-y-2.5 sm:space-y-3'>
+                  <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
+                    {t('Payment Method')}
+                  </Label>
+                  {hasStandardPaymentMethods ? (
+                    <div className='grid grid-cols-2 gap-1.5 sm:gap-3 lg:grid-cols-3'>
+                      {topupInfo?.pay_methods?.map((method) => {
+                        const minTopup = Math.max(
+                          method.min_topup || 0,
+                          topupInfo?.online_payment_provider === 'hupijiao'
+                            ? 0
+                            : getMinTopupAmount(topupInfo)
+                        )
+                        const disabled = minTopup > topupAmount
+                        const disabledReason = disabled
+                          ? t('Minimum topup amount: {{amount}}', {
+                              amount: minTopup,
+                            })
+                          : undefined
+                        const disabledLabel = disabled
+                          ? `${t('Minimum:')} ${minTopup}`
+                          : undefined
+
+                        const button = (
+                          <Button
+                            key={method.type}
+                            variant='outline'
+                            onClick={() => onPaymentMethodSelect(method)}
+                            disabled={disabled || !!paymentLoading}
+                            title={disabledReason}
+                            aria-label={
+                              disabledReason
+                                ? `${method.name}. ${disabledReason}`
+                                : method.name
+                            }
+                            className='min-h-14 min-w-0 justify-start gap-2 rounded-lg px-3 py-2 text-left'
+                          >
+                            {paymentLoading === method.type ? (
+                              <Loader2 className='h-4 w-4 animate-spin' />
+                            ) : (
+                              getPaymentIcon(
+                                method.type,
+                                'h-4 w-4',
+                                method.icon,
+                                method.name
+                              )
+                            )}
+                            <span className='flex min-w-0 flex-col items-start gap-0.5'>
+                              <span className='max-w-full truncate'>
+                                {method.name}
+                              </span>
+                              {disabledLabel && (
+                                <span className='text-muted-foreground max-w-full truncate text-[11px] leading-4 font-normal'>
+                                  {disabledLabel}
+                                </span>
+                              )}
+                            </span>
+                          </Button>
+                        )
+
+                        return disabled ? (
+                          <TooltipProvider key={method.type}>
+                            <Tooltip>
+                              <TooltipTrigger render={button} />
+                              <TooltipContent>{disabledReason}</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        ) : (
+                          button
+                        )
+                      })}
+                    </div>
+                  ) : null}
+                  {!hasStandardPaymentMethods && !hasWaffoPaymentMethods && (
+                    <Alert>
+                      <AlertDescription>
+                        {t(
+                          'No payment methods available. Please contact administrator.'
+                        )}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </div>
+              )}
 
               {enableWaffoTopup &&
                 hasWaffoPaymentMethods &&

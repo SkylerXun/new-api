@@ -1,4 +1,3 @@
-import { QRCodeSVG } from 'qrcode.react'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -21,7 +20,6 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SectionPageLayout } from '@/components/layout'
-import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -112,7 +110,6 @@ export function Wallet(props: WalletProps) {
     calculatePaymentAmount,
     processPayment,
     qrcodeUrl,
-    h5Url,
     closeQRCode,
     setAmount: setPaymentAmount,
   } = usePayment()
@@ -179,14 +176,20 @@ export function Wallet(props: WalletProps) {
 
       // Calculate initial payment amount with default payment type
       const defaultPaymentType = getDefaultPaymentType(topupInfo)
-      if (firstPackage)
+      const defaultPaymentMethod =
+        topupInfo.pay_methods?.find((method) => method.type === 'alipay') ||
+        topupInfo.pay_methods?.[0]
+      setSelectedPaymentMethod(defaultPaymentMethod)
+      if (firstPackage) {
         setPaymentAmount(
           Number(
             firstPackage.actual_amount ||
               firstPackage.original_amount * firstPackage.discount_rate
           )
         )
-      else calculatePaymentAmount(initialAmount, defaultPaymentType)
+      } else {
+        calculatePaymentAmount(initialAmount, defaultPaymentType)
+      }
     }
   }, [topupInfo, calculatePaymentAmount, setPaymentAmount])
 
@@ -200,9 +203,11 @@ export function Wallet(props: WalletProps) {
     setTopupAmount(preset.value)
     setSelectedPreset(preset.value)
     setSelectedPackageId(preset.package_id)
-    if (preset.package_id)
+    if (preset.package_id) {
       setPaymentAmount(preset.value * Number(preset.discount || 1))
-    else calculatePaymentAmount(preset.value, getCurrentPaymentType())
+    } else {
+      calculatePaymentAmount(preset.value, getCurrentPaymentType())
+    }
   }
 
   // Handle topup amount change
@@ -230,8 +235,9 @@ export function Wallet(props: WalletProps) {
       }
 
       // Calculate payment amount and show confirmation dialog
-      if (topupInfo?.online_payment_provider !== 'hupijiao')
+      if (topupInfo?.online_payment_provider !== 'hupijiao') {
         await calculatePaymentAmount(topupAmount, method.type)
+      }
       setConfirmDialogOpen(true)
     } finally {
       setPaymentLoading(null)
@@ -344,6 +350,8 @@ export function Wallet(props: WalletProps) {
                 onTopupAmountChange={handleTopupAmountChange}
                 paymentAmount={paymentAmount}
                 calculating={calculating}
+                selectedPaymentMethod={selectedPaymentMethod}
+                onPaymentMethodChange={setSelectedPaymentMethod}
                 onPaymentMethodSelect={handlePaymentMethodSelect}
                 paymentLoading={paymentLoading}
                 redemptionCode={redemptionCode}
@@ -413,22 +421,25 @@ export function Wallet(props: WalletProps) {
           <DialogHeader>
             <DialogTitle>{t('Scan to pay')}</DialogTitle>
             <DialogDescription>
-              {t('Use Alipay or WeChat to scan the QR code')}
+              {selectedPaymentMethod?.name ||
+                t('Use Alipay or WeChat to scan the QR code')}
             </DialogDescription>
           </DialogHeader>
           <div className='flex flex-col items-center gap-4 py-3'>
+            <div className='text-center'>
+              <div className='text-muted-foreground text-sm'>
+                {t('Amount Due')}
+              </div>
+              <div className='text-3xl font-semibold'>
+                ¥{paymentAmount.toFixed(2)}
+              </div>
+            </div>
             {qrcodeUrl && (
-              <QRCodeSVG value={qrcodeUrl} size={240} className='max-w-full' />
-            )}
-            {h5Url && (
-              <Button
-                variant='outline'
-                onClick={() => {
-                  window.location.href = h5Url
-                }}
-              >
-                {t('Open H5 payment page')}
-              </Button>
+              <img
+                src={qrcodeUrl}
+                alt={t('Scan to pay')}
+                className='h-60 w-60 max-w-full object-contain'
+              />
             )}
           </div>
         </DialogContent>

@@ -350,6 +350,7 @@ export const STATIC_I18N_KEYS = [
   'Quota Reset',
   'Raw Quota',
   'Amount Due',
+  'Savings',
   'Purchase Limit',
   'Purchase limit reached',
   'Limit Reached',

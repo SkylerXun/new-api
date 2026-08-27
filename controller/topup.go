@@ -33,13 +33,7 @@ func GetTopUpInfo(c *gin.Context) {
 	}
 	if complianceConfirmed && operation_setting.OnlinePaymentProvider == model.PaymentProviderHupijiao {
 		// Hupijiao uses its own credentials; do not expose or depend on EPay's method JSON.
-		payMethods = []map[string]string{}
-		if strings.TrimSpace(operation_setting.HupijiaoAlipayAppID) != "" && strings.TrimSpace(operation_setting.HupijiaoAlipaySecret) != "" {
-			payMethods = append(payMethods, map[string]string{"name": "支付宝", "type": "alipay", "icon": "SiAlipay"})
-		}
-		if strings.TrimSpace(operation_setting.HupijiaoWechatAppID) != "" && strings.TrimSpace(operation_setting.HupijiaoWechatSecret) != "" {
-			payMethods = append(payMethods, map[string]string{"name": "微信支付", "type": "wxpay", "icon": "SiWechat"})
-		}
+		payMethods = hupijiaoPayMethods()
 	}
 
 	// 如果启用了 Stripe 支付，添加到支付方法列表
@@ -144,6 +138,17 @@ func GetTopUpInfo(c *gin.Context) {
 		"topup_link":              common.TopUpLink,
 	}
 	common.ApiSuccess(c, data)
+}
+
+func hupijiaoPayMethods() []map[string]string {
+	methods := make([]map[string]string, 0, 2)
+	if strings.TrimSpace(operation_setting.HupijiaoAlipayAppID) != "" && strings.TrimSpace(operation_setting.HupijiaoAlipaySecret) != "" {
+		methods = append(methods, map[string]string{"name": "支付宝", "type": "alipay", "icon": "SiAlipay"})
+	}
+	if strings.TrimSpace(operation_setting.HupijiaoWechatAppID) != "" && strings.TrimSpace(operation_setting.HupijiaoWechatSecret) != "" {
+		methods = append(methods, map[string]string{"name": "微信支付", "type": "wxpay", "icon": "SiWechat"})
+	}
+	return methods
 }
 
 type EpayRequest struct {

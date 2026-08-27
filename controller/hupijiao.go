@@ -68,10 +68,10 @@ func parseHupijiaoPackages() ([]HupijiaoPackage, error) {
 
 func hupijiaoCredential(method string) (string, string, error) {
 	if method == "wxpay" {
-		return operation_setting.HupijiaoWechatAppID, operation_setting.HupijiaoWechatSecret, nil
+		return strings.TrimSpace(operation_setting.HupijiaoWechatAppID), strings.TrimSpace(operation_setting.HupijiaoWechatSecret), nil
 	}
 	if method == "alipay" {
-		return operation_setting.HupijiaoAlipayAppID, operation_setting.HupijiaoAlipaySecret, nil
+		return strings.TrimSpace(operation_setting.HupijiaoAlipayAppID), strings.TrimSpace(operation_setting.HupijiaoAlipaySecret), nil
 	}
 	return "", "", errors.New("支付方式不存在")
 }
@@ -153,6 +153,12 @@ func RequestHupijiao(c *gin.Context) {
 	if c.ShouldBindJSON(&req) != nil || req.PackageID == "" {
 		common.ApiErrorMsg(c, "参数错误")
 		return
+	}
+	if req.PaymentMethod == "" {
+		methods := hupijiaoPayMethods()
+		if len(methods) > 0 {
+			req.PaymentMethod = methods[0]["type"]
+		}
 	}
 	packages, err := parseHupijiaoPackages()
 	if err != nil {

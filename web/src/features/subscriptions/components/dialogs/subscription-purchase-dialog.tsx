@@ -17,7 +17,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Crown, CalendarClock, Package } from 'lucide-react'
-import { QRCodeSVG } from 'qrcode.react'
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -77,15 +76,16 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const [paying, setPaying] = useState(false)
   const [selectedEpayMethod, setSelectedEpayMethod] = useState('')
   const [hupijiaoQRCode, setHupijiaoQRCode] = useState('')
-  const [hupijiaoH5URL, setHupijiaoH5URL] = useState('')
 
   useEffect(() => {
     if (props.open && props.epayMethods && props.epayMethods.length > 0) {
-      setSelectedEpayMethod(props.epayMethods[0].type)
+      setSelectedEpayMethod(
+        props.epayMethods.find((method) => method.type === 'alipay')?.type ||
+          props.epayMethods[0].type
+      )
     } else if (!props.open) {
       setSelectedEpayMethod('')
       setHupijiaoQRCode('')
-      setHupijiaoH5URL('')
     }
   }, [props.open, props.epayMethods])
 
@@ -222,7 +222,6 @@ export function SubscriptionPurchaseDialog(props: Props) {
           props.onOpenChange(false)
         } else {
           setHupijiaoQRCode(res.data.qrcode_url)
-          setHupijiaoH5URL(redirectUrl)
         }
         return
       }
@@ -303,19 +302,20 @@ export function SubscriptionPurchaseDialog(props: Props) {
       <div className='space-y-3 sm:space-y-4'>
         {hupijiaoQRCode && (
           <div className='flex flex-col items-center gap-3 rounded-md border p-4'>
-            <QRCodeSVG
-              value={hupijiaoQRCode}
-              size={220}
-              className='max-w-full'
+            <div className='text-center'>
+              <div className='text-muted-foreground text-sm'>
+                {t('Amount Due')}
+              </div>
+              <div className='text-3xl font-semibold'>¥{hupijiaoPrice}</div>
+            </div>
+            <img
+              src={hupijiaoQRCode}
+              alt={t('Scan to pay')}
+              className='h-[220px] w-[220px] max-w-full object-contain'
             />
-            <Button
-              variant='outline'
-              onClick={() => {
-                window.location.href = hupijiaoH5URL
-              }}
-            >
-              {t('Open H5 payment page')}
-            </Button>
+            <p className='text-muted-foreground text-center text-xs'>
+              {selectedEpayMethodLabel}
+            </p>
           </div>
         )}
         <div className='bg-muted/50 space-y-2.5 rounded-lg border p-3 sm:space-y-3 sm:p-4'>
@@ -384,7 +384,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
               <span>{t('Discount')}</span>
               <span>
                 {(Number(plan.hupijiao_discount_rate || 1) * 10).toFixed(1)}
-                {t('折')} · {t('Save')} ¥
+                {t('折')} · {t('Savings')} ¥
                 {(
                   Number(plan.price_amount || 0) - Number(hupijiaoPrice)
                 ).toFixed(2)}
@@ -402,44 +402,38 @@ export function SubscriptionPurchaseDialog(props: Props) {
           </Alert>
         )}
 
-        <div className='flex flex-col gap-2 rounded-md border p-3'>
-          <div className='flex items-center justify-between gap-2 text-xs'>
-            <span className='text-muted-foreground'>{t('Required')}</span>
-            <span>{formatQuota(balanceCost)}</span>
-          </div>
-          <div className='flex items-center justify-between gap-2 text-xs'>
-            <span className='text-muted-foreground'>{t('Available')}</span>
-            <span>{formatQuota(userQuota)}</span>
-          </div>
-          {!allowBalancePay ? (
-            <Alert variant='destructive'>
-              <AlertDescription>
-                {t('This plan does not allow balance redemption')}
-              </AlertDescription>
-            </Alert>
-          ) : (
-            insufficientBalance && (
+        {allowBalancePay && (
+          <div className='flex flex-col gap-2 rounded-md border p-3'>
+            <div className='flex items-center justify-between gap-2 text-xs'>
+              <span className='text-muted-foreground'>{t('Required')}</span>
+              <span>{formatQuota(balanceCost)}</span>
+            </div>
+            <div className='flex items-center justify-between gap-2 text-xs'>
+              <span className='text-muted-foreground'>{t('Available')}</span>
+              <span>{formatQuota(userQuota)}</span>
+            </div>
+            {insufficientBalance && (
               <Alert variant='destructive'>
                 <AlertDescription>{t('Insufficient balance')}</AlertDescription>
               </Alert>
-            )
-          )}
-          <Button
-            variant='outline'
-            onClick={handlePayBalance}
-            disabled={
-              paying || limitReached || !allowBalancePay || insufficientBalance
-            }
-          >
-            {t('Pay with Balance')}
-          </Button>
-        </div>
+            )}
+            <Button
+              variant='outline'
+              onClick={handlePayBalance}
+              disabled={paying || limitReached || insufficientBalance}
+            >
+              {t('Pay with Balance')}
+            </Button>
+          </div>
+        )}
 
         {hasAnyPayment && (
           <div className='space-y-3'>
-            <p className='text-muted-foreground text-xs'>
-              {t('Select payment method')}
-            </p>
+            {(!hasHupijiao || (props.epayMethods || []).length > 1) && (
+              <p className='text-muted-foreground text-xs'>
+                {t('Select payment method')}
+              </p>
+            )}
             {(hasStripe || hasCreem || hasWaffoPancake) && (
               <div className='grid grid-cols-2 gap-2 sm:flex'>
                 {hasStripe && (
@@ -475,36 +469,53 @@ export function SubscriptionPurchaseDialog(props: Props) {
               </div>
             )}
             {hasEpay && (
-              <div className='grid grid-cols-[minmax(0,1fr)_auto] gap-2'>
-                <Select
-                  items={[
-                    ...(props.epayMethods || []).map((m) => ({
+              <div
+                className={
+                  hasHupijiao && (props.epayMethods || []).length === 1
+                    ? 'grid'
+                    : 'grid grid-cols-[minmax(0,1fr)_auto] gap-2'
+                }
+              >
+                {(!hasHupijiao || (props.epayMethods || []).length > 1) && (
+                  <Select
+                    items={(props.epayMethods || []).map((m) => ({
                       value: m.type,
                       label: m.name || m.type,
-                    })),
-                  ]}
-                  value={selectedEpayMethod}
-                  onValueChange={(v) => v !== null && setSelectedEpayMethod(v)}
-                  disabled={limitReached}
-                >
-                  <SelectTrigger className='flex-1'>
-                    <SelectValue>{selectedEpayMethodLabel}</SelectValue>
-                  </SelectTrigger>
-                  <SelectContent alignItemWithTrigger={false}>
-                    <SelectGroup>
-                      {(props.epayMethods || []).map((m) => (
-                        <SelectItem key={m.type} value={m.type}>
-                          {m.name || m.type}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
+                    }))}
+                    value={selectedEpayMethod}
+                    onValueChange={(v) =>
+                      v !== null && setSelectedEpayMethod(v)
+                    }
+                    disabled={limitReached}
+                  >
+                    <SelectTrigger className='flex-1'>
+                      <SelectValue>{selectedEpayMethodLabel}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent alignItemWithTrigger={false}>
+                      <SelectGroup>
+                        {(props.epayMethods || []).map((m) => (
+                          <SelectItem key={m.type} value={m.type}>
+                            {m.name || m.type}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                )}
                 <Button
                   onClick={handlePayEpay}
                   disabled={paying || !selectedEpayMethod || limitReached}
+                  className={
+                    hasHupijiao && (props.epayMethods || []).length === 1
+                      ? 'h-11 bg-sky-600 font-semibold text-white hover:bg-sky-700'
+                      : undefined
+                  }
                 >
-                  {t('Pay')}
+                  {hasHupijiao && (props.epayMethods || []).length === 1
+                    ? t('Pay with {{method}}', {
+                        method: selectedEpayMethodLabel,
+                      })
+                    : t('Pay')}
                 </Button>
               </div>
             )}

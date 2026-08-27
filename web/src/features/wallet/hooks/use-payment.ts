@@ -84,7 +84,6 @@ export function usePayment() {
   const [calculating, setCalculating] = useState(false)
   const [processing, setProcessing] = useState(false)
   const [qrcodeUrl, setQrcodeUrl] = useState('')
-  const [h5Url, setH5Url] = useState('')
 
   // Calculate payment amount
   const calculatePaymentAmount = useCallback(
@@ -149,7 +148,6 @@ export function usePayment() {
         }
         if (!isStripe && paymentData?.qrcode_url) {
           setQrcodeUrl(paymentData.qrcode_url as string)
-          setH5Url((paymentData.redirect_url as string) || '')
           return true
         }
         if (!isStripe && response.data) {
@@ -180,7 +178,6 @@ export function usePayment() {
     processPayment,
     setAmount,
     qrcodeUrl,
-    h5Url,
-    closeQRCode: () => { setQrcodeUrl(''); setH5Url('') },
+    closeQRCode: () => setQrcodeUrl(''),
   }
 }
