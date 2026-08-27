@@ -162,6 +162,51 @@ func ResetStatusCode(newApiErr *types.NewAPIError, statusCodeMappingStr string) 
 	}
 }
 
+// ResolveErrorMessageMapping resolves a channel's client-facing error message
+// without mutating the raw upstream error. Exact HTTP status entries take
+// precedence over the optional default entry.
+func ResolveErrorMessageMapping(statusCode int, errorMessageMappingStr string) (string, bool) {
+	if strings.TrimSpace(errorMessageMappingStr) == "" {
+		return "", false
+	}
+	mapping := make(map[string]string)
+	if err := common.Unmarshal([]byte(errorMessageMappingStr), &mapping); err != nil {
+		return "", false
+	}
+	if message := strings.TrimSpace(mapping[strconv.Itoa(statusCode)]); message != "" {
+		return message, true
+	}
+	if message := strings.TrimSpace(mapping["default"]); message != "" {
+		return message, true
+	}
+	return "", false
+}
+
+func ValidateErrorMessageMapping(errorMessageMappingStr string) error {
+	if strings.TrimSpace(errorMessageMappingStr) == "" {
+		return nil
+	}
+	mapping := make(map[string]string)
+	if err := common.Unmarshal([]byte(errorMessageMappingStr), &mapping); err != nil {
+		return fmt.Errorf("error message mapping must be a JSON object with string values: %w", err)
+	}
+	if mapping == nil {
+		return fmt.Errorf("error message mapping must be a JSON object with string values")
+	}
+	for key, message := range mapping {
+		if strings.TrimSpace(message) == "" {
+			return fmt.Errorf("error message mapping value for %q cannot be empty", key)
+		}
+		if key == "default" {
+			continue
+		}
+		if len(key) != 3 || key[0] < '1' || key[0] > '5' || key[1] < '0' || key[1] > '9' || key[2] < '0' || key[2] > '9' {
+			return fmt.Errorf("error message mapping key %q must be an HTTP status code from 100 to 599 or default", key)
+		}
+	}
+	return nil
+}
+
 func parseStatusCodeMappingValue(value any) (int, bool) {
 	switch v := value.(type) {
 	case string:

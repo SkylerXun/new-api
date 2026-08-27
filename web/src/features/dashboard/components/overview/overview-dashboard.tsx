@@ -50,8 +50,10 @@ import { IconBadge, type IconBadgeTone } from '@/components/ui/icon-badge'
 import { fetchTokenKey, getApiKeys } from '@/features/keys/api'
 import type { ApiKey } from '@/features/keys/types'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+import { useStatus } from '@/hooks/use-status'
 import { getUserModels } from '@/lib/api'
 import { MOTION_TRANSITION } from '@/lib/motion'
+import { getModuleAccessFromStatus } from '@/lib/nav-modules'
 import { ROLE } from '@/lib/roles'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
@@ -457,6 +459,7 @@ function CompactQuickAction(props: { action: QuickAction }) {
 
 export function OverviewDashboard() {
   const { t } = useTranslation()
+  const { status } = useStatus()
   const user = useAuthStore((state) => state.auth.user)
   const { items: apiInfoItems } = useApiInfo()
   const {
@@ -473,6 +476,8 @@ export function OverviewDashboard() {
   const remainQuota = Number(user?.quota ?? 0)
   const usedQuota = Number(user?.used_quota ?? 0)
   const isAdmin = Boolean(user?.role && user.role >= ROLE.ADMIN)
+  const modelListEnabled =
+    Boolean(status) && getModuleAccessFromStatus(status, 'pricing').enabled
 
   const apiKeysQuery = useQuery({
     queryKey: ['dashboard', 'overview', 'api-keys'],
@@ -545,14 +550,18 @@ export function OverviewDashboard() {
         to: '/usage-logs',
         icon: FileText,
       },
-      {
-        title: t('Pricing'),
-        description: t('Review model rates before scaling traffic'),
-        to: '/pricing',
-        icon: BookOpen,
-      },
+      ...(modelListEnabled
+        ? [
+            {
+              title: t('Model list'),
+              description: t('Browse available models and pricing'),
+              to: '/pricing' as const,
+              icon: BookOpen,
+            },
+          ]
+        : []),
     ],
-    [t]
+    [modelListEnabled, t]
   )
 
   const visibleQuickActions = useMemo(

@@ -110,6 +110,7 @@ describe('activity campaign validation', () => {
       description: '',
       amountUSD: '5',
       endsAt: '',
+      audienceType: 'all',
     })
 
     assert.equal(result.success, false)
@@ -122,9 +123,23 @@ describe('activity campaign validation', () => {
       description: 'Thanks for joining.',
       amountUSD: '5',
       endsAt: '',
+      audienceType: 'all',
     })
 
     assert.equal(result.success, true)
+  })
+
+  test('requires selected-user campaigns to be claimable', () => {
+    const result = activityCampaignSchema.safeParse({
+      type: 'immediate',
+      title: 'Targeted credit',
+      description: '',
+      amountUSD: '5',
+      endsAt: '',
+      audienceType: 'selected',
+    })
+
+    assert.equal(result.success, false)
   })
 
   test('converts a local datetime input to a Unix timestamp', () => {

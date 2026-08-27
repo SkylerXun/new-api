@@ -148,3 +148,77 @@ func TestSubscriptionGroupCacheRefreshFailureDoesNotChangeCommittedResult(t *tes
 	require.NoError(t, DB.Where("user_id = ?", user.Id).First(&subscription).Error)
 	assert.Equal(t, "active", subscription.Status)
 }
+
+func TestAdminBindSubscriptionRejectsSecondActiveSubscription(t *testing.T) {
+	truncateTables(t)
+	user := User{
+		Username: "single-active-subscription-user",
+		Password: "unused-password-hash",
+		Role:     common.RoleCommonUser,
+		Status:   common.UserStatusEnabled,
+		Group:    "default",
+	}
+	require.NoError(t, DB.Create(&user).Error)
+	firstPlan := &SubscriptionPlan{
+		Title:         "First plan",
+		DurationUnit:  SubscriptionDurationMonth,
+		DurationValue: 1,
+		TotalAmount:   100,
+		Enabled:       true,
+	}
+	secondPlan := &SubscriptionPlan{
+		Title:         "Second plan",
+		DurationUnit:  SubscriptionDurationMonth,
+		DurationValue: 1,
+		TotalAmount:   200,
+		Enabled:       true,
+	}
+	require.NoError(t, DB.Create(firstPlan).Error)
+	require.NoError(t, DB.Create(secondPlan).Error)
+
+	_, err := AdminBindSubscription(user.Id, firstPlan.Id, "test")
+	require.NoError(t, err)
+	_, err = AdminBindSubscription(user.Id, secondPlan.Id, "test")
+	require.ErrorIs(t, err, ErrActiveSubscriptionExists)
+
+	var activeCount int64
+	require.NoError(t, DB.Model(&UserSubscription{}).
+		Where("user_id = ? AND status = ? AND end_time > ?", user.Id, "active", GetDBTimestamp()).
+		Count(&activeCount).Error)
+	assert.EqualValues(t, 1, activeCount)
+}
+
+func TestAdminBindSubscriptionAllowsPurchaseAfterPreviousSubscriptionExpires(t *testing.T) {
+	truncateTables(t)
+	user := User{
+		Username: "expired-subscription-user",
+		Password: "unused-password-hash",
+		Role:     common.RoleCommonUser,
+		Status:   common.UserStatusEnabled,
+		Group:    "default",
+	}
+	plan := &SubscriptionPlan{
+		Title:         "Renewable plan",
+		DurationUnit:  SubscriptionDurationMonth,
+		DurationValue: 1,
+		TotalAmount:   100,
+		Enabled:       true,
+	}
+	require.NoError(t, DB.Create(&user).Error)
+	require.NoError(t, DB.Create(plan).Error)
+
+	_, err := AdminBindSubscription(user.Id, plan.Id, "test")
+	require.NoError(t, err)
+	require.NoError(t, DB.Model(&UserSubscription{}).
+		Where("user_id = ?", user.Id).
+		Update("end_time", GetDBTimestamp()-1).Error)
+
+	_, err = AdminBindSubscription(user.Id, plan.Id, "test")
+	require.NoError(t, err)
+
+	var subscriptionCount int64
+	require.NoError(t, DB.Model(&UserSubscription{}).
+		Where("user_id = ?", user.Id).
+		Count(&subscriptionCount).Error)
+	assert.EqualValues(t, 2, subscriptionCount)
+}

@@ -161,6 +161,7 @@ export type ActivityCampaign = {
   id: number
   activity_key: string
   type: ActivityCampaignType
+  audience_type: 'all' | 'selected'
   status: ActivityCampaignStatus
   title: string
   description: string
@@ -188,6 +189,8 @@ export type CreateActivityCampaignRequest = {
   amount_usd: string
   starts_at?: number
   ends_at?: number
+  audience_type?: 'all' | 'selected'
+  recipient_user_ids?: number[]
 }
 
 export type ActivityCampaignListResponse = {
@@ -407,6 +410,14 @@ export type BillingSettings = {
   EpayKey: string
   Price: number
   MinTopUp: number
+  OnlinePaymentProvider: 'epay' | 'hupijiao'
+  HupijiaoAPIAddress: string
+  HupijiaoBackupAPIAddress: string
+  HupijiaoWechatAppID: string
+  HupijiaoWechatSecret: string
+  HupijiaoAlipayAppID: string
+  HupijiaoAlipaySecret: string
+  HupijiaoPackages: string
   CustomCallbackAddress: string
   PayMethods: string
   'payment_setting.amount_options': string
@@ -467,6 +478,8 @@ export type OperationsSettings = {
   SMTPStartTLSEnabled: boolean
   SMTPInsecureSkipVerify: boolean
   SMTPForceAuthLogin: boolean
+  subscription_expiry_notify_enabled: boolean
+  subscription_expiry_notify_days: number
   WorkerUrl: string
   WorkerValidKey: string
   WorkerAllowHttpImageRequestEnabled: boolean

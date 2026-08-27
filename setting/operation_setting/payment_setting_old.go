@@ -6,6 +6,10 @@ This file is the old version of the payment settings file. If you need to add ne
 package operation_setting
 
 import (
+	"errors"
+	"math"
+	"strings"
+
 	"github.com/QuantumNous/new-api/common"
 )
 
@@ -16,6 +20,46 @@ var EpayKey = ""
 var Price = 7.3
 var MinTopUp = 1
 var USDExchangeRate = 7.3
+
+// Built-in Hupijiao payment configuration.
+var OnlinePaymentProvider = "epay"
+var HupijiaoAPIAddress = "https://api.xunhupay.com"
+var HupijiaoBackupAPIAddress = "https://api.dpweixin.com"
+var HupijiaoWechatAppID = ""
+var HupijiaoWechatSecret = ""
+var HupijiaoAlipayAppID = ""
+var HupijiaoAlipaySecret = ""
+var HupijiaoPackages = "[]"
+
+type HupijiaoPackageConfig struct {
+	ID             string  `json:"id"`
+	Title          string  `json:"title"`
+	OriginalAmount float64 `json:"original_amount"`
+	Quota          int64   `json:"quota"`
+	DiscountRate   float64 `json:"discount_rate"`
+	Enabled        bool    `json:"enabled"`
+}
+
+func ParseHupijiaoPackages(value string) ([]HupijiaoPackageConfig, error) {
+	if !strings.HasPrefix(strings.TrimSpace(value), "[") {
+		return nil, errors.New("虎皮椒套餐必须是JSON数组")
+	}
+	var packages []HupijiaoPackageConfig
+	if err := common.Unmarshal([]byte(value), &packages); err != nil {
+		return nil, err
+	}
+	seen := make(map[string]struct{}, len(packages))
+	for _, p := range packages {
+		if p.ID == "" || p.Title == "" || p.OriginalAmount < 0.01 || p.OriginalAmount > 999999 || p.Quota <= 0 || p.Quota > math.MaxInt32 || p.DiscountRate < 0.01 || p.DiscountRate > 1 {
+			return nil, errors.New("虎皮椒套餐配置无效")
+		}
+		if _, exists := seen[p.ID]; exists {
+			return nil, errors.New("虎皮椒套餐ID重复")
+		}
+		seen[p.ID] = struct{}{}
+	}
+	return packages, nil
+}
 
 var PayMethods = []map[string]string{
 	{

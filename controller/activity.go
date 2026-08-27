@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -36,11 +37,20 @@ type userActivity struct {
 	BonusPercent     float64             `json:"bonus_percent"`
 	RewardQuota      int64               `json:"reward_quota,omitempty"`
 	Action           *userActivityAction `json:"action,omitempty"`
+	GrantedAt        int64               `json:"granted_at,omitempty"`
 }
 
 func GetUserActivities(c *gin.Context) {
 	userId := c.GetInt("id")
 	cursor := int64(0)
+	view := strings.ToLower(strings.TrimSpace(c.Query("view")))
+	if view == "" {
+		view = "ongoing"
+	}
+	if view != "ongoing" && view != "participated" {
+		common.ApiErrorMsg(c, "activity view is invalid")
+		return
+	}
 	if cursorText := strings.TrimSpace(c.Query("cursor")); cursorText != "" {
 		parsedCursor, parseErr := strconv.ParseInt(cursorText, 10, 64)
 		if parseErr != nil || parsedCursor < 1 {
@@ -74,7 +84,7 @@ func GetUserActivities(c *gin.Context) {
 
 	newUserActivity := userActivity{
 		Id:               model.ActivityKeyNewUserRedeemBonus,
-		Type:             "new_user_redeem_bonus",
+		Type:             "new_user_topup_bonus",
 		Title:            "新用户兑换加赠",
 		Description:      fmt.Sprintf("注册后 %d 天内每次兑换码充值，额外赠送 %g%% 额度。", windowDays, bonusPercent),
 		Status:           "active",
@@ -98,10 +108,26 @@ func GetUserActivities(c *gin.Context) {
 		newUserActivity.Action = &userActivityAction{To: "/wallet", Label: "立即充值", Type: "navigate"}
 	}
 
-	activities := []userActivity{newUserActivity}
-	campaigns, nextCursor, err := model.ListActivityCampaignsPage(c.Request.Context(), cursor, 50)
-	if err != nil {
-		common.ApiError(c, err)
+	activities := make([]userActivity, 0, 50)
+	if view == "participated" && newUserActivity.RewardQuota > 0 {
+		newUserActivity.Status = "credited"
+		newUserActivity.RemainingSeconds = 0
+		newUserActivity.Action = nil
+	}
+	if (view == "ongoing" && newUserActivity.Status == "active") ||
+		(view == "participated" && newUserActivity.RewardQuota > 0) {
+		activities = append(activities, newUserActivity)
+	}
+	var campaigns []*model.ActivityCampaign
+	var nextCursor int64
+	var listErr error
+	if view == "participated" {
+		campaigns, nextCursor, listErr = model.ListActivityCampaignsForUserPage(c.Request.Context(), userId, cursor, 50)
+	} else {
+		campaigns, nextCursor, listErr = model.ListActivityCampaignsPage(c.Request.Context(), cursor, 50)
+	}
+	if listErr != nil {
+		common.ApiError(c, listErr)
 		return
 	}
 	activityKeys := make([]string, 0, len(campaigns))
@@ -115,10 +141,81 @@ func GetUserActivities(c *gin.Context) {
 	}
 	for _, campaign := range campaigns {
 		campaignGrants := grantsByKey[campaign.ActivityKey]
-		if userId > campaign.RecipientMaxUserID && len(campaignGrants) == 0 {
+		if view == "participated" {
+			if len(campaignGrants) == 0 {
+				continue
+			}
+		} else {
+			if campaign.Type != model.ActivityCampaignTypeClaimable || campaign.Status != model.ActivityCampaignStatusActive || campaign.EndsAt <= now || now < campaign.StartsAt {
+				continue
+			}
+			if len(campaignGrants) == 0 {
+				eligible, eligibilityErr := model.IsActivityCampaignUserEligible(c.Request.Context(), campaign, userId)
+				if eligibilityErr != nil {
+					common.ApiError(c, eligibilityErr)
+					return
+				}
+				if !eligible {
+					continue
+				}
+			}
+		}
+		if view == "participated" && campaign.AudienceType == model.ActivityCampaignAudienceSelected && len(campaignGrants) == 0 {
 			continue
 		}
-		activities = append(activities, userActivityFromCampaign(campaign, campaignGrants, userId, now))
+		activities = append(activities, userActivityFromCampaign(campaign, campaignGrants, userId, now, view))
+	}
+	if view == "participated" && cursor == 0 {
+		allGrants, grantsErr := model.ListActivityGrantsForUser(c.Request.Context(), userId)
+		if grantsErr != nil {
+			common.ApiError(c, grantsErr)
+			return
+		}
+		knownKeys := make(map[string]struct{}, len(campaigns)+1)
+		knownKeys[model.ActivityKeyNewUserRedeemBonus] = struct{}{}
+		grantKeys := make([]string, 0, len(allGrants))
+		for _, grant := range allGrants {
+			grantKeys = append(grantKeys, grant.ActivityKey)
+			if grant.ActivityKey == model.ActivityKeyNewUserRedeemBonus {
+				for index := range activities {
+					if activities[index].Id == model.ActivityKeyNewUserRedeemBonus && grant.CreatedAt > activities[index].GrantedAt {
+						activities[index].GrantedAt = grant.CreatedAt
+					}
+				}
+			}
+		}
+		existingKeys, keyErr := model.ListExistingActivityCampaignKeys(c.Request.Context(), grantKeys)
+		if keyErr != nil {
+			common.ApiError(c, keyErr)
+			return
+		}
+		for key := range existingKeys {
+			knownKeys[key] = struct{}{}
+		}
+		legacyByKey := make(map[string]*userActivity)
+		for _, grant := range allGrants {
+			if _, known := knownKeys[grant.ActivityKey]; known {
+				continue
+			}
+			activity := legacyByKey[grant.ActivityKey]
+			if activity == nil {
+				activity = &userActivity{
+					Id: grant.ActivityKey, Type: grant.SourceType, Title: "管理员活动赠送",
+					Description: "管理员通过活动中心发放的奖励。", Status: "credited", GrantedAt: grant.CreatedAt,
+				}
+				legacyByKey[grant.ActivityKey] = activity
+			}
+			activity.RewardQuota += int64(grant.Quota)
+			if grant.CreatedAt > activity.GrantedAt {
+				activity.GrantedAt = grant.CreatedAt
+			}
+		}
+		for _, activity := range legacyByKey {
+			activities = append(activities, *activity)
+		}
+		sort.SliceStable(activities, func(i, j int) bool {
+			return activities[i].GrantedAt > activities[j].GrantedAt
+		})
 	}
 
 	response := gin.H{
@@ -144,7 +241,7 @@ func ClaimUserActivity(c *gin.Context) {
 	})
 }
 
-func userActivityFromCampaign(campaign *model.ActivityCampaign, grants []model.ActivityGrant, userId int, now int64) userActivity {
+func userActivityFromCampaign(campaign *model.ActivityCampaign, grants []model.ActivityGrant, userId int, now int64, view string) userActivity {
 	activity := userActivity{
 		Id:          campaign.ActivityKey,
 		Type:        campaign.Type,
@@ -153,6 +250,18 @@ func userActivityFromCampaign(campaign *model.ActivityCampaign, grants []model.A
 		Status:      "unavailable",
 		StartsAt:    campaign.StartsAt,
 		EndsAt:      campaign.EndsAt,
+	}
+	if view == "participated" {
+		activity.Status = "credited"
+		var total int64
+		for _, grant := range grants {
+			total += int64(grant.Quota)
+			if activity.GrantedAt == 0 || grant.CreatedAt > activity.GrantedAt {
+				activity.GrantedAt = grant.CreatedAt
+			}
+		}
+		activity.RewardQuota = total
+		return activity
 	}
 	if campaign.EndsAt > now {
 		activity.RemainingSeconds = campaign.EndsAt - now
@@ -179,7 +288,7 @@ func userActivityFromCampaign(campaign *model.ActivityCampaign, grants []model.A
 		}
 		return activity
 	}
-	if campaign.RecipientMaxUserID <= 0 || userId > campaign.RecipientMaxUserID {
+	if campaign.AudienceType != model.ActivityCampaignAudienceSelected && (campaign.RecipientMaxUserID <= 0 || userId > campaign.RecipientMaxUserID) {
 		return activity
 	}
 	if campaign.Status == model.ActivityCampaignStatusClosed {
@@ -203,16 +312,18 @@ func userActivityFromCampaign(campaign *model.ActivityCampaign, grants []model.A
 }
 
 type activityCampaignRequest struct {
-	ActivityKey string `json:"activity_key"`
-	Key         string `json:"key"`
-	Type        string `json:"type"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	Reason      string `json:"reason"`
-	AmountUSD   string `json:"amount_usd"`
-	Quota       *int   `json:"quota"`
-	StartsAt    int64  `json:"starts_at"`
-	EndsAt      int64  `json:"ends_at"`
+	ActivityKey      string `json:"activity_key"`
+	Key              string `json:"key"`
+	Type             string `json:"type"`
+	Title            string `json:"title"`
+	Description      string `json:"description"`
+	Reason           string `json:"reason"`
+	AmountUSD        string `json:"amount_usd"`
+	Quota            *int   `json:"quota"`
+	StartsAt         int64  `json:"starts_at"`
+	EndsAt           int64  `json:"ends_at"`
+	AudienceType     string `json:"audience_type"`
+	RecipientUserIDs []int  `json:"recipient_user_ids"`
 }
 
 func ListActivityCampaigns(c *gin.Context) {
@@ -260,21 +371,22 @@ func CreateActivityCampaign(c *gin.Context) {
 		activityKey = "campaign_" + randomKey
 	}
 	campaign := &model.ActivityCampaign{
-		ActivityKey: activityKey,
-		Type:        request.Type,
-		Title:       request.Title,
-		Description: request.Description,
-		Reason:      request.Reason,
-		AmountUSD:   strings.TrimSpace(request.AmountUSD),
-		Quota:       quota,
-		StartsAt:    request.StartsAt,
-		EndsAt:      request.EndsAt,
-		CreatedBy:   c.GetInt("id"),
+		ActivityKey:  activityKey,
+		Type:         request.Type,
+		Title:        request.Title,
+		Description:  request.Description,
+		Reason:       request.Reason,
+		AmountUSD:    strings.TrimSpace(request.AmountUSD),
+		Quota:        quota,
+		StartsAt:     request.StartsAt,
+		EndsAt:       request.EndsAt,
+		CreatedBy:    c.GetInt("id"),
+		AudienceType: strings.TrimSpace(request.AudienceType),
 	}
 	if campaign.AmountUSD == "" {
 		campaign.AmountUSD = strconv.FormatFloat(amountUSD, 'f', -1, 64)
 	}
-	if err := model.CreateActivityCampaign(c.Request.Context(), campaign); err != nil {
+	if err := model.CreateActivityCampaignWithRecipients(c.Request.Context(), campaign, request.RecipientUserIDs); err != nil {
 		common.ApiError(c, err)
 		return
 	}

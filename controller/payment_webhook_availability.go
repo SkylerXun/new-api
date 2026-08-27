@@ -99,6 +99,14 @@ func isEpayTopUpEnabled() bool {
 	return isEpayWebhookConfigured() && len(operation_setting.PayMethods) > 0
 }
 
+func isHupijiaoTopUpEnabled() bool {
+	if !hupijiaoEnabled() || (strings.TrimSpace(operation_setting.HupijiaoWechatAppID) == "" && strings.TrimSpace(operation_setting.HupijiaoAlipayAppID) == "") {
+		return false
+	}
+	packages, err := parseHupijiaoPackages()
+	return err == nil && len(packages) > 0
+}
+
 func isEpayWebhookConfigured() bool {
 	return strings.TrimSpace(operation_setting.PayAddress) != "" &&
 		strings.TrimSpace(operation_setting.EpayId) != "" &&

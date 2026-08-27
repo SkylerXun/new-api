@@ -27,6 +27,7 @@ export const subscriptionPlanSchema = z.object({
   title: z.string(),
   subtitle: z.string().optional(),
   price_amount: z.number(),
+  hupijiao_discount_rate: z.number().optional().default(1),
   currency: z.string().default('USD'),
   duration_unit: z.enum(['year', 'month', 'day', 'hour', 'custom']),
   duration_value: z.number(),
@@ -100,6 +101,8 @@ export interface SubscriptionPayResponse {
   data?: {
     // Stripe-style hosted checkout link.
     pay_link?: string
+    redirect_url?: string
+    qrcode_url?: string
     // Waffo Pancake / Creem hosted checkout URL.
     checkout_url?: string
     // Pancake-only: order metadata + self-service buyer session token,

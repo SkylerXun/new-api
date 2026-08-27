@@ -64,6 +64,8 @@ const createEmailSchema = (t: (key: string) => string) =>
     SMTPStartTLSEnabled: z.boolean(),
     SMTPInsecureSkipVerify: z.boolean(),
     SMTPForceAuthLogin: z.boolean(),
+    subscription_expiry_notify_enabled: z.boolean(),
+    subscription_expiry_notify_days: z.number().int().min(1).max(30),
   })
 
 type EmailFormValues = z.infer<ReturnType<typeof createEmailSchema>>
@@ -109,6 +111,8 @@ export function EmailSettingsSection({
       SMTPStartTLSEnabled: securityMode === 'starttls',
       SMTPInsecureSkipVerify: values.SMTPInsecureSkipVerify,
       SMTPForceAuthLogin: values.SMTPForceAuthLogin,
+      subscription_expiry_notify_enabled: values.subscription_expiry_notify_enabled,
+          subscription_expiry_notify_days: Math.max(1, Math.min(30, Math.floor(values.subscription_expiry_notify_days || 1))),
     }
 
     const initial = {
@@ -121,9 +125,11 @@ export function EmailSettingsSection({
       SMTPStartTLSEnabled: defaultValues.SMTPStartTLSEnabled,
       SMTPInsecureSkipVerify: defaultValues.SMTPInsecureSkipVerify,
       SMTPForceAuthLogin: defaultValues.SMTPForceAuthLogin,
+      subscription_expiry_notify_enabled: defaultValues.subscription_expiry_notify_enabled,
+      subscription_expiry_notify_days: defaultValues.subscription_expiry_notify_days,
     }
 
-    const updates: Array<{ key: string; value: string | boolean }> = []
+    const updates: Array<{ key: string; value: string | number | boolean }> = []
 
     if (sanitized.SMTPServer !== initial.SMTPServer) {
       updates.push({ key: 'SMTPServer', value: sanitized.SMTPServer })
@@ -173,6 +179,13 @@ export function EmailSettingsSection({
       })
     }
 
+    if (sanitized.subscription_expiry_notify_days !== initial.subscription_expiry_notify_days) {
+      updates.push({ key: 'subscription_expiry_notify_days', value: sanitized.subscription_expiry_notify_days })
+    }
+    if (sanitized.subscription_expiry_notify_enabled !== initial.subscription_expiry_notify_enabled) {
+      updates.push({ key: 'subscription_expiry_notify_enabled', value: sanitized.subscription_expiry_notify_enabled })
+    }
+
     for (const update of updates) {
       await updateOption.mutateAsync(update)
     }
@@ -206,6 +219,35 @@ export function EmailSettingsSection({
                 </FormDescription>
                 <FormMessage />
               </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='subscription_expiry_notify_days'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Subscription reminder lead time')}</FormLabel>
+                <FormControl>
+                  <Input type='number' min={1} max={30} step={1} {...field} onChange={(event) => field.onChange(Number(event.target.value))} />
+                </FormControl>
+                <FormDescription>{t('Send one subscription expiry reminder 1-30 days before expiry. Default: 1 day.')}</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='subscription_expiry_notify_enabled'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Enable subscription expiry reminders')}</FormLabel>
+                  <FormDescription>{t('Send one email reminder before an active subscription expires.')}</FormDescription>
+                </SettingsSwitchContent>
+                <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+              </SettingsSwitchItem>
             )}
           />
 

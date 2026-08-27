@@ -83,6 +83,8 @@ export function usePayment() {
   const [amount, setAmount] = useState<number>(0)
   const [calculating, setCalculating] = useState(false)
   const [processing, setProcessing] = useState(false)
+  const [qrcodeUrl, setQrcodeUrl] = useState('')
+  const [h5Url, setH5Url] = useState('')
 
   // Calculate payment amount
   const calculatePaymentAmount = useCallback(
@@ -107,11 +109,12 @@ export function usePayment() {
 
   // Process payment
   const processPayment = useCallback(
-    async (topupAmount: number, paymentType: string) => {
+    async (topupAmount: number, paymentType: string, packageId?: string) => {
       try {
         setProcessing(true)
 
         const isStripe = isStripePayment(paymentType)
+        const isMobile = /Mobile|Android|iPhone/i.test(navigator.userAgent)
         const amount = Math.floor(topupAmount)
 
         const response = isStripe
@@ -120,8 +123,9 @@ export function usePayment() {
               payment_method: 'stripe',
             })
           : await requestPayment({
-              amount,
+              ...(packageId ? { package_id: packageId } : { amount }),
               payment_method: paymentType,
+              device: isMobile ? 'mobile' : 'pc',
             })
 
         if (!isApiSuccess(response)) {
@@ -137,6 +141,17 @@ export function usePayment() {
         }
 
         // Handle non-Stripe payment
+        const paymentData = response.data as Record<string, unknown> | undefined
+        if (!isStripe && isMobile && paymentData?.redirect_url) {
+          window.location.href = paymentData.redirect_url as string
+          toast.success(i18next.t('Redirecting to payment page...'))
+          return true
+        }
+        if (!isStripe && paymentData?.qrcode_url) {
+          setQrcodeUrl(paymentData.qrcode_url as string)
+          setH5Url((paymentData.redirect_url as string) || '')
+          return true
+        }
         if (!isStripe && response.data) {
           const url = (response as unknown as { url?: string }).url
           if (url) {
@@ -164,5 +179,8 @@ export function usePayment() {
     calculatePaymentAmount,
     processPayment,
     setAmount,
+    qrcodeUrl,
+    h5Url,
+    closeQRCode: () => { setQrcodeUrl(''); setH5Url('') },
   }
 }

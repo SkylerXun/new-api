@@ -37,6 +37,9 @@ describe('progressive billing configuration', () => {
       threshold_usd: 75,
       window_usd: 150,
       target_average_k: 10,
+      monthly_enabled: false,
+      monthly_tiers: [],
+      monthly_backfill_cutoff: 0,
     })
     assert.deepEqual(parseBillingCurveConfig('{'), DEFAULT_BILLING_CURVE_CONFIG)
   })
@@ -49,9 +52,29 @@ describe('progressive billing configuration', () => {
       threshold_usd: 20,
       window_usd: 80,
       target_average_k: 9,
+      monthly_enabled: true,
+      monthly_tiers: [{ threshold_usd: 1000, discount_percent: 10 }],
+      monthly_backfill_cutoff: 1_787_673_600,
     }
 
     assert.deepEqual(parseBillingCurveConfig(JSON.stringify(config)), config)
+  })
+
+  test('preserves legacy curve values while defaulting new monthly fields', () => {
+    const legacy = {
+      enabled: true,
+      k1: 2,
+      k2: 4,
+      threshold_usd: 30,
+      window_usd: 60,
+      target_average_k: 3,
+    }
+    assert.deepEqual(parseBillingCurveConfig(JSON.stringify(legacy)), {
+      ...legacy,
+      monthly_enabled: false,
+      monthly_tiers: [],
+      monthly_backfill_cutoff: 0,
+    })
   })
 
   test('accepts a complete configuration within the backend bounds', () => {
@@ -62,6 +85,9 @@ describe('progressive billing configuration', () => {
       threshold_usd: 75,
       window_usd: 150,
       target_average_k: 10,
+      monthly_enabled: true,
+      monthly_tiers: [{ threshold_usd: 1000, discount_percent: 10 }],
+      monthly_backfill_cutoff: 1_787_673_600,
     })
 
     assert.equal(result.success, true)
@@ -76,6 +102,29 @@ describe('progressive billing configuration', () => {
     }
   })
 
+  test('rejects unordered thresholds and decreasing discounts', () => {
+    assert.equal(
+      schema.safeParse({
+        ...DEFAULT_BILLING_CURVE_CONFIG,
+        monthly_tiers: [
+          { threshold_usd: 1000, discount_percent: 20 },
+          { threshold_usd: 900, discount_percent: 30 },
+        ],
+      }).success,
+      false
+    )
+    assert.equal(
+      schema.safeParse({
+        ...DEFAULT_BILLING_CURVE_CONFIG,
+        monthly_tiers: [
+          { threshold_usd: 1000, discount_percent: 20 },
+          { threshold_usd: 2000, discount_percent: 10 },
+        ],
+      }).success,
+      false
+    )
+  })
+
   test('serializes all fields as one atomic option value', () => {
     assert.equal(
       serializeBillingCurveConfig({
@@ -85,8 +134,11 @@ describe('progressive billing configuration', () => {
         threshold_usd: 20,
         window_usd: 80,
         target_average_k: 9,
+        monthly_enabled: true,
+        monthly_tiers: [{ threshold_usd: 1000, discount_percent: 10 }],
+        monthly_backfill_cutoff: 1_787_673_600,
       }),
-      '{"enabled":true,"k1":6,"k2":12,"threshold_usd":20,"window_usd":80,"target_average_k":9}'
+      '{"enabled":true,"k1":6,"k2":12,"threshold_usd":20,"window_usd":80,"target_average_k":9,"monthly_enabled":true,"monthly_tiers":[{"threshold_usd":1000,"discount_percent":10}],"monthly_backfill_cutoff":1787673600}'
     )
   })
 })

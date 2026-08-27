@@ -17,10 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
+import { Plus, Trash2 } from 'lucide-react'
 import { useMemo } from 'react'
-import type { Resolver } from 'react-hook-form'
+import { useFieldArray, type Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -36,6 +38,11 @@ import {
   InputGroupInput,
 } from '@/components/ui/input-group'
 import { Switch } from '@/components/ui/switch'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 import { FormDirtyIndicator } from '../components/form-dirty-indicator'
 import { FormNavigationGuard } from '../components/form-navigation-guard'
@@ -94,6 +101,19 @@ export function ProgressiveBillingSection(
 
   const disabled = updateOption.isPending || isSubmitting
   const k1 = form.watch('k1')
+  const monthlyTiers = form.watch('monthly_tiers') || []
+  const {
+    fields: monthlyTierFields,
+    append: appendMonthlyTier,
+    remove: removeMonthlyTier,
+  } = useFieldArray({ control: form.control, name: 'monthly_tiers' })
+  const addMonthlyTier = () => {
+    const previous = monthlyTiers.at(-1)
+    appendMonthlyTier({
+      threshold_usd: (previous?.threshold_usd ?? 0) + 1000,
+      discount_percent: previous?.discount_percent ?? 10,
+    })
+  }
 
   return (
     <SettingsSection title={t('Progressive Billing')}>
@@ -249,8 +269,120 @@ export function ProgressiveBillingSection(
                 </FormItem>
               )}
             />
-
           </SettingsFormGrid>
+
+          <div className='mt-6 space-y-3'>
+            <FormField
+              control={form.control}
+              name='monthly_enabled'
+              render={({ field }) => (
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>{t('Enable monthly tier discounts')}</FormLabel>
+                    <FormDescription>
+                      {t(
+                        'Apply monthly discounts to wallet and subscription usage; progress resets each Shanghai calendar month.'
+                      )}
+                    </FormDescription>
+                  </SettingsSwitchContent>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      disabled={disabled}
+                    />
+                  </FormControl>
+                </SettingsSwitchItem>
+              )}
+            />
+            <div className='space-y-2'>
+              <div className='flex items-center justify-between'>
+                <FormLabel>{t('Monthly discount tiers')}</FormLabel>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type='button'
+                        variant='outline'
+                        size='icon-sm'
+                        disabled={disabled}
+                        onClick={addMonthlyTier}
+                      />
+                    }
+                  >
+                    <Plus aria-hidden='true' />
+                  </TooltipTrigger>
+                  <TooltipContent>{t('Add tier')}</TooltipContent>
+                </Tooltip>
+              </div>
+              {monthlyTierFields.map((tier, index) => (
+                <div
+                  className='grid grid-cols-[1fr_1fr_auto] gap-2'
+                  key={tier.id}
+                >
+                  <FormField
+                    control={form.control}
+                    name={`monthly_tiers.${index}.threshold_usd`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormControl>
+                          <InputGroup>
+                            <InputGroupAddon>$</InputGroupAddon>
+                            <InputGroupInput
+                              type='number'
+                              min={0.01}
+                              step='0.01'
+                              {...safeNumberFieldProps(field)}
+                              disabled={disabled}
+                            />
+                          </InputGroup>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name={`monthly_tiers.${index}.discount_percent`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormControl>
+                          <InputGroup>
+                            <InputGroupInput
+                              type='number'
+                              min={0}
+                              max={99.99}
+                              step='0.01'
+                              {...safeNumberFieldProps(field)}
+                              disabled={disabled}
+                            />
+                            <InputGroupAddon>%</InputGroupAddon>
+                          </InputGroup>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          type='button'
+                          variant='ghost'
+                          size='icon-sm'
+                          disabled={disabled}
+                          onClick={() => removeMonthlyTier(index)}
+                        />
+                      }
+                    >
+                      <Trash2 aria-hidden='true' />
+                    </TooltipTrigger>
+                    <TooltipContent>{t('Remove')}</TooltipContent>
+                  </Tooltip>
+                </div>
+              ))}
+            </div>
+          </div>
         </SettingsForm>
       </Form>
     </SettingsSection>

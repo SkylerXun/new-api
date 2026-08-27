@@ -34,7 +34,7 @@ func setupActivityControllerTest(t *testing.T) *model.User {
 	require.NoError(t, err)
 	model.DB = db
 	model.LOG_DB = db
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.ActivityGrant{}, &model.ActivityCampaign{}))
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.ActivityGrant{}, &model.ActivityCampaign{}, &model.ActivityCampaignRecipient{}))
 
 	activitySetting := operation_setting.GetActivitySetting()
 	previousSetting := *activitySetting
@@ -149,6 +149,43 @@ func TestGetUserActivitiesIncludesClaimableCampaign(t *testing.T) {
 	assert.Equal(t, "/api/user/activities/"+campaign.ActivityKey+"/claim", activity.Action.Endpoint)
 }
 
+func TestGetUserActivitiesParticipationHistoryOnlyIncludesCreditedActivities(t *testing.T) {
+	user := setupActivityControllerTest(t)
+	now := common.GetTimestamp()
+	credited := &model.ActivityCampaign{
+		ActivityKey: "credited-history", Type: model.ActivityCampaignTypeClaimable,
+		Title: "Credited", AmountUSD: "0.01", Quota: 100,
+		StartsAt: now - 10, EndsAt: now + 3600, CreatedBy: 99,
+	}
+	unclaimed := &model.ActivityCampaign{
+		ActivityKey: "unclaimed-history", Type: model.ActivityCampaignTypeClaimable,
+		Title: "Unclaimed", AmountUSD: "0.01", Quota: 100,
+		StartsAt: now - 10, EndsAt: now + 3600, CreatedBy: 99,
+	}
+	require.NoError(t, model.CreateActivityCampaign(context.Background(), credited))
+	require.NoError(t, model.CreateActivityCampaign(context.Background(), unclaimed))
+	_, _, err := model.ClaimActivityCampaignQuota(context.Background(), user.Id, credited.ActivityKey)
+	require.NoError(t, err)
+
+	recorder := httptest.NewRecorder()
+	requestContext, _ := gin.CreateTestContext(recorder)
+	requestContext.Request = httptest.NewRequest(http.MethodGet, "/api/user/activities?view=participated", nil)
+	requestContext.Set("id", user.Id)
+	GetUserActivities(requestContext)
+
+	var payload struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Activities []userActivity `json:"activities"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.True(t, payload.Success)
+	require.Len(t, payload.Data.Activities, 1)
+	assert.Equal(t, credited.ActivityKey, payload.Data.Activities[0].Id)
+	assert.Equal(t, int64(100), payload.Data.Activities[0].RewardQuota)
+}
+
 func TestCreateActivityCampaignGeneratesActivityKey(t *testing.T) {
 	user := setupActivityControllerTest(t)
 	recorder := httptest.NewRecorder()
@@ -174,4 +211,33 @@ func TestCreateActivityCampaignGeneratesActivityKey(t *testing.T) {
 	require.True(t, payload.Success)
 	assert.True(t, strings.HasPrefix(payload.Data.Campaign.ActivityKey, "campaign_"))
 	assert.NotEmpty(t, payload.Data.Campaign.ActivityKey)
+}
+
+func TestCreateActivityCampaignAcceptsSelectedRecipients(t *testing.T) {
+	admin := setupActivityControllerTest(t)
+	recipient := &model.User{Username: "selected-api-recipient", Password: "password", Status: common.UserStatusEnabled, Group: "default", AffCode: "selected-api-recipient-aff"}
+	require.NoError(t, model.DB.Create(recipient).Error)
+	recorder := httptest.NewRecorder()
+	requestContext, _ := gin.CreateTestContext(recorder)
+	requestContext.Request = httptest.NewRequest(
+		http.MethodPost,
+		"/api/activity/admin/campaigns",
+		strings.NewReader(fmt.Sprintf(`{"type":"claimable","audience_type":"selected","recipient_user_ids":[%d],"title":"Selected campaign","amount_usd":"0.01","ends_at":%d}`, recipient.Id, common.GetTimestamp()+3600)),
+	)
+	requestContext.Request.Header.Set("Content-Type", "application/json")
+	requestContext.Set("id", admin.Id)
+
+	CreateActivityCampaign(requestContext)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var payload struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Campaign model.ActivityCampaign `json:"campaign"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.True(t, payload.Success)
+	assert.Equal(t, model.ActivityCampaignAudienceSelected, payload.Data.Campaign.AudienceType)
+	assert.Equal(t, int64(1), payload.Data.Campaign.RecipientCount)
 }

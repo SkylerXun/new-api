@@ -3,6 +3,8 @@ package service
 import (
 	"fmt"
 	"math"
+	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -14,11 +16,52 @@ import (
 
 const billingCurveMicroUSD = 1_000_000.0
 
+var shanghaiLocation = func() *time.Location {
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		return time.FixedZone("Asia/Shanghai", 8*60*60)
+	}
+	return loc
+}()
+
+func CurrentBillingMonthStart() int64 {
+	return billingMonthStartAt(time.Now())
+}
+
+func billingMonthStartAt(at time.Time) int64 {
+	now := at.In(shanghaiLocation)
+	return time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, shanghaiLocation).Unix()
+}
+
+func CurrentBillingMonthEnd() int64 {
+	now := time.Now().In(shanghaiLocation)
+	return time.Date(now.Year(), now.Month()+1, 1, 0, 0, 0, 0, shanghaiLocation).Unix()
+}
+
+func monthlyBackfillCutoff(curve billing_curve_setting.Config, monthStart int64) int64 {
+	cutoff := curve.MonthlyBackfillCutoff
+	if cutoff <= monthStart {
+		return 0
+	}
+	if billingMonthStartAt(time.Unix(cutoff, 0)) != monthStart {
+		return 0
+	}
+	return cutoff
+}
+
+func EnsureCurrentMonthlyBillingBackfill(userIDs []int, curve billing_curve_setting.Config, monthStart int64) error {
+	cutoff := monthlyBackfillCutoff(curve, monthStart)
+	if cutoff == 0 {
+		return nil
+	}
+	return model.EnsureUserMonthlyBillingBackfill(userIDs, monthStart, cutoff)
+}
+
 // ShouldDeferBillingCurveForTokenTask keeps token-priced async tasks out of
 // submit-time curve settlement. Their actual base usage is only known when
 // polling returns total_tokens, while fixed per-call tasks settle immediately.
 func ShouldDeferBillingCurveForTokenTask(curve *hosttypes.BillingCurveConfig, perCallBilling bool) bool {
-	return curve != nil && curve.Enabled && !perCallBilling
+	return curve != nil && (curve.Enabled || curve.MonthlyEnabled) && !perCallBilling
 }
 
 // SnapshotBillingCurveConfig freezes the current settings at pre-consume time.
@@ -27,11 +70,11 @@ func ShouldDeferBillingCurveForTokenTask(curve *hosttypes.BillingCurveConfig, pe
 func SnapshotBillingCurveConfig(relayInfo *relaycommon.RelayInfo) hosttypes.BillingCurveConfig {
 	if relayInfo != nil {
 		if relayInfo.BillingCurveConfig != nil {
-			return *relayInfo.BillingCurveConfig
+			return billing_curve_setting.CloneConfig(*relayInfo.BillingCurveConfig)
 		}
 		curve := billing_curve_setting.GetConfig()
-		copy := curve
-		relayInfo.BillingCurveConfig = &copy
+		snapshot := billing_curve_setting.CloneConfig(curve)
+		relayInfo.BillingCurveConfig = &snapshot
 		return curve
 	}
 	return billing_curve_setting.GetConfig()
@@ -81,14 +124,17 @@ func ApplyBillingCurveForBaseUsage(relayInfo *relaycommon.RelayInfo, normalQuota
 		if snapshot.NormalQuota != normalQuota {
 			return 0, fmt.Errorf("billing curve already applied to a different quota")
 		}
+		if relayInfo.MonthlyDiscountSnapshot != nil {
+			return relayInfo.MonthlyDiscountSnapshot.ChargedQuota, nil
+		}
 		return snapshot.ChargedQuota, nil
 	}
 
 	curve := SnapshotBillingCurveConfig(relayInfo)
 	if !curve.Enabled || baseUsageMicroUSD <= 0 {
-		return normalQuota, nil
+		return ApplyMonthlyDiscount(relayInfo, normalQuota)
 	}
-	applied := relayInfo.BillingSource != BillingSourceSubscription
+	applied := true
 	if applied {
 		// The interval average never exceeds K2. Validate the hard upper bound
 		// before advancing progress so a saturated final charge cannot leave a
@@ -127,7 +173,127 @@ func ApplyBillingCurveForBaseUsage(relayInfo *relaycommon.RelayInfo, normalQuota
 		ThresholdUSD:           curve.ThresholdUSD,
 		WindowUSD:              curve.WindowUSD,
 	}
+	return ApplyMonthlyDiscount(relayInfo, chargedQuota)
+}
+
+// ApplyMonthlyDiscount applies the monthly discount to a charge that already
+// includes model, group, and legacy linear-curve pricing. Progress is tracked
+// using the actual discounted USD amount and is serialized per user/month.
+func ApplyMonthlyDiscount(relayInfo *relaycommon.RelayInfo, normalQuota int) (int, error) {
+	if relayInfo == nil {
+		return normalQuota, fmt.Errorf("relay info is required for monthly discount")
+	}
+	if normalQuota < 0 {
+		return 0, fmt.Errorf("monthly discount normal quota cannot be negative")
+	}
+	if relayInfo.MonthlyDiscountSnapshot != nil {
+		if relayInfo.MonthlyDiscountSnapshot.NormalQuota != normalQuota {
+			return 0, fmt.Errorf("monthly discount already applied to a different quota")
+		}
+		return relayInfo.MonthlyDiscountSnapshot.ChargedQuota, nil
+	}
+	curve := SnapshotBillingCurveConfig(relayInfo)
+	if !curve.MonthlyEnabled || normalQuota == 0 || common.QuotaPerUnit <= 0 {
+		return normalQuota, nil
+	}
+	monthStart := CurrentBillingMonthStart()
+	if err := EnsureCurrentMonthlyBillingBackfill([]int{relayInfo.UserId}, curve, monthStart); err != nil {
+		return 0, err
+	}
+	rawUSD := float64(normalQuota) / common.QuotaPerUnit
+	if math.IsNaN(rawUSD) || math.IsInf(rawUSD, 0) || rawUSD <= 0 {
+		return normalQuota, nil
+	}
+
+	settlementKey := strings.TrimSpace(relayInfo.RequestId)
+	if settlementKey == "" {
+		settlementKey = common.NewRequestId()
+	}
+	before, after, chargedQuota, settledMonthStart, err := model.SettleUserMonthlyBillingProgress(relayInfo.UserId, monthStart, settlementKey, normalQuota, func(current int64) (int64, int, error) {
+		spent := float64(current) / billingCurveMicroUSD
+		chargedUSD, _, calculateErr := calculateMonthlyDiscount(rawUSD, spent, curve.MonthlyTiers)
+		if calculateErr != nil {
+			return 0, 0, calculateErr
+		}
+		calculatedQuota, calculateErr := common.QuotaFromFloatStrict(chargedUSD * common.QuotaPerUnit)
+		if calculateErr != nil {
+			return 0, 0, calculateErr
+		}
+		actualChargedMicroUSD := int64(math.Round(float64(calculatedQuota) / common.QuotaPerUnit * billingCurveMicroUSD))
+		if actualChargedMicroUSD < 0 || current > math.MaxInt64-actualChargedMicroUSD {
+			return 0, 0, fmt.Errorf("monthly billing progress overflow")
+		}
+		return current + actualChargedMicroUSD, calculatedQuota, nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	if chargedQuota < 0 || chargedQuota > normalQuota {
+		return 0, fmt.Errorf("monthly discount produced invalid charge")
+	}
+	effectiveMultiplier := float64(chargedQuota) / float64(normalQuota)
+	discountPercent := (1 - effectiveMultiplier) * 100
+	relayInfo.MonthlyDiscountSnapshot = &hosttypes.MonthlyDiscountSnapshot{
+		Applied:                chargedQuota < normalQuota,
+		NormalQuota:            normalQuota,
+		ChargedQuota:           chargedQuota,
+		ProgressBeforeMicroUSD: before,
+		ProgressAfterMicroUSD:  after,
+		DiscountPercent:        discountPercent,
+		EffectiveMultiplier:    effectiveMultiplier,
+		MonthStart:             settledMonthStart,
+		FundingSource:          relayInfo.BillingSource,
+		SettlementKey:          settlementKey,
+	}
 	return chargedQuota, nil
+}
+
+func calculateMonthlyDiscount(rawUSD float64, spentUSD float64, tiers []hosttypes.BillingDiscountTier) (chargedUSD float64, afterUSD float64, err error) {
+	afterUSD = spentUSD
+	remaining := rawUSD
+	for remaining > 0 {
+		discountPercent := 0.0
+		nextThreshold := math.Inf(1)
+		for _, tier := range tiers {
+			if afterUSD >= tier.ThresholdUSD {
+				discountPercent = tier.DiscountPercent
+				continue
+			}
+			nextThreshold = tier.ThresholdUSD
+			break
+		}
+		multiplier := 1 - discountPercent/100
+		if multiplier <= 0 {
+			return 0, spentUSD, fmt.Errorf("monthly discount multiplier must be positive")
+		}
+		segmentRaw := remaining
+		if !math.IsInf(nextThreshold, 1) {
+			next := nextThreshold - afterUSD
+			if next > 0 && next/multiplier < segmentRaw {
+				segmentRaw = next / multiplier
+			}
+		}
+		chargedUSD += segmentRaw * multiplier
+		afterUSD += segmentRaw * multiplier
+		remaining -= segmentRaw
+	}
+	return chargedUSD, afterUSD, nil
+}
+
+func MonthlyDiscountPercent(curve billing_curve_setting.Config, spentMicroUSD int64) float64 {
+	if !curve.MonthlyEnabled {
+		return 0
+	}
+	percent := 0.0
+	spent := float64(spentMicroUSD) / billingCurveMicroUSD
+	for _, tier := range curve.MonthlyTiers {
+		if spent >= tier.ThresholdUSD {
+			percent = tier.DiscountPercent
+		} else {
+			break
+		}
+	}
+	return percent
 }
 
 // PerCallBillingBaseUsageMicroUSD returns a task's known base usage before

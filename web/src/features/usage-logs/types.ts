@@ -133,6 +133,7 @@ export interface LogOtherData {
     admin_id?: number | string
     admin_role?: number
     auth_method?: 'session' | 'access_token' | string
+    mapped_error?: string
     // Quota saturation marker: set when a quota conversion clamped at the
     // int32 bound (overflow/underflow) or hit a NaN fallback while computing
     // this request's charge. Admin-only (nested under admin_info).
@@ -141,6 +142,17 @@ export interface LogOtherData {
       kind: 'overflow' | 'underflow' | 'nan'
       original: number
       clamped: number
+    }
+    monthly_discount?: {
+      applied?: boolean
+      normal_quota?: number
+      charged_quota?: number
+      progress_before_micro_usd?: number
+      progress_after_micro_usd?: number
+      discount_percent?: number
+      effective_multiplier?: number
+      month_start?: number
+      funding_source?: string
     }
   }
   // Language-independent operation descriptor (audit/login logs).
@@ -216,6 +228,8 @@ export interface LogOtherData {
   is_system_prompt_overwritten?: boolean
   po?: string[]
   billing_source?: string
+  monthly_discount_percent?: number
+  monthly_discount_quota?: number
   group?: string
   stream_status?: {
     status?: string

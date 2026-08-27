@@ -51,15 +51,35 @@ func attachQuotaSaturation(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, o
 }
 
 func appendBillingCurveInfo(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
-	if relayInfo == nil || other == nil || relayInfo.BillingCurveSnapshot == nil {
+	if relayInfo == nil || other == nil {
 		return
+	}
+	if relayInfo.BillingCurveSnapshot != nil {
+		adminInfo, ok := other["admin_info"].(map[string]interface{})
+		if !ok || adminInfo == nil {
+			adminInfo = map[string]interface{}{}
+			other["admin_info"] = adminInfo
+		}
+		adminInfo["billing_curve"] = relayInfo.BillingCurveSnapshot
+	}
+	appendMonthlyDiscountInfo(relayInfo, other)
+}
+
+func appendMonthlyDiscountInfo(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
+	if relayInfo == nil || other == nil || relayInfo.MonthlyDiscountSnapshot == nil {
+		return
+	}
+	snapshot := relayInfo.MonthlyDiscountSnapshot
+	if snapshot.Applied {
+		other["monthly_discount_percent"] = snapshot.DiscountPercent
+		other["monthly_discount_quota"] = snapshot.ChargedQuota
 	}
 	adminInfo, ok := other["admin_info"].(map[string]interface{})
 	if !ok || adminInfo == nil {
 		adminInfo = map[string]interface{}{}
 		other["admin_info"] = adminInfo
 	}
-	adminInfo["billing_curve"] = relayInfo.BillingCurveSnapshot
+	adminInfo["monthly_discount"] = snapshot
 }
 
 func appendRequestPath(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {

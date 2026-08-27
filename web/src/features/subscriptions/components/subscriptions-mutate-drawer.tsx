@@ -320,6 +320,18 @@ export function SubscriptionsMutateDrawer({
               <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
                 <FormField
                   control={form.control}
+                  name='hupijiao_discount_rate'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Hupijiao discount rate')}</FormLabel>
+                      <FormControl><Input {...field} type='number' min={0.01} max={1} step='0.01' /></FormControl>
+                      <FormDescription>{t('Used only when paying subscriptions with Hupijiao')}</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
                   name='price_amount'
                   render={({ field }) => (
                     <FormItem>

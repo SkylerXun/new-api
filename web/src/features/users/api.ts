@@ -109,6 +109,14 @@ export async function updateUser(
   return res.data
 }
 
+export async function bindInviter(
+  userId: number,
+  inviterId: number
+): Promise<ApiResponse<{ user_id: number; inviter_id: number }>> {
+  const res = await api.post(`/api/user/${userId}/inviter`, { inviter_id: inviterId })
+  return res.data
+}
+
 /**
  * Delete a single user (hard delete)
  */

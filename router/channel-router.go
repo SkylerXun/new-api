@@ -24,7 +24,8 @@ func registerChannelRoutes(apiRouter *gin.RouterGroup) {
 		middleware.RootAuth(),
 		middleware.CriticalRateLimit(),
 		middleware.DisableCache(),
-		middleware.SecureVerificationRequired(),
+		// 暂时关闭查看渠道 Key 前的 2FA/Passkey 验证；需要恢复时取消下一行注释。
+		// middleware.SecureVerificationRequired(),
 		controller.GetChannelKey,
 	)
 

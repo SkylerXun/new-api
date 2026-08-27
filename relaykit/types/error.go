@@ -177,6 +177,38 @@ func (e *NewAPIError) SetMessage(message string) {
 	e.Err = errors.New(message)
 }
 
+// CloneWithMessage returns a shallow copy with a rewritten public message.
+// Structured relay payloads are copied as well so the original error remains
+// available to retry, channel health, and audit logic.
+func (e *NewAPIError) CloneWithMessage(message string) *NewAPIError {
+	if e == nil {
+		return nil
+	}
+	clone := *e
+	clone.Err = errors.New(message)
+	switch relayErr := e.RelayError.(type) {
+	case OpenAIError:
+		relayErr.Message = message
+		clone.RelayError = relayErr
+	case *OpenAIError:
+		if relayErr != nil {
+			relayErrClone := *relayErr
+			relayErrClone.Message = message
+			clone.RelayError = &relayErrClone
+		}
+	case ClaudeError:
+		relayErr.Message = message
+		clone.RelayError = relayErr
+	case *ClaudeError:
+		if relayErr != nil {
+			relayErrClone := *relayErr
+			relayErrClone.Message = message
+			clone.RelayError = &relayErrClone
+		}
+	}
+	return &clone
+}
+
 func (e *NewAPIError) ToOpenAIError() OpenAIError {
 	var result OpenAIError
 	switch e.errorType {

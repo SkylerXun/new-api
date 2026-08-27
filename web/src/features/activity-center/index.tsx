@@ -17,8 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Gift, RefreshCw } from 'lucide-react'
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+} from '@tanstack/react-query'
+import { Gift, Loader2, RefreshCw } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -26,6 +31,7 @@ import { SectionPageLayout } from '@/components/layout'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { getSelf } from '@/lib/api'
 import { formatQuota } from '@/lib/format'
 import { useAuthStore, type AuthUser } from '@/stores/auth-store'
@@ -50,16 +56,19 @@ async function refreshCurrentUser() {
 
 export function ActivityCenter() {
   const { t } = useTranslation()
+  const [view, setView] = useState<'ongoing' | 'participated'>('ongoing')
   const queryClient = useQueryClient()
-  const query = useQuery({
-    queryKey: activityQueryKey,
-    queryFn: async () => {
-      const response = await getUserActivities()
+  const query = useInfiniteQuery({
+    queryKey: [...activityQueryKey, view],
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }) => {
+      const response = await getUserActivities(view, pageParam)
       if (!response.success || !response.data) {
         throw new Error(response.message || t('Failed to load activities'))
       }
       return response.data
     },
+    getNextPageParam: (lastPage) => lastPage.next_cursor,
     staleTime: 30_000,
   })
   const claimMutation = useMutation({
@@ -93,12 +102,29 @@ export function ActivityCenter() {
   const handleClaim = (activity: UserActivity) => {
     if (!claimMutation.isPending) claimMutation.mutate(activity)
   }
+  const activities = query.data?.pages.flatMap((page) => page.activities) ?? []
+  const serverTime = query.data?.pages[0]?.server_time ?? 0
 
   return (
     <SectionPageLayout>
       <SectionPageLayout.Title>{t('Activity Center')}</SectionPageLayout.Title>
       <SectionPageLayout.Content>
         <div className='mx-auto flex w-full max-w-5xl flex-col gap-4'>
+          <Tabs
+            value={view}
+            onValueChange={(value) => {
+              if (value === 'ongoing' || value === 'participated') {
+                setView(value)
+              }
+            }}
+          >
+            <TabsList className='grid w-full max-w-md grid-cols-2'>
+              <TabsTrigger value='ongoing'>{t('Ongoing')}</TabsTrigger>
+              <TabsTrigger value='participated'>
+                {t('Participation history')}
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
           {query.isLoading ? (
             <Card data-card-hover='false' className='gap-3 p-5'>
               <Skeleton className='h-6 w-44' />
@@ -127,7 +153,7 @@ export function ActivityCenter() {
             </Card>
           ) : null}
 
-          {query.data?.activities.length === 0 ? (
+          {activities.length === 0 && query.isSuccess ? (
             <Card
               data-card-hover='false'
               className='flex flex-col items-center gap-2 p-10 text-center'
@@ -137,11 +163,11 @@ export function ActivityCenter() {
             </Card>
           ) : null}
 
-          {query.data?.activities.map((activity) => (
+          {activities.map((activity) => (
             <ActivityCard
               key={activity.id}
               activity={activity}
-              serverTime={query.data.server_time}
+              serverTime={serverTime}
               claiming={
                 claimMutation.isPending &&
                 claimMutation.variables?.id === activity.id
@@ -149,6 +175,19 @@ export function ActivityCenter() {
               onClaim={handleClaim}
             />
           ))}
+          {query.hasNextPage ? (
+            <Button
+              variant='outline'
+              className='self-center'
+              disabled={query.isFetchingNextPage}
+              onClick={() => void query.fetchNextPage()}
+            >
+              {query.isFetchingNextPage ? (
+                <Loader2 className='animate-spin' />
+              ) : null}
+              {t('Load more')}
+            </Button>
+          ) : null}
         </div>
       </SectionPageLayout.Content>
     </SectionPageLayout>

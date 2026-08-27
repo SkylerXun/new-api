@@ -1,14 +1,24 @@
 package types
 
+type BillingDiscountTier struct {
+	ThresholdUSD    float64 `json:"threshold_usd"`
+	DiscountPercent float64 `json:"discount_percent"`
+}
+
 // BillingCurveConfig controls the global progressive multiplier. It is kept
 // here so RelayInfo can snapshot it without importing a setting package.
 type BillingCurveConfig struct {
-	Enabled        bool    `json:"enabled"`
-	K1             float64 `json:"k1"`
-	K2             float64 `json:"k2"`
-	ThresholdUSD   float64 `json:"threshold_usd"`
-	WindowUSD      float64 `json:"window_usd"`
-	TargetAverageK float64 `json:"target_average_k"`
+	Enabled        bool                  `json:"enabled"`
+	K1             float64               `json:"k1"`
+	K2             float64               `json:"k2"`
+	ThresholdUSD   float64               `json:"threshold_usd"`
+	WindowUSD      float64               `json:"window_usd"`
+	TargetAverageK float64               `json:"target_average_k"`
+	MonthlyEnabled bool                  `json:"monthly_enabled"`
+	MonthlyTiers   []BillingDiscountTier `json:"monthly_tiers"`
+	// MonthlyBackfillCutoff freezes the first enable time. Usage before this
+	// instant seeds the activation month's progress without changing balances.
+	MonthlyBackfillCutoff int64 `json:"monthly_backfill_cutoff,omitempty"`
 }
 
 // BillingCurveSnapshot records the exact internal curve calculation attached
@@ -25,4 +35,17 @@ type BillingCurveSnapshot struct {
 	K2                     float64 `json:"k2"`
 	ThresholdUSD           float64 `json:"threshold_usd"`
 	WindowUSD              float64 `json:"window_usd"`
+}
+
+type MonthlyDiscountSnapshot struct {
+	Applied                bool    `json:"applied"`
+	NormalQuota            int     `json:"normal_quota"`
+	ChargedQuota           int     `json:"charged_quota"`
+	ProgressBeforeMicroUSD int64   `json:"progress_before_micro_usd"`
+	ProgressAfterMicroUSD  int64   `json:"progress_after_micro_usd"`
+	DiscountPercent        float64 `json:"discount_percent"`
+	EffectiveMultiplier    float64 `json:"effective_multiplier"`
+	MonthStart             int64   `json:"month_start"`
+	FundingSource          string  `json:"funding_source,omitempty"`
+	SettlementKey          string  `json:"settlement_key,omitempty"`
 }

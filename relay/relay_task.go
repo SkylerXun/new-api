@@ -215,9 +215,6 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		}
 	} else if info.Billing != nil {
 		targetQuota := info.PriceData.QuotaToPreConsume
-		if info.BillingSource == service.BillingSourceSubscription {
-			targetQuota = info.BillingCurveNormalPreConsumeQuota
-		}
 		if reserveErr := info.Billing.Reserve(targetQuota); reserveErr != nil {
 			return nil, service.TaskErrorWrapper(reserveErr, "billing_reserve_failed", http.StatusForbidden)
 		}

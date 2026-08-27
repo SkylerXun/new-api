@@ -75,8 +75,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	//originalModel := common.GetContextKeyString(c, constant.ContextKeyOriginalModel)
 
 	var (
-		newAPIError *types.NewAPIError
-		ws          *websocket.Conn
+		newAPIError               *types.NewAPIError
+		clientErrorMessageMapping string
+		ws                        *websocket.Conn
 	)
 
 	if relayFormat == types.RelayFormatOpenAIRealtime {
@@ -92,7 +93,14 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	defer func() {
 		if newAPIError != nil {
 			logger.LogError(c, fmt.Sprintf("relay error: %s", common.LocalLogPreview(newAPIError.Error())))
-			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
+			publicMessage := newAPIError.Error()
+			if mappedMessage, ok := service.ResolveErrorMessageMapping(
+				newAPIError.StatusCode,
+				clientErrorMessageMapping,
+			); ok {
+				publicMessage = mappedMessage
+			}
+			newAPIError = newAPIError.CloneWithMessage(common.MessageWithRequestId(publicMessage, requestId))
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime:
 				helper.WssError(c, ws, newAPIError.ToOpenAIError())
@@ -193,6 +201,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	relayInfo.LastError = nil
 
 	for {
+		clientErrorMessageMapping = ""
 		relayInfo.RetryIndex = retryParam.GetRetry()
 		channel, channelErr := getChannel(c, relayInfo, retryParam)
 		if channelErr != nil {
@@ -200,6 +209,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			newAPIError = channelErr
 			break
 		}
+		clientErrorMessageMapping = common.GetContextKeyString(c, constant.ContextKeyChannelErrorMessageMapping)
 		addUsedChannel(c, channel.Id)
 		if billingErr := service.PrepareTieredBillingForSelectedGroup(c, relayInfo); billingErr != nil {
 			newAPIError = billingErr
@@ -401,6 +411,12 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 			adminInfo["multi_key_index"] = common.GetContextKeyInt(c, constant.ContextKeyChannelMultiKeyIndex)
 		}
 		service.AppendChannelAffinityAdminInfo(c, adminInfo)
+		if mappedMessage, ok := service.ResolveErrorMessageMapping(
+			err.StatusCode,
+			common.GetContextKeyString(c, constant.ContextKeyChannelErrorMessageMapping),
+		); ok {
+			adminInfo["mapped_error"] = mappedMessage
+		}
 		other["admin_info"] = adminInfo
 		startTime := common.GetContextKeyTime(c, constant.ContextKeyRequestStartTime)
 		if startTime.IsZero() {
@@ -632,6 +648,7 @@ func RelayTask(c *gin.Context) {
 			BillingCurveDeferred:          deferBillingCurve,
 			BillingCurveNormalQuota:       billingCurveNormalQuota,
 			BillingCurveBaseUsageMicroUSD: billingCurveBaseUsageMicroUSD,
+			MonthlyDiscountSnapshot:       relayInfo.MonthlyDiscountSnapshot,
 		}
 		task.Quota = result.Quota
 		task.Data = result.TaskData

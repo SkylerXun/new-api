@@ -39,6 +39,7 @@ import type {
   WaffoPaymentResponse,
   WaffoPancakePaymentRequest,
   WaffoPancakePaymentResponse,
+  MonthlyBillingProgress,
 } from './types'
 
 // ============================================================================
@@ -50,6 +51,13 @@ import type {
  */
 export function isApiSuccess(response: ApiResponse): boolean {
   return response.success === true || response.message === 'success'
+}
+
+export async function getMonthlyBillingProgress(): Promise<
+  ApiResponse<MonthlyBillingProgress>
+> {
+  const res = await api.get('/api/user/monthly-billing')
+  return res.data
 }
 
 /**

@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Crown, CalendarClock, Package } from 'lucide-react'
+import { QRCodeSVG } from 'qrcode.react'
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -42,6 +43,7 @@ import {
   paySubscriptionStripe,
   paySubscriptionCreem,
   paySubscriptionEpay,
+  paySubscriptionHupijiao,
   paySubscriptionWaffoPancake,
   paySubscriptionBalance,
 } from '../../api'
@@ -61,6 +63,7 @@ interface Props {
   enableCreem?: boolean
   enableWaffoPancake?: boolean
   enableOnlineTopUp?: boolean
+  onlinePaymentProvider?: 'epay' | 'hupijiao'
   epayMethods?: PaymentMethod[]
   purchaseLimit?: number
   purchaseCount?: number
@@ -73,12 +76,16 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const { currency } = useSystemConfig()
   const [paying, setPaying] = useState(false)
   const [selectedEpayMethod, setSelectedEpayMethod] = useState('')
+  const [hupijiaoQRCode, setHupijiaoQRCode] = useState('')
+  const [hupijiaoH5URL, setHupijiaoH5URL] = useState('')
 
   useEffect(() => {
     if (props.open && props.epayMethods && props.epayMethods.length > 0) {
       setSelectedEpayMethod(props.epayMethods[0].type)
     } else if (!props.open) {
       setSelectedEpayMethod('')
+      setHupijiaoQRCode('')
+      setHupijiaoH5URL('')
     }
   }, [props.open, props.epayMethods])
 
@@ -92,6 +99,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const hasEpay =
     props.enableOnlineTopUp && (props.epayMethods || []).length > 0
   const hasAnyPayment = hasStripe || hasCreem || hasWaffoPancake || hasEpay
+  const hasHupijiao = hasEpay && props.onlinePaymentProvider === 'hupijiao'
   const selectedEpayMethodLabel =
     (props.epayMethods || []).find((m) => m.type === selectedEpayMethod)
       ?.name ||
@@ -99,6 +107,11 @@ export function SubscriptionPurchaseDialog(props: Props) {
     t('Select payment method')
   const totalAmount = Number(plan.total_amount || 0)
   const price = Number(plan.price_amount || 0).toFixed(2)
+  const hupijiaoPrice = (
+    Number(plan.price_amount || 0) * Number(plan.hupijiao_discount_rate || 1)
+  ).toFixed(2)
+  const subscriptionSymbol =
+    props.onlinePaymentProvider === 'hupijiao' ? '¥' : '$'
   const quotaPerUnit =
     currency?.quotaPerUnit && currency.quotaPerUnit > 0
       ? currency.quotaPerUnit
@@ -192,10 +205,27 @@ export function SubscriptionPurchaseDialog(props: Props) {
     }
     setPaying(true)
     try {
-      const res = await paySubscriptionEpay({
-        plan_id: plan.id,
-        payment_method: selectedEpayMethod,
-      })
+      const res = await (hasHupijiao
+        ? paySubscriptionHupijiao({
+            plan_id: plan.id,
+            payment_method: selectedEpayMethod,
+          })
+        : paySubscriptionEpay({
+            plan_id: plan.id,
+            payment_method: selectedEpayMethod,
+          }))
+      const redirectUrl = res.data?.redirect_url
+      if (res.message === 'success' && redirectUrl) {
+        const mobile = /Mobile|Android|iPhone/i.test(navigator.userAgent)
+        if (mobile || !res.data?.qrcode_url) {
+          window.location.href = redirectUrl
+          props.onOpenChange(false)
+        } else {
+          setHupijiaoQRCode(res.data.qrcode_url)
+          setHupijiaoH5URL(redirectUrl)
+        }
+        return
+      }
       if (res.message === 'success' && res.url) {
         const form = document.createElement('form')
         form.action = res.url
@@ -271,6 +301,23 @@ export function SubscriptionPurchaseDialog(props: Props) {
       bodyClassName='space-y-4'
     >
       <div className='space-y-3 sm:space-y-4'>
+        {hupijiaoQRCode && (
+          <div className='flex flex-col items-center gap-3 rounded-md border p-4'>
+            <QRCodeSVG
+              value={hupijiaoQRCode}
+              size={220}
+              className='max-w-full'
+            />
+            <Button
+              variant='outline'
+              onClick={() => {
+                window.location.href = hupijiaoH5URL
+              }}
+            >
+              {t('Open H5 payment page')}
+            </Button>
+          </div>
+        )}
         <div className='bg-muted/50 space-y-2.5 rounded-lg border p-3 sm:space-y-3 sm:p-4'>
           <div className='flex justify-between'>
             <span className='text-muted-foreground text-sm'>
@@ -317,7 +364,20 @@ export function SubscriptionPurchaseDialog(props: Props) {
           <Separator />
           <div className='flex items-center justify-between'>
             <span className='text-sm font-medium'>{t('Amount Due')}</span>
-            <span className='text-primary text-lg font-bold'>${price}</span>
+            <span className='text-primary text-lg font-bold'>
+              {hasHupijiao && Number(plan.hupijiao_discount_rate || 1) < 1 ? (
+                <>
+                  <span className='text-muted-foreground mr-2 text-sm line-through'>
+                    {subscriptionSymbol}
+                    {price}
+                  </span>
+                  {subscriptionSymbol}
+                  {hupijiaoPrice}
+                </>
+              ) : (
+                `${subscriptionSymbol}${price}`
+              )}
+            </span>
           </div>
         </div>
 

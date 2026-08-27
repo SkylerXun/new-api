@@ -46,6 +46,7 @@ export const userSchema = z.object({
   used_quota: z.number(),
   request_count: z.number(),
   billing_curve_multiplier: z.number().optional().default(1),
+  monthly_discount_multiplier: z.number().optional().default(1),
   group: z.string(),
   aff_code: z.string().optional(),
   aff_count: z.number().optional(),
@@ -127,6 +128,7 @@ export interface UserFormData {
   group?: string // Only used when updating user
   remark?: string // Only used when updating user
   admin_permissions?: AdminPermissionMatrix
+  inviter_id?: number | null
 }
 
 export type ManageUserAction =

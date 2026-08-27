@@ -13,13 +13,15 @@ import (
 
 func setupActivityGrantTest(t *testing.T) {
 	t.Helper()
-	require.NoError(t, DB.AutoMigrate(&ActivityGrant{}, &ActivityCampaign{}))
+	require.NoError(t, DB.AutoMigrate(&ActivityGrant{}, &ActivityCampaign{}, &ActivityCampaignRecipient{}))
 	require.NoError(t, DB.Exec("DELETE FROM activity_grants").Error)
 	require.NoError(t, DB.Exec("DELETE FROM activity_campaigns").Error)
+	require.NoError(t, DB.Exec("DELETE FROM activity_campaign_recipients").Error)
 	require.NoError(t, DB.Exec("DELETE FROM users").Error)
 	t.Cleanup(func() {
 		_ = DB.Exec("DELETE FROM activity_grants").Error
 		_ = DB.Exec("DELETE FROM activity_campaigns").Error
+		_ = DB.Exec("DELETE FROM activity_campaign_recipients").Error
 		_ = DB.Exec("DELETE FROM users").Error
 	})
 }
@@ -120,6 +122,53 @@ func TestClaimActivityCampaignCreditsEligibleRecipientOnce(t *testing.T) {
 	lateUser := createActivityGrantTestUser(t, "campaign-late", common.UserStatusEnabled, 0)
 	_, _, err = ClaimActivityCampaignQuota(context.Background(), lateUser.Id, campaign.ActivityKey)
 	require.ErrorIs(t, err, ErrActivityCampaignUnavailable)
+}
+
+func TestSelectedActivityCampaignOnlyAllowsFrozenRecipients(t *testing.T) {
+	setupActivityGrantTest(t)
+	recipient := createActivityGrantTestUser(t, "selected-recipient", common.UserStatusEnabled, 0)
+	other := createActivityGrantTestUser(t, "selected-other", common.UserStatusEnabled, 0)
+	now := common.GetTimestamp()
+	campaign := &ActivityCampaign{
+		ActivityKey:  "selected-campaign",
+		Type:         ActivityCampaignTypeClaimable,
+		AudienceType: ActivityCampaignAudienceSelected,
+		Title:        "Selected campaign",
+		AmountUSD:    "0.01",
+		Quota:        100,
+		StartsAt:     now - 1,
+		EndsAt:       now + 3600,
+		CreatedBy:    1,
+	}
+	require.NoError(t, CreateActivityCampaignWithRecipients(context.Background(), campaign, []int{recipient.Id, recipient.Id}))
+	assert.Equal(t, int64(1), campaign.RecipientCount)
+	var recipients []ActivityCampaignRecipient
+	require.NoError(t, DB.Where("campaign_id = ?", campaign.Id).Find(&recipients).Error)
+	assert.Len(t, recipients, 1)
+
+	_, granted, err := ClaimActivityCampaignQuota(context.Background(), other.Id, campaign.ActivityKey)
+	require.ErrorIs(t, err, ErrActivityCampaignUnavailable)
+	assert.False(t, granted)
+	_, granted, err = ClaimActivityCampaignQuota(context.Background(), recipient.Id, campaign.ActivityKey)
+	require.NoError(t, err)
+	assert.True(t, granted)
+}
+
+func TestSelectedActivityCampaignRejectsDisabledRecipientWithoutCreatingCampaign(t *testing.T) {
+	setupActivityGrantTest(t)
+	disabled := createActivityGrantTestUser(t, "selected-disabled", common.UserStatusDisabled, 0)
+	now := common.GetTimestamp()
+	campaign := &ActivityCampaign{
+		ActivityKey: "selected-disabled-campaign", Type: ActivityCampaignTypeClaimable,
+		AudienceType: ActivityCampaignAudienceSelected, Title: "Disabled recipient",
+		AmountUSD: "0.01", Quota: 100, StartsAt: now - 1, EndsAt: now + 3600, CreatedBy: 1,
+	}
+
+	err := CreateActivityCampaignWithRecipients(context.Background(), campaign, []int{disabled.Id})
+	require.Error(t, err)
+	var count int64
+	require.NoError(t, DB.Model(&ActivityCampaign{}).Where("activity_key = ?", campaign.ActivityKey).Count(&count).Error)
+	assert.Zero(t, count)
 }
 
 func TestGrantActivityQuotaTxRollsBackLedgerWhenUserIsMissing(t *testing.T) {

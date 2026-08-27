@@ -44,6 +44,7 @@ export type UserActivity = {
   remaining_seconds: number
   bonus_percent: number
   reward_quota?: number
+  granted_at?: number
   action?: ActivityAction
 }
 

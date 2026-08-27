@@ -84,10 +84,10 @@ func reserveBillingCurveQuota(info *relaycommon.RelayInfo, normalQuota int) (int
 	curve := billing_curve_setting.GetConfig()
 	if info != nil {
 		if info.BillingCurveConfig != nil {
-			curve = *info.BillingCurveConfig
+			curve = billing_curve_setting.CloneConfig(*info.BillingCurveConfig)
 		} else {
-			copy := curve
-			info.BillingCurveConfig = &copy
+			snapshot := billing_curve_setting.CloneConfig(curve)
+			info.BillingCurveConfig = &snapshot
 		}
 	}
 	if !curve.Enabled || normalQuota == 0 {

@@ -153,11 +153,7 @@ func PrepareTieredBillingForSelectedGroup(c *gin.Context, relayInfo *relaycommon
 	if relayInfo.Billing == nil {
 		return PreConsumeBilling(c, reserveQuota, relayInfo)
 	}
-	targetQuota := reserveQuota
-	if relayInfo.BillingSource == BillingSourceSubscription {
-		targetQuota = snap.EstimatedQuotaAfterGroup
-	}
-	if err := relayInfo.Billing.Reserve(targetQuota); err != nil {
+	if err := relayInfo.Billing.Reserve(reserveQuota); err != nil {
 		return types.NewError(err, types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry())
 	}
 	relayInfo.FinalPreConsumedQuota = relayInfo.Billing.GetPreConsumedQuota()

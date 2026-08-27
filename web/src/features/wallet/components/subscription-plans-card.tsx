@@ -59,6 +59,7 @@ import type {
 import { formatQuota } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
+import { isSubscriptionPurchaseBlocked } from '../lib/subscription-purchase'
 import type { PaymentMethod, TopupInfo } from '../types'
 
 interface SubscriptionPlansCardProps {
@@ -188,6 +189,9 @@ export function SubscriptionPlansCard({
   }
 
   const hasActive = activeSubscriptions.length > 0
+  const purchaseBlocked = isSubscriptionPurchaseBlocked(
+    activeSubscriptions.length
+  )
   const hasAny = allSubscriptions.length > 0
   const isAvailable = loading || plans.length > 0 || hasAny
   const disablePref = !hasActive
@@ -529,6 +533,8 @@ export function SubscriptionPlansCard({
               if (!plan) return null
               const totalAmount = Number(plan.total_amount || 0)
               const price = Number(plan.price_amount || 0).toFixed(2)
+              const priceSymbol =
+                topupInfo?.online_payment_provider === 'hupijiao' ? '¥' : '$'
               const isPopular = index === 0 && plans.length > 1
               const limit = Number(plan.max_purchase_per_user || 0)
               const count = planPurchaseCountMap.get(plan.id) || 0
@@ -547,6 +553,48 @@ export function SubscriptionPlansCard({
                   ? `${t('Upgrade Group')}: ${plan.upgrade_group}`
                   : null,
               ].filter(Boolean) as string[]
+
+              let purchaseAction = (
+                <Button
+                  variant='outline'
+                  className='w-full'
+                  onClick={() => {
+                    setSelectedPlan(p)
+                    setPurchaseOpen(true)
+                  }}
+                >
+                  {t('Subscribe Now')}
+                </Button>
+              )
+              if (purchaseBlocked) {
+                purchaseAction = (
+                  <Tooltip>
+                    <TooltipTrigger render={<div />}>
+                      <Button variant='outline' className='w-full' disabled>
+                        {t('Active Subscription')}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {t(
+                        'Only one active subscription is allowed. Purchase another after the current subscription ends.'
+                      )}
+                    </TooltipContent>
+                  </Tooltip>
+                )
+              } else if (reached) {
+                purchaseAction = (
+                  <Tooltip>
+                    <TooltipTrigger render={<div />}>
+                      <Button variant='outline' className='w-full' disabled>
+                        {t('Limit Reached')}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {t('Purchase limit reached')} ({count}/{limit})
+                    </TooltipContent>
+                  </Tooltip>
+                )
+              }
 
               return (
                 <Card
@@ -580,7 +628,8 @@ export function SubscriptionPlansCard({
 
                     <div className='py-2'>
                       <span className='text-primary text-2xl font-bold'>
-                        ${price}
+                        {priceSymbol}
+                        {price}
                       </span>
                     </div>
 
@@ -598,29 +647,7 @@ export function SubscriptionPlansCard({
 
                     <Separator className='mb-3' />
 
-                    {reached ? (
-                      <Tooltip>
-                        <TooltipTrigger render={<div />}>
-                          <Button variant='outline' className='w-full' disabled>
-                            {t('Limit Reached')}
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          {t('Purchase limit reached')} ({count}/{limit})
-                        </TooltipContent>
-                      </Tooltip>
-                    ) : (
-                      <Button
-                        variant='outline'
-                        className='w-full'
-                        onClick={() => {
-                          setSelectedPlan(p)
-                          setPurchaseOpen(true)
-                        }}
-                      >
-                        {t('Subscribe Now')}
-                      </Button>
-                    )}
+                    {purchaseAction}
                   </CardContent>
                 </Card>
               )
@@ -646,6 +673,7 @@ export function SubscriptionPlansCard({
         enableCreem={enableCreem}
         enableWaffoPancake={enableWaffoPancake}
         enableOnlineTopUp={enableOnlineTopUp}
+        onlinePaymentProvider={topupInfo?.online_payment_provider}
         epayMethods={epayMethods}
         userQuota={userQuota}
         onPurchaseSuccess={onPurchaseSuccess}

@@ -217,6 +217,11 @@ export function ActivityCampaignsList(props: ActivityCampaignsListProps) {
                       ? t('Claimable')
                       : t('Immediate credit')}
                   </Badge>
+                  <Badge variant='outline'>
+                    {campaign.audience_type === 'selected'
+                      ? t('Selected users')
+                      : t('All users')}
+                  </Badge>
                 </div>
                 {campaign.description ? (
                   <p className='text-muted-foreground max-w-3xl text-sm whitespace-pre-wrap'>

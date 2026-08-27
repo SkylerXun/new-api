@@ -85,6 +85,37 @@ func TestValidateChannelRequiresNewAPIBaseURL(t *testing.T) {
 	}
 }
 
+func TestValidateChannelErrorMessageMapping(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		mapping string
+		wantErr bool
+	}{
+		{name: "valid", mapping: `{"503":"Service is busy","default":"Request failed"}`},
+		{name: "invalid status", mapping: `{"busy":"Request failed"}`, wantErr: true},
+		{name: "invalid value", mapping: `{"503":true}`, wantErr: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			channel := &model.Channel{
+				Type:                constant.ChannelTypeOpenAI,
+				ErrorMessageMapping: common.GetPointer(test.mapping),
+			}
+
+			err := validateChannel(channel, false)
+			if test.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
 func TestNewAPIChannelRegistration(t *testing.T) {
 	apiType, ok := common.ChannelType2APIType(constant.ChannelTypeNewAPI)
 

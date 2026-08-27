@@ -37,6 +37,8 @@ export type RedemptionResponse = ApiResponse<number>
 export type AmountResponse = ApiResponse<string>
 export type PaymentResponse = ApiResponse<Record<string, unknown>> & {
   url?: string
+  redirect_url?: string
+  qrcode_url?: string
 }
 export type StripePaymentResponse = ApiResponse<{ pay_link: string }>
 export type AffiliateCodeResponse = ApiResponse<string>
@@ -156,6 +158,18 @@ export interface TopupInfo {
   payment_compliance_confirmed?: boolean
   /** Current compliance terms version */
   payment_compliance_terms_version?: string
+  online_payment_provider?: 'epay' | 'hupijiao'
+  hupijiao_packages?: HupijiaoPackage[]
+}
+
+export interface HupijiaoPackage {
+  id: string
+  title: string
+  original_amount: number
+  quota: number
+  discount_rate: number
+  enabled: boolean
+  actual_amount?: number
 }
 
 /**
@@ -166,6 +180,7 @@ export interface PresetAmount {
   value: number
   /** Optional discount rate (0-1) */
   discount?: number
+  package_id?: string
 }
 
 /**
@@ -180,10 +195,11 @@ export interface RedemptionRequest {
  * Payment request parameters
  */
 export interface PaymentRequest {
-  /** Topup amount */
-  amount: number
+  amount?: number
+  package_id?: string
   /** Payment method identifier */
   payment_method: string
+  device?: 'pc' | 'mobile'
 }
 
 /**
@@ -242,6 +258,16 @@ export interface UserWalletData {
   aff_count: number
   /** User group */
   group: string
+}
+
+export interface MonthlyBillingProgress {
+  enabled: boolean
+  period_start: number
+  period_end: number
+  spent_usd: number
+  current_discount_percent: number
+  current_discount_multiplier: number
+  tiers: Array<{ threshold_usd: number; discount_percent: number }>
 }
 
 /**

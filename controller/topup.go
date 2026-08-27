@@ -96,8 +96,17 @@ func GetTopUpInfo(c *gin.Context) {
 		}
 	}
 
+	hupijiaoPackages := []HupijiaoPackage{}
+	if operation_setting.OnlinePaymentProvider == model.PaymentProviderHupijiao {
+		configured, _ := parseHupijiaoPackages()
+		for _, p := range configured {
+			if p.Enabled {
+				hupijiaoPackages = append(hupijiaoPackages, p)
+			}
+		}
+	}
 	data := gin.H{
-		"enable_online_topup":              isEpayTopUpEnabled(),
+		"enable_online_topup":              isEpayTopUpEnabled() || isHupijiaoTopUpEnabled(),
 		"enable_stripe_topup":              isStripeTopUpEnabled(),
 		"enable_creem_topup":               isCreemTopUpEnabled(),
 		"enable_waffo_topup":               enableWaffo,
@@ -119,6 +128,8 @@ func GetTopUpInfo(c *gin.Context) {
 		"waffo_pancake_min_topup": setting.WaffoPancakeMinTopUp,
 		"amount_options":          operation_setting.GetPaymentSetting().AmountOptions,
 		"discount":                operation_setting.GetPaymentSetting().AmountDiscount,
+		"online_payment_provider": operation_setting.OnlinePaymentProvider,
+		"hupijiao_packages":       hupijiaoPackages,
 		"topup_link":              common.TopUpLink,
 	}
 	common.ApiSuccess(c, data)
@@ -188,6 +199,10 @@ func getMinTopup() int64 {
 }
 
 func RequestEpay(c *gin.Context) {
+	if operation_setting.OnlinePaymentProvider == model.PaymentProviderHupijiao {
+		RequestHupijiao(c)
+		return
+	}
 	var req EpayRequest
 	err := c.ShouldBindJSON(&req)
 	if err != nil {
@@ -405,6 +420,21 @@ func RequestAmount(c *gin.Context) {
 	err := c.ShouldBindJSON(&req)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "参数错误"})
+		return
+	}
+	if operation_setting.OnlinePaymentProvider == model.PaymentProviderHupijiao {
+		packages, parseErr := parseHupijiaoPackages()
+		if parseErr != nil {
+			common.ApiErrorMsg(c, "套餐配置无效")
+			return
+		}
+		for _, p := range packages {
+			if p.Enabled && p.OriginalAmount == float64(req.Amount) {
+				common.ApiSuccess(c, strconv.FormatFloat(p.ActualAmount, 'f', 2, 64))
+				return
+			}
+		}
+		common.ApiErrorMsg(c, "虎皮椒模式仅支持已配置套餐")
 		return
 	}
 

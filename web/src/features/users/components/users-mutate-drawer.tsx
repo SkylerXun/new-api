@@ -80,6 +80,8 @@ import {
   getUser,
   getGroups,
   getPermissionCatalog,
+  searchUsers,
+  bindInviter,
 } from '../api'
 import { BINDING_FIELDS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
 import {
@@ -110,6 +112,13 @@ export function UsersMutateDrawer({
   const currentUser = useAuthStore((s) => s.auth.user)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [quotaDialogOpen, setQuotaDialogOpen] = useState(false)
+
+  const { data: inviterUsers } = useQuery({
+    queryKey: ['active-inviter-users'],
+    queryFn: () => searchUsers({ status: '1', p: 1, page_size: 100, sort_by: 'username', sort_order: 'asc' }),
+    enabled: open && isUpdate,
+    staleTime: 60 * 1000,
+  })
 
   // Fetch groups
   const { data: groupsData } = useQuery({
@@ -180,6 +189,12 @@ export function UsersMutateDrawer({
         : await createUser(payload)
 
       if (result.success) {
+        if (isUpdate && !currentRow?.inviter_id && data.inviter_id) {
+          const bindResult = await bindInviter(currentRow.id, data.inviter_id)
+          if (!bindResult.success) {
+            throw new Error(bindResult.message || 'Failed to bind inviter')
+          }
+        }
         toast.success(
           isUpdate
             ? t(SUCCESS_MESSAGES.USER_UPDATED)
@@ -388,6 +403,44 @@ export function UsersMutateDrawer({
                       </FormItem>
                     )}
                   />
+
+                  {!currentRow?.inviter_id ? (
+                    <FormField
+                      control={form.control}
+                      name='inviter_id'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('Inviter')}</FormLabel>
+                          <Select
+                            value={field.value ? String(field.value) : 'none'}
+                            onValueChange={(value) => field.onChange(value === 'none' ? null : Number(value))}
+                            items={[
+                              { value: 'none', label: t('No inviter') },
+                              ...(inviterUsers?.data?.items || [])
+                                .filter((user) => user.id !== currentRow?.id)
+                                .map((user) => ({ value: String(user.id), label: `${user.username} (${user.id})` })),
+                            ]}
+                          >
+                            <FormControl><SelectTrigger><SelectValue placeholder={t('Select inviter')} /></SelectTrigger></FormControl>
+                            <SelectContent alignItemWithTrigger={false}>
+                              <SelectItem value='none'>{t('No inviter')}</SelectItem>
+                              {(inviterUsers?.data?.items || [])
+                                .filter((user) => user.id !== currentRow?.id)
+                                .map((user) => <SelectItem key={user.id} value={String(user.id)}>{user.username} ({user.id})</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>{t('Only users without an inviter can be assigned one; this cannot be changed later.')}</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  ) : (
+                    <FormItem>
+                      <FormLabel>{t('Inviter')}</FormLabel>
+                      <Input value={`${t('User ID')}: ${currentRow.inviter_id}`} disabled />
+                      <FormDescription>{t('This binding cannot be changed.')}</FormDescription>
+                    </FormItem>
+                  )}
 
                   <FormField
                     control={form.control}

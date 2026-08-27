@@ -139,6 +139,19 @@ func taskBillingOther(task *model.Task) map[string]interface{} {
 				"billing_curve": bc.BillingCurveSnapshot,
 			}
 		}
+		if bc.MonthlyDiscountSnapshot != nil {
+			snapshot := bc.MonthlyDiscountSnapshot
+			if snapshot.Applied {
+				other["monthly_discount_percent"] = snapshot.DiscountPercent
+				other["monthly_discount_quota"] = snapshot.ChargedQuota
+			}
+			adminInfo, ok := other["admin_info"].(map[string]interface{})
+			if !ok {
+				adminInfo = map[string]interface{}{}
+				other["admin_info"] = adminInfo
+			}
+			adminInfo["monthly_discount"] = snapshot
+		}
 	}
 	props := task.Properties
 	if props.UpstreamModelName != "" && props.UpstreamModelName != props.OriginModelName {
@@ -176,6 +189,7 @@ func applyDeferredTaskBillingCurveForBaseUsage(task *model.Task, normalQuota int
 	curve := *bc.BillingCurveConfig
 	relayInfo := &relaycommon.RelayInfo{
 		UserId:             task.UserId,
+		RequestId:          task.TaskID,
 		BillingSource:      task.PrivateData.BillingSource,
 		BillingCurveConfig: &curve,
 	}
@@ -183,10 +197,11 @@ func applyDeferredTaskBillingCurveForBaseUsage(task *model.Task, normalQuota int
 	if err != nil {
 		return 0, err
 	}
-	if relayInfo.BillingCurveSnapshot == nil {
+	if relayInfo.BillingCurveSnapshot == nil && relayInfo.MonthlyDiscountSnapshot == nil {
 		return chargedQuota, nil
 	}
 	bc.BillingCurveSnapshot = relayInfo.BillingCurveSnapshot
+	bc.MonthlyDiscountSnapshot = relayInfo.MonthlyDiscountSnapshot
 	if err := model.DB.Model(task).Update("private_data", task.PrivateData).Error; err != nil {
 		return 0, fmt.Errorf("persist deferred task billing curve snapshot: %w", err)
 	}
@@ -227,6 +242,21 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) bool 
 
 	// 2. 退还令牌额度
 	taskAdjustTokenQuota(ctx, task, -quota)
+	if bc := task.PrivateData.BillingContext; bc != nil && bc.MonthlyDiscountSnapshot != nil {
+		snapshot := bc.MonthlyDiscountSnapshot
+		deltaMicroUSD := snapshot.ProgressAfterMicroUSD - snapshot.ProgressBeforeMicroUSD
+		if deltaMicroUSD > 0 {
+			var err error
+			if snapshot.SettlementKey != "" {
+				err = model.RefundUserMonthlyBillingSettlement(snapshot.SettlementKey)
+			} else {
+				err = model.RevertUserMonthlyBillingProgress(task.UserId, snapshot.MonthStart, deltaMicroUSD)
+			}
+			if err != nil {
+				logger.LogWarn(ctx, fmt.Sprintf("回退月度计费进度失败 task %s: %s", task.TaskID, err.Error()))
+			}
+		}
+	}
 
 	// 3. 记录日志
 	other := taskBillingOther(task)

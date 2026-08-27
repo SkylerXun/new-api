@@ -365,6 +365,36 @@ func TestPrepareTieredBillingForSelectedGroupUpdatesReservation(t *testing.T) {
 	assert.Equal(t, 100_000, relayInfo.TieredBillingSnapshot.EstimatedQuotaAfterGroup)
 }
 
+func TestPrepareTieredBillingForSelectedGroupReservesCurveUpperBoundForSubscription(t *testing.T) {
+	const expr = `tier("base", p)`
+	billing := &recordingBillingSettler{preConsumedQuota: 50_000}
+	relayInfo := &relaycommon.RelayInfo{
+		Billing:               billing,
+		BillingSource:         BillingSourceSubscription,
+		FinalPreConsumedQuota: 50_000,
+		BillingCurveConfig: &types.BillingCurveConfig{
+			Enabled: true,
+			K2:      3,
+		},
+		TieredBillingSnapshot: &billingexpr.BillingSnapshot{
+			BillingMode:               "tiered_expr",
+			ExprString:                expr,
+			ExprHash:                  billingexpr.ExprHashString(expr),
+			GroupRatio:                0.10,
+			EstimatedQuotaBeforeGroup: 500_000,
+			EstimatedQuotaAfterGroup:  50_000,
+			QuotaPerUnit:              testQuotaPerUnit,
+		},
+		PriceData: types.PriceData{
+			GroupRatioInfo: types.GroupRatioInfo{GroupRatio: 0.20},
+		},
+	}
+
+	require.Nil(t, PrepareTieredBillingForSelectedGroup(nil, relayInfo))
+	require.Equal(t, []int{300_000}, billing.reserveTargets)
+	assert.Equal(t, 300_000, relayInfo.FinalPreConsumedQuota)
+}
+
 func TestPrepareTieredBillingForSelectedGroupStartsBillingAfterFreeGroup(t *testing.T) {
 	truncate(t)
 	gin.SetMode(gin.TestMode)

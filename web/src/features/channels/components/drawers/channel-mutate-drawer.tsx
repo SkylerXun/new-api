@@ -107,10 +107,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import {
-  SecureVerificationDialog,
-  useSecureVerification,
-} from '@/features/auth/secure-verification'
+// 暂时关闭查看渠道 Key 的前端验证流程；需要恢复时取消相关注释。
+// import {
+//   SecureVerificationDialog,
+//   useSecureVerification,
+// } from '@/features/auth/secure-verification'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { useHiddenClickUnlock } from '@/hooks/use-hidden-click-unlock'
 import {
@@ -331,6 +332,7 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     hasConfiguredOverrideValue(values.header_override) ||
     values.advanced_custom?.trim() ||
     hasConfiguredOverrideValue(values.status_code_mapping) ||
+    hasConfiguredOverrideValue(values.error_message_mapping) ||
     values.tag?.trim() ||
     values.remark?.trim() ||
     values.priority ||
@@ -684,6 +686,16 @@ export function ChannelMutateDrawer({
 
   const { copyToClipboard } = useCopyToClipboard()
 
+  useEffect(() => {
+    if (!open) {
+      setChannelKey(null)
+      setIsChannelKeyLoading(false)
+    } else if (channelId) {
+      setChannelKey(null)
+    }
+  }, [open, channelId])
+
+  /*
   const {
     open: verificationOpen,
     methods: verificationMethods,
@@ -694,15 +706,7 @@ export function ChannelMutateDrawer({
     setCode: setVerificationCode,
     switchMethod: switchVerificationMethod,
   } = useSecureVerification()
-
-  useEffect(() => {
-    if (!open) {
-      setChannelKey(null)
-      setIsChannelKeyLoading(false)
-    } else if (channelId) {
-      setChannelKey(null)
-    }
-  }, [open, channelId])
+  */
 
   // Check if this is a multi-key channel
   const isMultiKeyChannel =
@@ -741,6 +745,7 @@ export function ChannelMutateDrawer({
   const currentTag = form.watch('tag')
   const currentRemark = form.watch('remark')
   const currentStatusCodeMapping = form.watch('status_code_mapping')
+  const currentErrorMessageMapping = form.watch('error_message_mapping')
   const currentParamOverride = form.watch('param_override')
   const currentHeaderOverride = form.watch('header_override')
   const currentForceFormat = form.watch('force_format')
@@ -1011,6 +1016,7 @@ export function ChannelMutateDrawer({
   )
   const overrideRulesConfigured = Boolean(
     hasConfiguredOverrideValue(currentStatusCodeMapping) ||
+    hasConfiguredOverrideValue(currentErrorMessageMapping) ||
     hasConfiguredOverrideValue(currentParamOverride) ||
     hasConfiguredOverrideValue(currentHeaderOverride)
   )
@@ -1379,20 +1385,21 @@ export function ChannelMutateDrawer({
     if (!channelId) return
 
     try {
+      /* 以前的验证流程：
       await withVerification(fetchChannelKey, {
         scope: 'channel.key.read',
         preferredMethod: 'passkey',
         title: t('Verify to view channel key'),
-        description: t(
-          'Use Passkey or 2FA to confirm your identity before revealing this channel key.'
-        ),
+        description: t('Use Passkey or 2FA to confirm your identity before revealing this channel key.'),
       })
+      */
+      await fetchChannelKey()
     } catch (error) {
       if (error instanceof Error) {
         toast.error(error.message)
       }
     }
-  }, [channelId, withVerification, fetchChannelKey, t])
+  }, [channelId, fetchChannelKey])
 
   const handleRefreshCodexCredential = useCallback(async () => {
     if (!channelId) return
@@ -3020,7 +3027,7 @@ export function ChannelMutateDrawer({
                                               </p>
                                               <p className='text-muted-foreground text-xs'>
                                                 {t(
-                                                  'Verification required to reveal the saved key.'
+                                                  'Reveal the saved key when needed.'
                                                 )}
                                               </p>
                                             </div>
@@ -3030,13 +3037,9 @@ export function ChannelMutateDrawer({
                                                 variant='outline'
                                                 size='sm'
                                                 onClick={handleRevealKey}
-                                                disabled={
-                                                  isChannelKeyLoading ||
-                                                  verificationState.loading
-                                                }
+                                                disabled={isChannelKeyLoading}
                                               >
-                                                {isChannelKeyLoading ||
-                                                verificationState.loading ? (
+                                                {isChannelKeyLoading ? (
                                                   <Loader2 className='mr-2 h-4 w-4 animate-spin' />
                                                 ) : (
                                                   <Eye className='mr-2 h-4 w-4' />
@@ -3805,41 +3808,87 @@ export function ChannelMutateDrawer({
                               iconTone='chart-4'
                             />
 
-                            <FormField
-                              control={form.control}
-                              name='status_code_mapping'
-                              render={({ field }) => (
-                                <FormItem className='space-y-3'>
-                                  <div className='space-y-1'>
-                                    <FormLabel>
-                                      {t('Status Code Mapping')}
-                                    </FormLabel>
-                                    <FormDescription>
-                                      {t(
-                                        'Map upstream status codes to different codes'
-                                      )}
-                                    </FormDescription>
-                                  </div>
-                                  <FormControl>
-                                    <JsonEditor
-                                      value={field.value || ''}
-                                      onChange={field.onChange}
-                                      disabled={isSubmitting}
-                                      keyPlaceholder='400'
-                                      valuePlaceholder='500'
-                                      keyLabel='Original Code'
-                                      valueLabel='Mapped Code'
-                                      emptyMessage={t(
-                                        'No status code mappings configured.'
-                                      )}
-                                      template={{ '400': '500', '429': '503' }}
-                                      valueType='string'
-                                    />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
+                            <div className='grid items-start gap-4 lg:grid-cols-2'>
+                              <FormField
+                                control={form.control}
+                                name='status_code_mapping'
+                                render={({ field }) => (
+                                  <FormItem className='space-y-3'>
+                                    <div className='space-y-1'>
+                                      <FormLabel>
+                                        {t('Status Code Mapping')}
+                                      </FormLabel>
+                                      <FormDescription>
+                                        {t(
+                                          'Map upstream status codes to different codes'
+                                        )}
+                                      </FormDescription>
+                                    </div>
+                                    <FormControl>
+                                      <JsonEditor
+                                        value={field.value || ''}
+                                        onChange={field.onChange}
+                                        disabled={isSubmitting}
+                                        keyPlaceholder='400'
+                                        valuePlaceholder='500'
+                                        keyLabel='Original Code'
+                                        valueLabel='Mapped Code'
+                                        emptyMessage={t(
+                                          'No status code mappings configured.'
+                                        )}
+                                        template={{
+                                          '400': '500',
+                                          '429': '503',
+                                        }}
+                                        valueType='string'
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+
+                              <FormField
+                                control={form.control}
+                                name='error_message_mapping'
+                                render={({ field }) => (
+                                  <FormItem className='space-y-3'>
+                                    <div className='space-y-1'>
+                                      <FormLabel>
+                                        {t('Error Message Mapping')}
+                                      </FormLabel>
+                                      <FormDescription>
+                                        {t(
+                                          'Map upstream error messages by status code. Use default as fallback.'
+                                        )}
+                                      </FormDescription>
+                                    </div>
+                                    <FormControl>
+                                      <JsonEditor
+                                        value={field.value || ''}
+                                        onChange={field.onChange}
+                                        disabled={isSubmitting}
+                                        keyPlaceholder='503'
+                                        valuePlaceholder={t(
+                                          'Service is busy. Please try again later.'
+                                        )}
+                                        keyLabel={t('Upstream Status')}
+                                        valueLabel={t('Mapped Message')}
+                                        emptyMessage={t(
+                                          'No error message mappings configured.'
+                                        )}
+                                        template={{
+                                          '503': '服务繁忙，请稍后重试',
+                                          default: '服务暂时不可用',
+                                        }}
+                                        valueType='string'
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
 
                             {sensitiveLocked && (
                               <p className='text-muted-foreground text-xs'>
@@ -4233,9 +4282,7 @@ export function ChannelMutateDrawer({
                                         <SelectValue />
                                       </SelectTrigger>
                                     </FormControl>
-                                    <SelectContent
-                                      alignItemWithTrigger={false}
-                                    >
+                                    <SelectContent alignItemWithTrigger={false}>
                                       <SelectGroup>
                                         <SelectItem value='auto'>
                                           {t('Auto')}
@@ -4831,23 +4878,20 @@ export function ChannelMutateDrawer({
         }
       />
 
+      {/* 以前这里挂载 SecureVerificationDialog，暂时关闭，恢复时可使用上方保留的状态与逻辑。
       <SecureVerificationDialog
         open={verificationOpen}
         onOpenChange={(open) => {
-          if (!open) {
-            cancelVerification()
-          }
+          if (!open) cancelVerification()
         }}
         methods={verificationMethods}
         state={verificationState}
-        onVerify={async (method, code) => {
-          await executeVerification(method, code)
-        }}
+        onVerify={async (method, code) => executeVerification(method, code)}
         onCancel={cancelVerification}
         onCodeChange={setVerificationCode}
         onMethodChange={switchVerificationMethod}
       />
-
+      */}
       {/* Missing Models Confirmation Dialog */}
       <MissingModelsConfirmationDialog
         open={missingModelsDialogOpen}

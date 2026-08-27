@@ -64,6 +64,68 @@ func TestResetStatusCode(t *testing.T) {
 	}
 }
 
+func TestResolveErrorMessageMapping(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		statusCode int
+		mapping    string
+		want       string
+		wantOK     bool
+	}{
+		{name: "exact status", statusCode: 503, mapping: `{"503":"Service is busy","default":"Request failed"}`, want: "Service is busy", wantOK: true},
+		{name: "default", statusCode: 429, mapping: `{"default":"Request failed"}`, want: "Request failed", wantOK: true},
+		{name: "exact takes precedence", statusCode: 503, mapping: `{"503":"Exact","default":"Fallback"}`, want: "Exact", wantOK: true},
+		{name: "unmatched", statusCode: 429, mapping: `{"503":"Service is busy"}`},
+		{name: "invalid json", statusCode: 503, mapping: `{`},
+		{name: "non-string value", statusCode: 503, mapping: `{"503":true}`},
+		{name: "empty value", statusCode: 503, mapping: `{"503":"  "}`},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			got, ok := ResolveErrorMessageMapping(test.statusCode, test.mapping)
+			require.Equal(t, test.wantOK, ok)
+			require.Equal(t, test.want, got)
+		})
+	}
+}
+
+func TestValidateErrorMessageMapping(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		mapping string
+		wantErr string
+	}{
+		{name: "empty"},
+		{name: "valid statuses and default", mapping: `{"100":"Continue","503":"Busy","599":"Gateway failure","default":"Request failed"}`},
+		{name: "not an object", mapping: `[]`, wantErr: "JSON object"},
+		{name: "null", mapping: `null`, wantErr: "JSON object"},
+		{name: "non-string value", mapping: `{"503":true}`, wantErr: "string values"},
+		{name: "empty message", mapping: `{"503":" "}`, wantErr: "cannot be empty"},
+		{name: "status too low", mapping: `{"99":"Invalid"}`, wantErr: "100 to 599"},
+		{name: "status too high", mapping: `{"600":"Invalid"}`, wantErr: "100 to 599"},
+		{name: "status with leading zero", mapping: `{"0503":"Invalid"}`, wantErr: "100 to 599"},
+		{name: "unknown key", mapping: `{"server_error":"Invalid"}`, wantErr: "100 to 599"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			err := ValidateErrorMessageMapping(test.mapping)
+			if test.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, test.wantErr)
+		})
+	}
+}
+
 func TestRelayErrorHandlerTruncatesInvalidJSONBodyInLog(t *testing.T) {
 	withDebugEnabled(t, false)
 

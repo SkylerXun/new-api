@@ -22,10 +22,11 @@ import { api } from '@/lib/api'
 import type { ActivityCenterResponse, ClaimActivityResponse } from './types'
 
 export async function getUserActivities(
+  view: 'ongoing' | 'participated' = 'ongoing',
   cursor?: string
 ): Promise<ActivityCenterResponse> {
   const response = await api.get('/api/user/activities', {
-    params: cursor ? { cursor } : undefined,
+    params: { view, ...(cursor ? { cursor } : {}) },
   })
   return response.data
 }

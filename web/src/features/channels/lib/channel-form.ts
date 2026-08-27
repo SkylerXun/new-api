@@ -152,6 +152,27 @@ function isOptionalStatusCodeMapping(value: string | undefined): boolean {
   }
 }
 
+function isOptionalErrorMessageMapping(value: string | undefined): boolean {
+  try {
+    const parsed = parseOptionalJson(value)
+    if (parsed === undefined) return true
+    if (!isJsonObjectValue(parsed)) return false
+
+    return Object.entries(parsed).every(([status, message]) => {
+      const validStatus =
+        status === 'default' ||
+        (/^[1-5]\d{2}$/.test(status) &&
+          Number(status) >= 100 &&
+          Number(status) <= 599)
+      return (
+        validStatus && typeof message === 'string' && message.trim().length > 0
+      )
+    })
+  } catch {
+    return false
+  }
+}
+
 function isCodexCredential(value: string | undefined): boolean {
   try {
     const parsed = parseOptionalJson(value)
@@ -220,6 +241,13 @@ export const channelFormSchema = z
       .refine(
         isOptionalStatusCodeMapping,
         'Status code mapping must use valid HTTP status codes'
+      ),
+    error_message_mapping: z
+      .string()
+      .optional()
+      .refine(
+        isOptionalErrorMessageMapping,
+        'Error message mapping must use HTTP status codes or default with non-empty messages'
       ),
     tag: z.string().optional(),
     remark: z
@@ -413,6 +441,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   auto_ban: 1,
   status: CHANNEL_STATUS.ENABLED,
   status_code_mapping: '',
+  error_message_mapping: '',
   tag: '',
   remark: '',
   setting: '',
@@ -487,8 +516,7 @@ export function transformChannelToFormDefaults(
         thinking_to_content: parsed.thinking_to_content || false,
         proxy: parsed.proxy || '',
         http_protocol: protocol,
-        http2_connection_shards:
-          protocol === HTTP_PROTOCOL_HTTP1 ? 1 : shards,
+        http2_connection_shards: protocol === HTTP_PROTOCOL_HTTP1 ? 1 : shards,
         pass_through_body_enabled: parsed.pass_through_body_enabled || false,
         system_prompt: parsed.system_prompt || '',
         system_prompt_override: parsed.system_prompt_override || false,
@@ -565,6 +593,7 @@ export function transformChannelToFormDefaults(
     auto_ban: channel.auto_ban ?? 1,
     status: channel.status,
     status_code_mapping: channel.status_code_mapping || '',
+    error_message_mapping: channel.error_message_mapping || '',
     tag: channel.tag || '',
     remark: channel.remark || '',
     setting: channel.setting || '',
@@ -791,6 +820,7 @@ export function transformFormDataToCreatePayload(formData: ChannelFormValues): {
     auto_ban: formData.auto_ban ?? 1,
     status: formData.status,
     status_code_mapping: formData.status_code_mapping || null,
+    error_message_mapping: formData.error_message_mapping || null,
     tag: formData.tag || null,
     remark: formData.remark || '',
     setting: buildSettingJSON(formData),
@@ -838,6 +868,7 @@ export function transformFormDataToUpdatePayload(
     test_model: formData.test_model || null,
     auto_ban: formData.auto_ban ?? 1,
     status_code_mapping: formData.status_code_mapping || null,
+    error_message_mapping: formData.error_message_mapping || null,
     tag: formData.tag || null,
     remark: formData.remark || '',
     setting: buildSettingJSON(formData),
@@ -867,6 +898,7 @@ export function transformFormDataToUpdatePayload(
   payload.remark = formData.remark || ''
   payload.model_mapping = formData.model_mapping || ''
   payload.status_code_mapping = formData.status_code_mapping || ''
+  payload.error_message_mapping = formData.error_message_mapping || ''
   payload.param_override = formData.param_override || ''
   payload.header_override = formData.header_override || ''
 

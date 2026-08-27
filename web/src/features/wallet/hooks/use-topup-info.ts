@@ -196,7 +196,9 @@ export function useTopupInfo() {
 
       setTopupInfo(processedData)
 
-      if (processedData.amount_options.length > 0) {
+      if (processedData.online_payment_provider === 'hupijiao' && processedData.hupijiao_packages) {
+        setPresetAmounts(processedData.hupijiao_packages.filter((p) => p.enabled).map((p) => ({ value: Number(p.original_amount), discount: Number(p.discount_rate), package_id: p.id })))
+      } else if (processedData.amount_options.length > 0) {
         const customPresets = mergePresetAmounts(
           processedData.amount_options,
           processedData.discount || {}

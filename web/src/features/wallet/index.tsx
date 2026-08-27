@@ -1,3 +1,4 @@
+import { QRCodeSVG } from 'qrcode.react'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -20,15 +21,25 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SectionPageLayout } from '@/components/layout'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { getSelf } from '@/lib/api'
 
+import { getMonthlyBillingProgress } from './api'
 import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
 import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
 import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
 import { PaymentConfirmDialog } from './components/dialogs/payment-confirm-dialog'
 import { TransferDialog } from './components/dialogs/transfer-dialog'
+import { MonthlyDiscountProgress } from './components/monthly-discount-progress'
 import { RechargeFormCard } from './components/recharge-form-card'
 import { SubscriptionPlansCard } from './components/subscription-plans-card'
 import { WalletStatsCard } from './components/wallet-stats-card'
@@ -49,6 +60,7 @@ import {
 } from './lib'
 import type {
   UserWalletData,
+  MonthlyBillingProgress,
   PaymentMethod,
   PresetAmount,
   CreemProduct,
@@ -63,8 +75,13 @@ export function Wallet(props: WalletProps) {
   const { t } = useTranslation()
   const [user, setUser] = useState<UserWalletData | null>(null)
   const [userLoading, setUserLoading] = useState(true)
+  const [monthlyProgress, setMonthlyProgress] =
+    useState<MonthlyBillingProgress | null>(null)
   const [topupAmount, setTopupAmount] = useState(0)
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null)
+  const [selectedPackageId, setSelectedPackageId] = useState<
+    string | undefined
+  >()
   const [selectedPaymentMethod, setSelectedPaymentMethod] =
     useState<PaymentMethod>()
   const [selectedWaffoMethodIndex, setSelectedWaffoMethodIndex] = useState<
@@ -96,6 +113,10 @@ export function Wallet(props: WalletProps) {
     processing,
     calculatePaymentAmount,
     processPayment,
+    qrcodeUrl,
+    h5Url,
+    closeQRCode,
+    setAmount: setPaymentAmount,
   } = usePayment()
   const {
     affiliateLink,
@@ -113,9 +134,15 @@ export function Wallet(props: WalletProps) {
   const fetchUser = useCallback(async () => {
     try {
       setUserLoading(true)
-      const response = await getSelf()
+      const [response, progressResult] = await Promise.all([
+        getSelf(),
+        getMonthlyBillingProgress().catch(() => null),
+      ])
       if (response.success && response.data) {
         setUser(response.data as UserWalletData)
+      }
+      if (progressResult?.success && progressResult.data) {
+        setMonthlyProgress(progressResult.data)
       }
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -142,13 +169,28 @@ export function Wallet(props: WalletProps) {
     if (topupInfo && !topupAmountInitializedRef.current) {
       topupAmountInitializedRef.current = true
       const minTopup = getMinTopupAmount(topupInfo)
-      setTopupAmount(minTopup)
+      const firstPackage = topupInfo.hupijiao_packages?.find((p) => p.enabled)
+      const initialAmount = firstPackage
+        ? Number(firstPackage.original_amount)
+        : minTopup
+      setTopupAmount(initialAmount)
+      if (firstPackage) {
+        setSelectedPreset(initialAmount)
+        setSelectedPackageId(firstPackage.id)
+      }
 
       // Calculate initial payment amount with default payment type
       const defaultPaymentType = getDefaultPaymentType(topupInfo)
-      calculatePaymentAmount(minTopup, defaultPaymentType)
+      if (firstPackage)
+        setPaymentAmount(
+          Number(
+            firstPackage.actual_amount ||
+              firstPackage.original_amount * firstPackage.discount_rate
+          )
+        )
+      else calculatePaymentAmount(initialAmount, defaultPaymentType)
     }
-  }, [topupInfo, calculatePaymentAmount])
+  }, [topupInfo, calculatePaymentAmount, setPaymentAmount])
 
   // Get current payment type (selected or default)
   const getCurrentPaymentType = useCallback(() => {
@@ -159,13 +201,17 @@ export function Wallet(props: WalletProps) {
   const handleSelectPreset = (preset: PresetAmount) => {
     setTopupAmount(preset.value)
     setSelectedPreset(preset.value)
-    calculatePaymentAmount(preset.value, getCurrentPaymentType())
+    setSelectedPackageId(preset.package_id)
+    if (preset.package_id)
+      setPaymentAmount(preset.value * Number(preset.discount || 1))
+    else calculatePaymentAmount(preset.value, getCurrentPaymentType())
   }
 
   // Handle topup amount change
   const handleTopupAmountChange = (amount: number) => {
     setTopupAmount(amount)
     setSelectedPreset(null)
+    setSelectedPackageId(undefined)
     calculatePaymentAmount(amount, getCurrentPaymentType())
   }
 
@@ -177,13 +223,17 @@ export function Wallet(props: WalletProps) {
 
     try {
       // Validate minimum topup
-      const minTopup = getMinTopupAmount(topupInfo)
+      const minTopup =
+        topupInfo?.online_payment_provider === 'hupijiao'
+          ? 0
+          : getMinTopupAmount(topupInfo)
       if (topupAmount < minTopup) {
         return
       }
 
       // Calculate payment amount and show confirmation dialog
-      await calculatePaymentAmount(topupAmount, method.type)
+      if (topupInfo?.online_payment_provider !== 'hupijiao')
+        await calculatePaymentAmount(topupAmount, method.type)
       setConfirmDialogOpen(true)
     } finally {
       setPaymentLoading(null)
@@ -199,7 +249,9 @@ export function Wallet(props: WalletProps) {
       topupAmount,
       selectedWaffoMethodIndex,
       {
-        regular: processPayment,
+        regular: (amount, method) => {
+          return processPayment(amount, method, selectedPackageId)
+        },
         waffo: processWaffoPayment,
         waffoPancake: processWaffoPancakePayment,
       }
@@ -288,6 +340,7 @@ export function Wallet(props: WalletProps) {
         <SectionPageLayout.Title>{t('Wallet')}</SectionPageLayout.Title>
         <SectionPageLayout.Content>
           <div className='mx-auto flex w-full max-w-7xl flex-col gap-4 sm:gap-5'>
+            <MonthlyDiscountProgress progress={monthlyProgress} />
             <WalletStatsCard user={user} loading={userLoading} />
 
             <div
@@ -315,8 +368,16 @@ export function Wallet(props: WalletProps) {
                   redeeming={redeeming}
                   topupLink={topupInfo?.topup_link}
                   loading={topupLoading}
-                  priceRatio={(status?.price as number) || 1}
-                  usdExchangeRate={effectiveUsdExchangeRate}
+                  priceRatio={
+                    topupInfo?.online_payment_provider === 'hupijiao'
+                      ? 1
+                      : (status?.price as number) || 1
+                  }
+                  usdExchangeRate={
+                    topupInfo?.online_payment_provider === 'hupijiao'
+                      ? 1
+                      : effectiveUsdExchangeRate
+                  }
                   onOpenBilling={() => setBillingDialogOpen(true)}
                   creemProducts={topupInfo?.creem_products}
                   enableCreemTopup={topupInfo?.enable_creem_topup}
@@ -363,7 +424,41 @@ export function Wallet(props: WalletProps) {
         processing={processing || waffoProcessing || pancakeProcessing}
         discountRate={getDiscountRate()}
         usdExchangeRate={effectiveUsdExchangeRate}
+        currencySymbol={
+          topupInfo?.online_payment_provider === 'hupijiao' ? '¥' : ''
+        }
       />
+
+      <Dialog
+        open={Boolean(qrcodeUrl)}
+        onOpenChange={(open) => {
+          if (!open) closeQRCode()
+        }}
+      >
+        <DialogContent className='sm:max-w-sm'>
+          <DialogHeader>
+            <DialogTitle>{t('Scan to pay')}</DialogTitle>
+            <DialogDescription>
+              {t('Use Alipay or WeChat to scan the QR code')}
+            </DialogDescription>
+          </DialogHeader>
+          <div className='flex flex-col items-center gap-4 py-3'>
+            {qrcodeUrl && (
+              <QRCodeSVG value={qrcodeUrl} size={240} className='max-w-full' />
+            )}
+            {h5Url && (
+              <Button
+                variant='outline'
+                onClick={() => {
+                  window.location.href = h5Url
+                }}
+              >
+                {t('Open H5 payment page')}
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <TransferDialog
         open={transferDialogOpen}

@@ -123,11 +123,12 @@ type TaskBillingContext struct {
 	PerCallBilling  bool               `json:"per_call_billing,omitempty"`  // 按次计费：跳过轮询阶段的差额结算
 	// BillingCurveConfig is the request-time snapshot used when an async
 	// token-priced task reaches its final token settlement.
-	BillingCurveConfig            *hosttypes.BillingCurveConfig   `json:"billing_curve_config,omitempty"`
-	BillingCurveDeferred          bool                            `json:"billing_curve_deferred,omitempty"`
-	BillingCurveNormalQuota       int                             `json:"billing_curve_normal_quota,omitempty"`
-	BillingCurveBaseUsageMicroUSD int64                           `json:"billing_curve_base_usage_micro_usd,omitempty"`
-	BillingCurveSnapshot          *hosttypes.BillingCurveSnapshot `json:"billing_curve_snapshot,omitempty"`
+	BillingCurveConfig            *hosttypes.BillingCurveConfig      `json:"billing_curve_config,omitempty"`
+	BillingCurveDeferred          bool                               `json:"billing_curve_deferred,omitempty"`
+	BillingCurveNormalQuota       int                                `json:"billing_curve_normal_quota,omitempty"`
+	BillingCurveBaseUsageMicroUSD int64                              `json:"billing_curve_base_usage_micro_usd,omitempty"`
+	BillingCurveSnapshot          *hosttypes.BillingCurveSnapshot    `json:"billing_curve_snapshot,omitempty"`
+	MonthlyDiscountSnapshot       *hosttypes.MonthlyDiscountSnapshot `json:"monthly_discount_snapshot,omitempty"`
 }
 
 // GetUpstreamTaskID 获取上游真实 task ID（用于与 provider 通信）

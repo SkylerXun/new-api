@@ -30,6 +30,9 @@ export type BillingCurveConfig = {
   threshold_usd: number
   window_usd: number
   target_average_k: number
+  monthly_enabled: boolean
+  monthly_tiers: Array<{ threshold_usd: number; discount_percent: number }>
+  monthly_backfill_cutoff: number
 }
 
 export const DEFAULT_BILLING_CURVE_CONFIG: BillingCurveConfig = {
@@ -39,6 +42,9 @@ export const DEFAULT_BILLING_CURVE_CONFIG: BillingCurveConfig = {
   threshold_usd: 75,
   window_usd: 150,
   target_average_k: 10,
+  monthly_enabled: false,
+  monthly_tiers: [],
+  monthly_backfill_cutoff: 0,
 }
 
 type Translate = (key: string) => string
@@ -76,8 +82,26 @@ export function createBillingCurveConfigSchema(t: Translate) {
           t('Enter a value no greater than the allowed maximum')
         ),
       target_average_k: z.number().optional().default(10),
+      monthly_enabled: z.boolean().default(false),
+      monthly_tiers: z
+        .array(
+          z.object({
+            threshold_usd: finiteNumberSchema(t).gt(0).max(MAX_USAGE_USD),
+            discount_percent: finiteNumberSchema(t).min(0).lt(100),
+          })
+        )
+        .max(100)
+        .default([]),
+      monthly_backfill_cutoff: z.number().int().nonnegative().default(0),
     })
     .superRefine((config, context) => {
+      if (config.monthly_enabled && config.monthly_tiers.length === 0) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['monthly_tiers'],
+          message: t('Add at least one monthly discount tier'),
+        })
+      }
       if (config.k2 < config.k1) {
         context.addIssue({
           code: z.ZodIssueCode.custom,
@@ -87,7 +111,27 @@ export function createBillingCurveConfigSchema(t: Translate) {
           ),
         })
       }
-
+      for (let i = 1; i < config.monthly_tiers.length; i += 1) {
+        const previous = config.monthly_tiers.at(i - 1)
+        const current = config.monthly_tiers.at(i)
+        if (!previous || !current) {
+          continue
+        }
+        if (current.threshold_usd <= previous.threshold_usd) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['monthly_tiers', i, 'threshold_usd'],
+            message: t('Thresholds must be strictly increasing'),
+          })
+        }
+        if (current.discount_percent < previous.discount_percent) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['monthly_tiers', i, 'discount_percent'],
+            message: t('Discounts must be non-decreasing'),
+          })
+        }
+      }
     })
 }
 
@@ -118,5 +162,8 @@ export function serializeBillingCurveConfig(
     threshold_usd: config.threshold_usd,
     window_usd: config.window_usd,
     target_average_k: config.target_average_k,
+    monthly_enabled: config.monthly_enabled,
+    monthly_tiers: config.monthly_tiers,
+    monthly_backfill_cutoff: config.monthly_backfill_cutoff,
   })
 }

@@ -74,6 +74,8 @@ const OPERATIONS_SECTIONS = [
           SMTPStartTLSEnabled: settings.SMTPStartTLSEnabled,
           SMTPInsecureSkipVerify: settings.SMTPInsecureSkipVerify,
           SMTPForceAuthLogin: settings.SMTPForceAuthLogin,
+          subscription_expiry_notify_enabled: settings.subscription_expiry_notify_enabled ?? true,
+          subscription_expiry_notify_days: settings.subscription_expiry_notify_days ?? 1,
         }}
       />
     ),

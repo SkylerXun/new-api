@@ -387,10 +387,45 @@ func attachUserBillingCurveMultipliers(users []*model.User) error {
 	if err != nil {
 		return err
 	}
+	monthStart := service.CurrentBillingMonthStart()
+	if err = service.EnsureCurrentMonthlyBillingBackfill(userIDs, curve, monthStart); err != nil {
+		return err
+	}
+	monthlyProgresses, err := model.GetUserMonthlyBillingProgresses(userIDs, monthStart)
+	if err != nil {
+		return err
+	}
 	for _, user := range users {
 		user.BillingCurveMultiplier = service.CurrentBillingCurveMultiplier(curve, progresses[user.Id])
+		spent := monthlyProgresses[user.Id]
+		user.MonthlyDiscountMultiplier = 1 - service.MonthlyDiscountPercent(curve, spent)/100
 	}
 	return nil
+}
+
+func GetMonthlyBillingProgress(c *gin.Context) {
+	userID := c.GetInt("id")
+	curve := billing_curve_setting.GetConfig()
+	monthStart := service.CurrentBillingMonthStart()
+	if err := service.EnsureCurrentMonthlyBillingBackfill([]int{userID}, curve, monthStart); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	spent, err := model.GetUserMonthlyBillingProgress(userID, monthStart)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	percent := service.MonthlyDiscountPercent(curve, spent)
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{
+		"enabled":                     curve.MonthlyEnabled,
+		"period_start":                monthStart,
+		"period_end":                  service.CurrentBillingMonthEnd(),
+		"spent_usd":                   float64(spent) / 1_000_000,
+		"current_discount_percent":    percent,
+		"current_discount_multiplier": 1 - percent/100,
+		"tiers":                       curve.MonthlyTiers,
+	}})
 }
 
 func canManageTargetRole(myRole int, targetRole int) bool {
@@ -762,6 +797,44 @@ func UpdateUser(c *gin.Context) {
 		"message": "",
 	})
 	return
+}
+
+type BindInviterRequest struct {
+	InviterID int `json:"inviter_id" binding:"required"`
+}
+
+// BindInviter binds an inviter to a user who currently has no inviter.
+func BindInviter(c *gin.Context) {
+	userID, err := strconv.Atoi(c.Param("id"))
+	if err != nil || userID <= 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	var req BindInviterRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.InviterID <= 0 || req.InviterID == userID {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	user, err := model.GetUserById(userID, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	inviter, err := model.GetUserById(req.InviterID, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	myRole := c.GetInt("role")
+	if !canManageTargetRole(myRole, user.Role) || !canManageTargetRole(myRole, inviter.Role) {
+		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionSameLevel)
+		return
+	}
+	if err := model.BindInviter(userID, req.InviterID); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": gin.H{"user_id": userID, "inviter_id": req.InviterID}})
 }
 
 func AdminClearUserBinding(c *gin.Context) {

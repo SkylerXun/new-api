@@ -16,6 +16,10 @@ type TopUp struct {
 	UserId          int     `json:"user_id" gorm:"index"`
 	Amount          int64   `json:"amount"`
 	Money           float64 `json:"money"`
+	OriginalAmount  float64 `json:"original_amount" gorm:"type:decimal(10,2);default:0"`
+	DiscountRate    float64 `json:"discount_rate" gorm:"type:decimal(5,4);default:1"`
+	ActualAmount    float64 `json:"actual_amount" gorm:"type:decimal(10,2);default:0"`
+	PackageID       string  `json:"package_id" gorm:"type:varchar(64);default:''"`
 	TradeNo         string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
 	PaymentMethod   string  `json:"payment_method" gorm:"type:varchar(50)"`
 	PaymentProvider string  `json:"payment_provider" gorm:"type:varchar(50);default:''"`
@@ -34,6 +38,7 @@ const (
 
 const (
 	PaymentProviderEpay         = "epay"
+	PaymentProviderHupijiao     = "hupijiao"
 	PaymentProviderStripe       = "stripe"
 	PaymentProviderCreem        = "creem"
 	PaymentProviderWaffo        = "waffo"
@@ -51,6 +56,63 @@ func (topUp *TopUp) Insert() error {
 	var err error
 	err = DB.Create(topUp).Error
 	return err
+}
+
+// RechargeHupijiao atomically credits the quota snapshotted on a Hupijiao order.
+func RechargeHupijiao(tradeNo string, actualPaymentMethod string, callerIp string) (alreadyDone bool, err error) {
+	if tradeNo == "" {
+		return false, errors.New("未提供支付单号")
+	}
+	refCol := "`trade_no`"
+	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
+		refCol = `"trade_no"`
+	}
+	var quotaToAdd int64
+	var topUp TopUp
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		if err := lockForUpdate(tx).Where(refCol+" = ?", tradeNo).First(&topUp).Error; err != nil {
+			return ErrTopUpNotFound
+		}
+		if topUp.PaymentProvider != PaymentProviderHupijiao {
+			return ErrPaymentMethodMismatch
+		}
+		if topUp.Status == common.TopUpStatusSuccess {
+			alreadyDone = true
+			return nil
+		}
+		if topUp.Status != common.TopUpStatusPending {
+			return ErrTopUpStatusInvalid
+		}
+		if topUp.Amount <= 0 {
+			return errors.New("无效的充值额度")
+		}
+		quotaToAdd = topUp.Amount
+		if actualPaymentMethod != "" && topUp.PaymentMethod != actualPaymentMethod {
+			return ErrPaymentMethodMismatch
+		}
+		topUp.Status = common.TopUpStatusSuccess
+		topUp.CompleteTime = common.GetTimestamp()
+		if err := tx.Save(&topUp).Error; err != nil {
+			return err
+		}
+		result := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd))
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return gorm.ErrRecordNotFound
+		}
+		return nil
+	})
+	if err != nil {
+		return false, err
+	}
+	if alreadyDone {
+		return true, nil
+	}
+	syncCreditUserQuotaCache(int(topUp.UserId), int(quotaToAdd), "hupijiao topup")
+	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用虎皮椒充值成功，充值额度：%d，支付金额：%.2f", quotaToAdd, topUp.Money), callerIp, topUp.PaymentMethod, PaymentProviderHupijiao)
+	return false, nil
 }
 
 func (topUp *TopUp) Update() error {
@@ -424,7 +486,12 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 		// - Stripe 订单：Money 代表经分组倍率换算后的美元数量，直接 * QuotaPerUnit
 		// - 其他订单（如易支付）：Amount 为美元数量，* QuotaPerUnit
 		var quotaErr error
-		if topUp.PaymentProvider == PaymentProviderStripe {
+		if topUp.PaymentProvider == PaymentProviderHupijiao {
+			if topUp.Amount <= 0 || topUp.Amount > int64(^uint(0)>>1) {
+				return errors.New("无效的充值额度")
+			}
+			quotaToAdd = int(topUp.Amount)
+		} else if topUp.PaymentProvider == PaymentProviderStripe {
 			quotaToAdd, quotaErr = common.QuotaFromDecimalStrict(
 				decimal.NewFromFloat(topUp.Money).Mul(decimal.NewFromFloat(common.QuotaPerUnit)),
 			)

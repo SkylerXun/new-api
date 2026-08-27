@@ -40,6 +40,8 @@ const defaultOperationsSettings: OperationsSettings = {
   SMTPStartTLSEnabled: false,
   SMTPInsecureSkipVerify: false,
   SMTPForceAuthLogin: false,
+  subscription_expiry_notify_enabled: true,
+  subscription_expiry_notify_days: 1,
   WorkerUrl: '',
   WorkerValidKey: '',
   WorkerAllowHttpImageRequestEnabled: false,

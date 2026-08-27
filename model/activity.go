@@ -27,6 +27,9 @@ const (
 	ActivityCampaignTypeClaimable = "claimable"
 	ActivityCampaignTypeImmediate = "immediate"
 
+	ActivityCampaignAudienceAll      = "all"
+	ActivityCampaignAudienceSelected = "selected"
+
 	ActivityCampaignStatusActive    = "active"
 	ActivityCampaignStatusQueued    = "queued"
 	ActivityCampaignStatusRunning   = "running"
@@ -64,6 +67,7 @@ type ActivityCampaign struct {
 	Id                 int64  `json:"id"`
 	ActivityKey        string `json:"activity_key" gorm:"type:varchar(128);not null;uniqueIndex:idx_activity_campaign_key"`
 	Type               string `json:"type" gorm:"type:varchar(32);not null;index"`
+	AudienceType       string `json:"audience_type" gorm:"type:varchar(32);index"`
 	Status             string `json:"status" gorm:"type:varchar(32);not null;index"`
 	Title              string `json:"title" gorm:"type:varchar(128);not null"`
 	Description        string `json:"description" gorm:"type:text"`
@@ -81,6 +85,19 @@ type ActivityCampaign struct {
 	ClosedAt           int64  `json:"closed_at,omitempty" gorm:"bigint;not null;default:0"`
 	CreatedAt          int64  `json:"created_at" gorm:"bigint;not null;index"`
 	UpdatedAt          int64  `json:"updated_at" gorm:"bigint;not null;index"`
+}
+
+// ActivityCampaignRecipient freezes the explicit audience of a selected-user
+// campaign. A user can occur at most once per campaign.
+type ActivityCampaignRecipient struct {
+	Id         int64 `json:"id"`
+	CampaignID int64 `json:"campaign_id" gorm:"not null;uniqueIndex:idx_activity_campaign_recipient,priority:1;index"`
+	UserID     int   `json:"user_id" gorm:"not null;uniqueIndex:idx_activity_campaign_recipient,priority:2;index"`
+	CreatedAt  int64 `json:"created_at" gorm:"bigint;not null;index"`
+}
+
+func (ActivityCampaignRecipient) TableName() string {
+	return "activity_campaign_recipients"
 }
 
 func (ActivityCampaign) TableName() string {
@@ -250,6 +267,12 @@ func GrantActivityQuotaBatch(ctx context.Context, userIds []int, activityKey str
 }
 
 func CreateActivityCampaign(ctx context.Context, campaign *ActivityCampaign) error {
+	return CreateActivityCampaignWithRecipients(ctx, campaign, nil)
+}
+
+// CreateActivityCampaignWithRecipients creates the campaign and, for a
+// selected audience, its frozen recipient rows atomically.
+func CreateActivityCampaignWithRecipients(ctx context.Context, campaign *ActivityCampaign, userIDs []int) error {
 	if campaign == nil {
 		return errors.New("activity campaign is required")
 	}
@@ -259,13 +282,68 @@ func CreateActivityCampaign(ctx context.Context, campaign *ActivityCampaign) err
 	if err := normalizeNewActivityCampaign(campaign); err != nil {
 		return err
 	}
-	maxUserID, recipientCount, err := GetActivityCampaignTargetSnapshot(ctx)
-	if err != nil {
-		return err
+	if campaign.AudienceType == "" {
+		campaign.AudienceType = ActivityCampaignAudienceAll
 	}
-	campaign.RecipientMaxUserID = maxUserID
-	campaign.RecipientCount = recipientCount
-	return DB.WithContext(ctx).Create(campaign).Error
+	userIDs = uniquePositiveInts(userIDs)
+	if campaign.AudienceType == ActivityCampaignAudienceSelected {
+		if campaign.Type != ActivityCampaignTypeClaimable || len(userIDs) == 0 {
+			return errors.New("selected activity campaigns require at least one recipient and must be claimable")
+		}
+	} else if campaign.AudienceType != ActivityCampaignAudienceAll || len(userIDs) > 0 {
+		return errors.New("activity campaign audience is invalid")
+	}
+
+	return DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if campaign.AudienceType == ActivityCampaignAudienceSelected {
+			var count int64
+			if err := tx.Model(&User{}).Where("id IN ? AND status = ?", userIDs, common.UserStatusEnabled).Count(&count).Error; err != nil {
+				return err
+			}
+			if count != int64(len(userIDs)) {
+				return errors.New("selected activity recipients must be enabled users")
+			}
+			campaign.RecipientMaxUserID = 0
+			campaign.RecipientCount = int64(len(userIDs))
+		} else {
+			maxUserID, recipientCount, err := getActivityCampaignTargetSnapshotTx(tx)
+			if err != nil {
+				return err
+			}
+			campaign.RecipientMaxUserID = maxUserID
+			campaign.RecipientCount = recipientCount
+		}
+		if err := tx.Create(campaign).Error; err != nil {
+			return err
+		}
+		if campaign.AudienceType == ActivityCampaignAudienceSelected {
+			recipients := make([]ActivityCampaignRecipient, 0, len(userIDs))
+			createdAt := common.GetTimestamp()
+			for _, userID := range userIDs {
+				recipients = append(recipients, ActivityCampaignRecipient{CampaignID: campaign.Id, UserID: userID, CreatedAt: createdAt})
+			}
+			if err := tx.Create(&recipients).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func uniquePositiveInts(values []int) []int {
+	seen := make(map[int]struct{}, len(values))
+	result := make([]int, 0, len(values))
+	for _, value := range values {
+		if value <= 0 {
+			continue
+		}
+		if _, exists := seen[value]; exists {
+			continue
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+	return result
 }
 
 // GetActivityCampaignTargetSnapshot freezes the account ID frontier when a
@@ -284,6 +362,18 @@ func GetActivityCampaignTargetSnapshot(ctx context.Context) (maxUserID int, tota
 		return 0, 0, nil
 	}
 
+	var lastUser User
+	if err = query.Select("id").Order("id desc").First(&lastUser).Error; err != nil {
+		return 0, 0, err
+	}
+	return lastUser.Id, total, nil
+}
+
+func getActivityCampaignTargetSnapshotTx(tx *gorm.DB) (maxUserID int, total int64, err error) {
+	query := tx.Model(&User{})
+	if err = query.Count(&total).Error; err != nil || total == 0 {
+		return 0, total, err
+	}
 	var lastUser User
 	if err = query.Select("id").Order("id desc").First(&lastUser).Error; err != nil {
 		return 0, 0, err
@@ -560,7 +650,11 @@ func ClaimActivityCampaignQuota(ctx context.Context, userId int, activityKey str
 		if campaign.Status != ActivityCampaignStatusActive {
 			return ErrActivityCampaignUnavailable
 		}
-		if campaign.RecipientMaxUserID <= 0 || userId > campaign.RecipientMaxUserID {
+		eligible, eligibilityErr := isActivityCampaignUserEligible(tx, &campaign, userId)
+		if eligibilityErr != nil {
+			return eligibilityErr
+		}
+		if !eligible {
 			return ErrActivityCampaignUnavailable
 		}
 		now := common.GetTimestamp()
@@ -590,6 +684,63 @@ func ClaimActivityCampaignQuota(ctx context.Context, userId int, activityKey str
 		syncCreditUserQuotaCache(userId, grant.Quota, "activity campaign claim")
 	}
 	return grant, granted, nil
+}
+
+func IsActivityCampaignUserEligible(ctx context.Context, campaign *ActivityCampaign, userId int) (bool, error) {
+	if campaign == nil || userId <= 0 {
+		return false, nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return isActivityCampaignUserEligible(DB.WithContext(ctx), campaign, userId)
+}
+
+func isActivityCampaignUserEligible(tx *gorm.DB, campaign *ActivityCampaign, userId int) (bool, error) {
+	audienceType := campaign.AudienceType
+	if audienceType == "" {
+		audienceType = ActivityCampaignAudienceAll
+	}
+	if audienceType == ActivityCampaignAudienceSelected {
+		var count int64
+		err := tx.Model(&ActivityCampaignRecipient{}).
+			Where("campaign_id = ? AND user_id = ?", campaign.Id, userId).
+			Count(&count).Error
+		return count == 1, err
+	}
+	return campaign.RecipientMaxUserID > 0 && userId <= campaign.RecipientMaxUserID, nil
+}
+
+func ListActivityCampaignsForUserPage(ctx context.Context, userId int, cursor int64, limit int) ([]*ActivityCampaign, int64, error) {
+	if userId <= 0 {
+		return nil, 0, errors.New("activity user is invalid")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if cursor < 0 {
+		return nil, 0, errors.New("activity campaign cursor is invalid")
+	}
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	var campaigns []*ActivityCampaign
+	query := DB.WithContext(ctx).
+		Where("activity_key IN (?)", DB.WithContext(ctx).Model(&ActivityGrant{}).Select("activity_key").Where("user_id = ?", userId)).
+		Order("id desc")
+	if cursor > 0 {
+		query = query.Where("id < ?", cursor)
+	}
+	if err := query.Limit(limit + 1).Find(&campaigns).Error; err != nil {
+		return nil, 0, err
+	}
+	if len(campaigns) <= limit {
+		return campaigns, 0, nil
+	}
+	return campaigns[:limit], campaigns[limit-1].Id, nil
 }
 
 // ListActivityGrantsForUserActivityKeys returns grants keyed by activity key
@@ -630,6 +781,37 @@ func ListActivityGrantsForUserActivityKeys(ctx context.Context, userId int, acti
 		grantsByKey[grant.ActivityKey] = append(grantsByKey[grant.ActivityKey], grant)
 	}
 	return grantsByKey, nil
+}
+
+func ListActivityGrantsForUser(ctx context.Context, userId int) ([]ActivityGrant, error) {
+	if userId <= 0 {
+		return []ActivityGrant{}, nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	var grants []ActivityGrant
+	err := DB.WithContext(ctx).Where("user_id = ?", userId).Order("created_at desc, id desc").Find(&grants).Error
+	return grants, err
+}
+
+func ListExistingActivityCampaignKeys(ctx context.Context, activityKeys []string) (map[string]struct{}, error) {
+	result := make(map[string]struct{})
+	if len(activityKeys) == 0 {
+		return result, nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	var keys []string
+	if err := DB.WithContext(ctx).Model(&ActivityCampaign{}).
+		Where("activity_key IN ?", activityKeys).Pluck("activity_key", &keys).Error; err != nil {
+		return nil, err
+	}
+	for _, key := range keys {
+		result[key] = struct{}{}
+	}
+	return result, nil
 }
 
 // SumActivityGrantQuotaForUser returns the cumulative reward recorded for a
@@ -750,6 +932,9 @@ func normalizeNewActivityCampaign(campaign *ActivityCampaign) error {
 	campaign.Description = strings.TrimSpace(campaign.Description)
 	campaign.Reason = strings.TrimSpace(campaign.Reason)
 	campaign.AmountUSD = strings.TrimSpace(campaign.AmountUSD)
+	if campaign.AudienceType == "" {
+		campaign.AudienceType = ActivityCampaignAudienceAll
+	}
 	if campaign.ActivityKey == "" || utf8.RuneCountInString(campaign.ActivityKey) > 128 || !isActivityCampaignKey(campaign.ActivityKey) {
 		return errors.New("activity campaign key is invalid")
 	}
@@ -767,6 +952,12 @@ func normalizeNewActivityCampaign(campaign *ActivityCampaign) error {
 	}
 	if campaign.Quota <= 0 || campaign.Quota > common.MaxQuota {
 		return errors.New("activity campaign quota is invalid")
+	}
+	if campaign.AudienceType != ActivityCampaignAudienceAll && campaign.AudienceType != ActivityCampaignAudienceSelected {
+		return errors.New("activity campaign audience is invalid")
+	}
+	if campaign.AudienceType == ActivityCampaignAudienceSelected && campaign.Type != ActivityCampaignTypeClaimable {
+		return errors.New("selected activity campaigns must be claimable")
 	}
 	if campaign.CreatedBy <= 0 || campaign.StartsAt < 0 || campaign.EndsAt < 0 {
 		return errors.New("activity campaign metadata is invalid")

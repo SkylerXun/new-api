@@ -18,20 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import { Link } from '@tanstack/react-router'
-import {
-  CheckCircle2,
-  Clock3,
-  Gift,
-  Loader2,
-  WalletCards,
-} from 'lucide-react'
+import { CheckCircle2, Clock3, Gift, Loader2, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { IconBadge } from '@/components/ui/icon-badge'
-import { formatQuota } from '@/lib/format'
+import { formatQuota, formatTimestampToDate } from '@/lib/format'
 
 import { useActivityCountdown } from '../hooks/use-activity-countdown'
 import { splitCountdown } from '../lib/countdown'
@@ -158,8 +152,7 @@ export function ActivityCard(props: ActivityCardProps) {
         </div>
       ) : null}
 
-      {props.activity.reward_quota &&
-      (status === 'active' || status === 'claimed' || status === 'credited') ? (
+      {props.activity.reward_quota ? (
         <div className='flex items-center gap-3 p-4 text-sm sm:p-5'>
           <CheckCircle2 className='size-5 text-emerald-600 dark:text-emerald-400' />
           <span>
@@ -170,6 +163,12 @@ export function ActivityCard(props: ActivityCardProps) {
           <span className='font-semibold'>
             +{formatQuota(props.activity.reward_quota)}
           </span>
+        </div>
+      ) : null}
+
+      {props.activity.granted_at ? (
+        <div className='text-muted-foreground border-t px-4 py-3 text-xs sm:px-5'>
+          {t('Granted at')}: {formatTimestampToDate(props.activity.granted_at)}
         </div>
       ) : null}
     </Card>

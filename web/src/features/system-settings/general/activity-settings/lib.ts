@@ -56,6 +56,7 @@ export const activityCampaignSchema = z
         return Number.isFinite(amount) && amount > 0
       }),
     endsAt: z.string().trim(),
+    audienceType: z.enum(['all', 'selected']),
   })
   .superRefine((values, context) => {
     if (
@@ -66,6 +67,9 @@ export const activityCampaignSchema = z
         code: z.ZodIssueCode.custom,
         path: ['endsAt'],
       })
+    }
+    if (values.audienceType === 'selected' && values.type === 'immediate') {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['audienceType'] })
     }
   })
 

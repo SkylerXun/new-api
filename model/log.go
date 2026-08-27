@@ -150,6 +150,13 @@ func formatUserLogs(logs []*Log, startIdx int) {
 		var otherMap map[string]interface{}
 		otherMap, _ = common.StrToMap(logs[i].Other)
 		if otherMap != nil {
+			if logs[i].Type == LogTypeError {
+				if adminInfo, ok := otherMap["admin_info"].(map[string]interface{}); ok {
+					if mappedError, ok := adminInfo["mapped_error"].(string); ok && strings.TrimSpace(mappedError) != "" {
+						logs[i].Content = mappedError
+					}
+				}
+			}
 			// Remove admin-only debug fields.
 			delete(otherMap, "admin_info")
 			// Remove operation-audit details (operator/route info), admin-only.

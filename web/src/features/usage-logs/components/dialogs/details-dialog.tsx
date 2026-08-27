@@ -236,6 +236,13 @@ export function BillingBreakdown(props: {
   if (!isAdmin) {
     return (
       <DetailSection label={t('Billing Details')}>
+        {other.monthly_discount_percent != null && (
+          <DetailRow
+            label={t('Monthly Discount')}
+            value={`${other.monthly_discount_percent}%`}
+            mono
+          />
+        )}
         <DetailRow
           label={t('Total Cost')}
           value={formatLogQuota(log.quota)}
@@ -300,6 +307,34 @@ export function BillingBreakdown(props: {
     rows.push({
       label: isUserGR ? t('User Exclusive Ratio') : t('Group Ratio'),
       value: `${formatRatio(effectiveGR)}x`,
+    })
+  }
+
+  const monthlyDiscount = other.admin_info?.monthly_discount
+  if (monthlyDiscount?.applied) {
+    rows.push({
+      label: t('Monthly Discount Before Cost'),
+      value: formatLogQuota(monthlyDiscount.normal_quota ?? 0),
+    })
+    rows.push({
+      label: t('Monthly Discount'),
+      value: `${monthlyDiscount.discount_percent ?? 0}% (${(monthlyDiscount.effective_multiplier ?? 1).toFixed(4)}x)`,
+    })
+    rows.push({
+      label: t('Monthly Discounted Cost'),
+      value: formatLogQuota(monthlyDiscount.charged_quota ?? log.quota),
+    })
+    rows.push({
+      label: t('Monthly Progress'),
+      value: `${((monthlyDiscount.progress_before_micro_usd ?? 0) / 1_000_000).toFixed(6)} -> ${((monthlyDiscount.progress_after_micro_usd ?? 0) / 1_000_000).toFixed(6)} USD`,
+    })
+    rows.push({
+      label: t('Funding Source'),
+      value:
+        (monthlyDiscount.funding_source ?? other.billing_source) ===
+        'subscription'
+          ? t('Subscription')
+          : t('Wallet'),
     })
   }
 
@@ -496,6 +531,9 @@ export function DetailsDialog(props: DetailsDialogProps) {
   const other = parseLogOther(props.log.other)
   const typeConfig = getLogTypeConfig(props.log.type)
 
+  const isError = props.log.type === 5
+  const mappedError =
+    props.isAdmin && isError ? other?.admin_info?.mapped_error : undefined
   const isViolation = isViolationFeeLog(other)
   const isRefund = props.log.type === 6
   const isConsume = props.log.type === 2
@@ -1241,7 +1279,9 @@ export function DetailsDialog(props: DetailsDialogProps) {
         {/* Content */}
         {details && (
           <div className='space-y-1.5'>
-            <Label className='text-xs font-semibold'>{t('Content')}</Label>
+            <Label className='text-xs font-semibold'>
+              {t(isError && props.isAdmin ? 'Upstream Content' : 'Content')}
+            </Label>
             <div className='bg-muted/30 relative min-w-0 overflow-hidden rounded-md border p-2.5'>
               <Button
                 variant='ghost'
@@ -1259,6 +1299,33 @@ export function DetailsDialog(props: DetailsDialogProps) {
               </Button>
               <p className='min-w-0 pr-6 text-xs leading-relaxed break-all whitespace-pre-wrap sm:wrap-break-word'>
                 {details}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {mappedError && (
+          <div className='space-y-1.5'>
+            <Label className='text-xs font-semibold'>
+              {t('Mapped Content')}
+            </Label>
+            <div className='bg-muted/30 relative min-w-0 overflow-hidden rounded-md border p-2.5'>
+              <Button
+                variant='ghost'
+                size='sm'
+                className='absolute top-1.5 right-1.5 h-5 w-5 p-0'
+                onClick={() => copyToClipboard(mappedError)}
+                title={t('Copy to clipboard')}
+                aria-label={t('Copy to clipboard')}
+              >
+                {copiedText === mappedError ? (
+                  <Check className='size-3 text-green-600' />
+                ) : (
+                  <Copy className='size-3' />
+                )}
+              </Button>
+              <p className='min-w-0 pr-6 text-xs leading-relaxed break-all whitespace-pre-wrap sm:wrap-break-word'>
+                {mappedError}
               </p>
             </div>
           </div>

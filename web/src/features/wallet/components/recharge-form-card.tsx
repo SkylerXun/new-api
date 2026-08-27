@@ -142,6 +142,8 @@ export function RechargeFormCard({
     Array.isArray(waffoPayMethods) && waffoPayMethods.length > 0
   const minTopup = getMinTopupAmount(topupInfo)
   const redemptionEnabled = topupInfo?.enable_redemption !== false
+  const paymentCurrencySymbol =
+    topupInfo?.online_payment_provider === 'hupijiao' ? '¥' : ''
 
   if (loading) {
     return (
@@ -228,12 +230,18 @@ export function RechargeFormCard({
                   </Label>
                   <div className='grid grid-cols-2 gap-1.5 sm:gap-3 md:grid-cols-4'>
                     {presetAmounts.map((preset) => {
+                      const hupijiaoPackage = preset.package_id
+                        ? topupInfo?.hupijiao_packages?.find(
+                            (p) => p.id === preset.package_id
+                          )
+                        : undefined
                       const discount =
                         preset.discount ||
                         topupInfo?.discount?.[preset.value] ||
                         1.0
                       const {
                         displayValue,
+                        originalPrice,
                         actualPrice,
                         savedAmount,
                         hasDiscount,
@@ -245,7 +253,7 @@ export function RechargeFormCard({
                       )
                       return (
                         <Button
-                          key={preset.value}
+                          key={preset.package_id || preset.value}
                           variant='outline'
                           className={cn(
                             'flex min-h-16 flex-col items-start rounded-lg px-3 py-2.5 text-left whitespace-normal sm:min-h-[72px] sm:p-4',
@@ -266,14 +274,33 @@ export function RechargeFormCard({
                             )}
                           </div>
                           <div className='text-muted-foreground mt-1.5 w-full text-xs sm:mt-2'>
-                            Pay {formatCurrency(actualPrice)}
+                            {hasDiscount && (
+                              <span className='mr-1 line-through'>
+                                {formatCurrency(
+                                  originalPrice,
+                                  paymentCurrencySymbol
+                                )}
+                              </span>
+                            )}
+                            {t('Pay')}{' '}
+                            {formatCurrency(actualPrice, paymentCurrencySymbol)}
                             {hasDiscount && savedAmount > 0 && (
                               <span className='text-green-600'>
                                 {' '}
-                                • Save {formatCurrency(savedAmount)}
+                                • {t('Save')}{' '}
+                                {formatCurrency(
+                                  savedAmount,
+                                  paymentCurrencySymbol
+                                )}
                               </span>
                             )}
                           </div>
+                          {hupijiaoPackage && (
+                            <div className='text-muted-foreground mt-1 text-xs'>
+                              {t('Get quota')}:{' '}
+                              {formatNumber(hupijiaoPackage.quota)}
+                            </div>
+                          )}
                         </Button>
                       )
                     })}
@@ -281,37 +308,39 @@ export function RechargeFormCard({
                 </div>
               )}
 
-              <div className='space-y-2.5 sm:space-y-3'>
-                <Label
-                  htmlFor='topup-amount'
-                  className='text-muted-foreground text-xs font-medium tracking-wider uppercase'
-                >
-                  {t('Custom Amount')}
-                </Label>
-                <div className='grid grid-cols-[minmax(0,1fr)_minmax(110px,0.55fr)] gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center'>
-                  <Input
-                    id='topup-amount'
-                    type='number'
-                    value={localAmount}
-                    onChange={(e) => handleAmountChange(e.target.value)}
-                    min={minTopup}
-                    placeholder={`Minimum ${minTopup}`}
-                    className='h-9 text-base sm:h-10 sm:text-lg'
-                  />
-                  <div className='bg-muted/30 flex min-h-9 items-center justify-between gap-2 rounded-md border px-3 lg:min-w-52'>
-                    <span className='text-muted-foreground truncate text-xs'>
-                      {t('Amount to pay:')}
-                    </span>
-                    {calculating ? (
-                      <Skeleton className='h-5 w-16' />
-                    ) : (
-                      <span className='text-sm font-semibold'>
-                        {formatCurrency(paymentAmount)}
+              {topupInfo?.online_payment_provider !== 'hupijiao' && (
+                <div className='space-y-2.5 sm:space-y-3'>
+                  <Label
+                    htmlFor='topup-amount'
+                    className='text-muted-foreground text-xs font-medium tracking-wider uppercase'
+                  >
+                    {t('Custom Amount')}
+                  </Label>
+                  <div className='grid grid-cols-[minmax(0,1fr)_minmax(110px,0.55fr)] gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center'>
+                    <Input
+                      id='topup-amount'
+                      type='number'
+                      value={localAmount}
+                      onChange={(e) => handleAmountChange(e.target.value)}
+                      min={minTopup}
+                      placeholder={`Minimum ${minTopup}`}
+                      className='h-9 text-base sm:h-10 sm:text-lg'
+                    />
+                    <div className='bg-muted/30 flex min-h-9 items-center justify-between gap-2 rounded-md border px-3 lg:min-w-52'>
+                      <span className='text-muted-foreground truncate text-xs'>
+                        {t('Amount to pay:')}
                       </span>
-                    )}
+                      {calculating ? (
+                        <Skeleton className='h-5 w-16' />
+                      ) : (
+                        <span className='text-sm font-semibold'>
+                          {formatCurrency(paymentAmount, paymentCurrencySymbol)}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               <div className='space-y-2.5 sm:space-y-3'>
                 <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
@@ -322,7 +351,9 @@ export function RechargeFormCard({
                     {topupInfo?.pay_methods?.map((method) => {
                       const minTopup = Math.max(
                         method.min_topup || 0,
-                        getMinTopupAmount(topupInfo)
+                        topupInfo?.online_payment_provider === 'hupijiao'
+                          ? 0
+                          : getMinTopupAmount(topupInfo)
                       )
                       const disabled = minTopup > topupAmount
                       const disabledReason = disabled

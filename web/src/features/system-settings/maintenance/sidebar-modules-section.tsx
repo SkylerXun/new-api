@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
+import { useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -28,6 +29,7 @@ import {
   FormLabel,
 } from '@/components/ui/form'
 import { Switch } from '@/components/ui/switch'
+import { Button } from '@/components/ui/button'
 
 import {
   SettingsControlChildren,
@@ -62,6 +64,7 @@ export function SidebarModulesSection({
   initialSerialized,
 }: SidebarModulesSectionProps) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const updateOption = useUpdateOption()
 
   const sectionMeta: Record<string, { title: string; description: string }> = {
@@ -104,7 +107,9 @@ export function SidebarModulesSection({
       },
       price_list: {
         title: t('模型清单'),
-        description: t('向用户展示各分组的模型实际价格和官方价格。'),
+        description: t(
+          '向用户展示各分组的模型实际价格和官方价格；模型信息和价格请在管理员模型页面编辑。'
+        ),
       },
       token: {
         title: t('Token management'),
@@ -255,6 +260,23 @@ export function SidebarModulesSection({
                               <FormDescription>
                                 {moduleInfo.description}
                               </FormDescription>
+                              {sectionKey === 'console' &&
+                              moduleKey === 'price_list' ? (
+                                <Button
+                                  type='button'
+                                  variant='outline'
+                                  size='sm'
+                                  className='mt-2'
+                                  onClick={() =>
+                                    void navigate({
+                                      to: '/models/$section',
+                                      params: { section: 'metadata' },
+                                    })
+                                  }
+                                >
+                                  {t('编辑模型清单')}
+                                </Button>
+                              ) : null}
                             </SettingsSwitchContent>
                             <FormControl>
                               <Switch

@@ -68,6 +68,8 @@ func InitOptionMap() {
 	common.OptionMap["SMTPStartTLSEnabled"] = strconv.FormatBool(common.SMTPStartTLSEnabled)
 	common.OptionMap["SMTPInsecureSkipVerify"] = strconv.FormatBool(common.SMTPInsecureSkipVerify)
 	common.OptionMap["SMTPForceAuthLogin"] = strconv.FormatBool(common.SMTPForceAuthLogin)
+	common.OptionMap["subscription_expiry_notify_enabled"] = "true"
+	common.OptionMap["subscription_expiry_notify_days"] = "1"
 	common.OptionMap["Notice"] = ""
 	common.OptionMap["About"] = ""
 	common.OptionMap["HomePageContent"] = ""
@@ -85,6 +87,14 @@ func InitOptionMap() {
 	common.OptionMap["Price"] = strconv.FormatFloat(operation_setting.Price, 'f', -1, 64)
 	common.OptionMap["USDExchangeRate"] = strconv.FormatFloat(operation_setting.USDExchangeRate, 'f', -1, 64)
 	common.OptionMap["MinTopUp"] = strconv.Itoa(operation_setting.MinTopUp)
+	common.OptionMap["OnlinePaymentProvider"] = operation_setting.OnlinePaymentProvider
+	common.OptionMap["HupijiaoAPIAddress"] = operation_setting.HupijiaoAPIAddress
+	common.OptionMap["HupijiaoBackupAPIAddress"] = operation_setting.HupijiaoBackupAPIAddress
+	common.OptionMap["HupijiaoWechatAppID"] = operation_setting.HupijiaoWechatAppID
+	common.OptionMap["HupijiaoWechatSecret"] = operation_setting.HupijiaoWechatSecret
+	common.OptionMap["HupijiaoAlipayAppID"] = operation_setting.HupijiaoAlipayAppID
+	common.OptionMap["HupijiaoAlipaySecret"] = operation_setting.HupijiaoAlipaySecret
+	common.OptionMap["HupijiaoPackages"] = operation_setting.HupijiaoPackages
 	common.OptionMap["StripeMinTopUp"] = strconv.Itoa(setting.StripeMinTopUp)
 	common.OptionMap["StripeApiSecret"] = setting.StripeApiSecret
 	common.OptionMap["StripeWebhookSecret"] = setting.StripeWebhookSecret
@@ -209,6 +219,17 @@ func SyncOptions(frequency int) {
 }
 
 func validateOptionValue(key string, value string) error {
+	if key == "subscription_expiry_notify_days" {
+		days, err := strconv.Atoi(strings.TrimSpace(value))
+		if err != nil || days < 1 || days > 30 {
+			return fmt.Errorf("subscription expiry reminder days must be between 1 and 30")
+		}
+	}
+	if key == "subscription_expiry_notify_enabled" {
+		if _, err := strconv.ParseBool(strings.TrimSpace(value)); err != nil {
+			return fmt.Errorf("invalid subscription expiry reminder enabled value")
+		}
+	}
 	if key == billing_curve_setting.ConfigOptionKey {
 		return billing_curve_setting.ValidateConfigJSON(value)
 	}
@@ -234,6 +255,13 @@ func validateOptionValue(key string, value string) error {
 }
 
 func UpdateOption(key string, value string) error {
+	if key == billing_curve_setting.ConfigOptionKey {
+		prepared, err := billing_curve_setting.PrepareConfigJSON(value, time.Now())
+		if err != nil {
+			return err
+		}
+		value = prepared
+	}
 	if err := validateOptionValue(key, value); err != nil {
 		return err
 	}
@@ -260,6 +288,13 @@ func UpdateOption(key string, value string) error {
 func UpdateOptionsBulk(values map[string]string) error {
 	if len(values) == 0 {
 		return nil
+	}
+	if value, ok := values[billing_curve_setting.ConfigOptionKey]; ok {
+		prepared, err := billing_curve_setting.PrepareConfigJSON(value, time.Now())
+		if err != nil {
+			return err
+		}
+		values[billing_curve_setting.ConfigOptionKey] = prepared
 	}
 	for key, value := range values {
 		if err := validateOptionValue(key, value); err != nil {
@@ -449,6 +484,30 @@ func updateOptionMap(key string, value string) (err error) {
 		operation_setting.USDExchangeRate, _ = strconv.ParseFloat(value, 64)
 	case "MinTopUp":
 		operation_setting.MinTopUp, _ = strconv.Atoi(value)
+	case "OnlinePaymentProvider":
+		if value != "epay" && value != "hupijiao" {
+			err = fmt.Errorf("unsupported online payment provider: %s", value)
+		} else {
+			operation_setting.OnlinePaymentProvider = value
+		}
+	case "HupijiaoAPIAddress":
+		operation_setting.HupijiaoAPIAddress = value
+	case "HupijiaoBackupAPIAddress":
+		operation_setting.HupijiaoBackupAPIAddress = value
+	case "HupijiaoWechatAppID":
+		operation_setting.HupijiaoWechatAppID = value
+	case "HupijiaoWechatSecret":
+		operation_setting.HupijiaoWechatSecret = value
+	case "HupijiaoAlipayAppID":
+		operation_setting.HupijiaoAlipayAppID = value
+	case "HupijiaoAlipaySecret":
+		operation_setting.HupijiaoAlipaySecret = value
+	case "HupijiaoPackages":
+		if _, parseErr := operation_setting.ParseHupijiaoPackages(value); parseErr != nil {
+			err = parseErr
+		} else {
+			operation_setting.HupijiaoPackages = value
+		}
 	case "StripeApiSecret":
 		setting.StripeApiSecret = value
 	case "StripeWebhookSecret":

@@ -104,6 +104,18 @@ const paymentSchema = z.object({
   EpayKey: z.string(),
   Price: z.coerce.number().min(0),
   MinTopUp: z.coerce.number().min(0),
+  OnlinePaymentProvider: z.enum(['epay', 'hupijiao']),
+  HupijiaoAPIAddress: z.string(), HupijiaoBackupAPIAddress: z.string(),
+  HupijiaoWechatAppID: z.string(), HupijiaoWechatSecret: z.string(),
+  HupijiaoAlipayAppID: z.string(), HupijiaoAlipaySecret: z.string(),
+  HupijiaoPackages: z.string().superRefine((value, ctx) => {
+    const error = getJsonError(value, (parsed) => Array.isArray(parsed) && parsed.every((item) => {
+      if (!item || typeof item !== 'object') return false
+      const p = item as Record<string, unknown>
+      return typeof p.id === 'string' && p.id.length > 0 && typeof p.title === 'string' && p.title.length > 0 && Number(p.original_amount) >= 0.01 && Number(p.quota) > 0 && Number(p.discount_rate) >= 0.01 && Number(p.discount_rate) <= 1 && typeof p.enabled === 'boolean'
+    }))
+    if (error) ctx.addIssue({ code: z.ZodIssueCode.custom, message: error })
+  }),
   CustomCallbackAddress: z
     .string()
     .refine(
@@ -423,6 +435,9 @@ export function PaymentSettingsSection({
       EpayKey: values.EpayKey.trim(),
       Price: values.Price,
       MinTopUp: values.MinTopUp,
+      OnlinePaymentProvider: values.OnlinePaymentProvider,
+      HupijiaoAPIAddress: removeTrailingSlash(values.HupijiaoAPIAddress.trim()), HupijiaoBackupAPIAddress: removeTrailingSlash(values.HupijiaoBackupAPIAddress.trim()),
+      HupijiaoWechatAppID: values.HupijiaoWechatAppID.trim(), HupijiaoWechatSecret: values.HupijiaoWechatSecret.trim(), HupijiaoAlipayAppID: values.HupijiaoAlipayAppID.trim(), HupijiaoAlipaySecret: values.HupijiaoAlipaySecret.trim(), HupijiaoPackages: values.HupijiaoPackages.trim(),
       CustomCallbackAddress: removeTrailingSlash(values.CustomCallbackAddress),
       PayMethods: values.PayMethods.trim(),
       AmountOptions: values.AmountOptions.trim(),
@@ -465,6 +480,9 @@ export function PaymentSettingsSection({
       EpayKey: initialRef.current.EpayKey.trim(),
       Price: initialRef.current.Price,
       MinTopUp: initialRef.current.MinTopUp,
+      OnlinePaymentProvider: initialRef.current.OnlinePaymentProvider,
+      HupijiaoAPIAddress: removeTrailingSlash(initialRef.current.HupijiaoAPIAddress.trim()), HupijiaoBackupAPIAddress: removeTrailingSlash(initialRef.current.HupijiaoBackupAPIAddress.trim()),
+      HupijiaoWechatAppID: initialRef.current.HupijiaoWechatAppID.trim(), HupijiaoWechatSecret: initialRef.current.HupijiaoWechatSecret.trim(), HupijiaoAlipayAppID: initialRef.current.HupijiaoAlipayAppID.trim(), HupijiaoAlipaySecret: initialRef.current.HupijiaoAlipaySecret.trim(), HupijiaoPackages: initialRef.current.HupijiaoPackages.trim(),
       CustomCallbackAddress: removeTrailingSlash(
         initialRef.current.CustomCallbackAddress
       ),
@@ -507,6 +525,13 @@ export function PaymentSettingsSection({
     }
 
     const updates: Array<{ key: string; value: string | number | boolean }> = []
+
+    for (const key of ['OnlinePaymentProvider','HupijiaoAPIAddress','HupijiaoBackupAPIAddress','HupijiaoWechatAppID','HupijiaoAlipayAppID','HupijiaoPackages'] as const) {
+      if (sanitized[key] !== initial[key]) updates.push({ key, value: sanitized[key] })
+    }
+    for (const key of ['HupijiaoWechatSecret', 'HupijiaoAlipaySecret'] as const) {
+      if (sanitized[key] && sanitized[key] !== initial[key]) updates.push({ key, value: sanitized[key] })
+    }
 
     if (sanitized.PayAddress !== initial.PayAddress) {
       updates.push({ key: 'PayAddress', value: sanitized.PayAddress })
@@ -899,6 +924,14 @@ export function PaymentSettingsSection({
                 </div>
 
                 <div className='grid gap-6 md:grid-cols-2'>
+                  <FormField control={form.control} name='OnlinePaymentProvider' render={({ field }) => (<FormItem><FormLabel>{t('Online payment provider')}</FormLabel><FormControl><select className='border-input bg-background h-10 rounded-md border px-3 text-sm' {...field}><option value='epay'>EPay</option><option value='hupijiao'>Hupijiao</option></select></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name='HupijiaoAPIAddress' render={({ field }) => (<FormItem><FormLabel>{t('Hupijiao API address')}</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name='HupijiaoBackupAPIAddress' render={({ field }) => (<FormItem><FormLabel>{t('Hupijiao backup API address')}</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name='HupijiaoWechatAppID' render={({ field }) => (<FormItem><FormLabel>{t('Hupijiao WeChat APPID')}</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name='HupijiaoWechatSecret' render={({ field }) => (<FormItem><FormLabel>{t('Hupijiao WeChat SECRET')}</FormLabel><FormControl><Input type='password' {...field} /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name='HupijiaoAlipayAppID' render={({ field }) => (<FormItem><FormLabel>{t('Hupijiao Alipay APPID')}</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name='HupijiaoAlipaySecret' render={({ field }) => (<FormItem><FormLabel>{t('Hupijiao Alipay SECRET')}</FormLabel><FormControl><Input type='password' {...field} /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name='HupijiaoPackages' render={({ field }) => (<FormItem className='md:col-span-2'><FormLabel>{t('Hupijiao recharge packages JSON')}</FormLabel><FormControl><textarea className='border-input bg-background min-h-32 w-full rounded-md border p-3 text-sm font-mono' {...field} /></FormControl><FormDescription>{t('Configure id, title, original_amount, quota, discount_rate and enabled')}</FormDescription><FormMessage /></FormItem>)} />
                   <FormField
                     control={form.control}
                     name='Price'

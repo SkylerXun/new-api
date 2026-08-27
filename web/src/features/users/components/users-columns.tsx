@@ -211,6 +211,19 @@ export function useUsersColumns(): ColumnDef<User>[] {
       meta: { mobileOrder: 35 },
     },
     {
+      accessorKey: 'monthly_discount_multiplier',
+      header: t('Monthly discount multiplier'),
+      cell: ({ row }) => {
+        const multiplier = row.getValue('monthly_discount_multiplier') as number
+        return (
+          <span className='tabular-nums'>{`${multiplier.toFixed(4).replace(/\.?0+$/, '')}x`}</span>
+        )
+      },
+      enableSorting: false,
+      size: 140,
+      meta: { mobileOrder: 36 },
+    },
+    {
       accessorKey: 'role',
       header: t('Role'),
       cell: ({ row }) => {

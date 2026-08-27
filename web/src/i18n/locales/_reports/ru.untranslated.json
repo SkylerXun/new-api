@@ -82,5 +82,6 @@
   "Updated At": "Updated At",
   "Updated {{date}}": "Updated {{date}}",
   "Use image links and direct MP4 links in HTML tags. Unsafe HTML is removed when displayed.": "Use image links and direct MP4 links in HTML tags. Unsafe HTML is removed when displayed.",
-  "Write the source and review the live preview before saving.": "Write the source and review the live preview before saving."
+  "Write the source and review the live preview before saving.": "Write the source and review the live preview before saving.",
+  "Current multiplier": "Current multiplier"
 }

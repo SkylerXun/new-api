@@ -27,6 +27,19 @@ type SubscriptionBalancePayRequest struct {
 	PlanId int `json:"plan_id"`
 }
 
+func rejectSubscriptionPurchaseWhenActive(c *gin.Context, userId int) bool {
+	hasActive, err := model.HasActiveUserSubscription(userId)
+	if err != nil {
+		common.ApiError(c, err)
+		return true
+	}
+	if hasActive {
+		common.ApiError(c, model.ErrActiveSubscriptionExists)
+		return true
+	}
+	return false
+}
+
 // ---- User APIs ----
 
 func GetSubscriptionPlans(c *gin.Context) {
@@ -103,6 +116,9 @@ func SubscriptionRequestBalancePay(c *gin.Context) {
 	}
 
 	userId := c.GetInt("id")
+	if rejectSubscriptionPurchaseWhenActive(c, userId) {
+		return
+	}
 	var req SubscriptionBalancePayRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.PlanId <= 0 {
 		common.ApiErrorMsg(c, "参数错误")
@@ -161,6 +177,8 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "价格不能超过9999")
 		return
 	}
+	if req.Plan.HupijiaoDiscountRate == 0 { req.Plan.HupijiaoDiscountRate = 1 }
+	if req.Plan.HupijiaoDiscountRate < 0.01 || req.Plan.HupijiaoDiscountRate > 1 { common.ApiErrorMsg(c, "虎皮椒折扣率需在0.01到1之间"); return }
 	if req.Plan.Currency == "" {
 		req.Plan.Currency = "USD"
 	}
@@ -240,6 +258,8 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "价格不能超过9999")
 		return
 	}
+	if req.Plan.HupijiaoDiscountRate == 0 { req.Plan.HupijiaoDiscountRate = 1 }
+	if req.Plan.HupijiaoDiscountRate < 0.01 || req.Plan.HupijiaoDiscountRate > 1 { common.ApiErrorMsg(c, "虎皮椒折扣率需在0.01到1之间"); return }
 	req.Plan.Id = id
 	if req.Plan.Currency == "" {
 		req.Plan.Currency = "USD"
@@ -285,6 +305,7 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"title":                      req.Plan.Title,
 			"subtitle":                   req.Plan.Subtitle,
 			"price_amount":               req.Plan.PriceAmount,
+			"hupijiao_discount_rate":     req.Plan.HupijiaoDiscountRate,
 			"currency":                   req.Plan.Currency,
 			"duration_unit":              req.Plan.DurationUnit,
 			"duration_value":             req.Plan.DurationValue,

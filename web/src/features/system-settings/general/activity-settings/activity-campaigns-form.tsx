@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Gift, HandCoins, Loader2, Send } from 'lucide-react'
+import { Check, Gift, HandCoins, Loader2, Send, Search, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -43,6 +43,8 @@ import {
 } from '@/components/ui/input-group'
 import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { searchUsers } from '@/features/users/api'
+import type { User } from '@/features/users/types'
 
 import {
   closeActivityCampaign,
@@ -72,6 +74,7 @@ const defaultActivityCampaignFormValues: ActivityCampaignFormValues = {
   description: '',
   amountUSD: '',
   endsAt: '',
+  audienceType: 'all',
 }
 
 function isActiveImmediateCampaign(campaign: ActivityCampaign): boolean {
@@ -88,11 +91,16 @@ export function ActivityCampaignsForm() {
     useState<ActivityCampaignFormValues | null>(null)
   const [campaignToClose, setCampaignToClose] =
     useState<ActivityCampaign | null>(null)
+  const [selectedUsers, setSelectedUsers] = useState<User[]>([])
+  const [userSearch, setUserSearch] = useState('')
+  const [userResults, setUserResults] = useState<User[]>([])
+  const [searchingUsers, setSearchingUsers] = useState(false)
   const form = useForm<ActivityCampaignFormValues>({
     resolver: zodResolver(activityCampaignSchema),
     defaultValues: defaultActivityCampaignFormValues,
   })
   const campaignType = form.watch('type')
+  const audienceType = form.watch('audienceType')
 
   const campaignsQuery = useQuery({
     queryKey: activityCampaignsQueryKey,
@@ -138,6 +146,11 @@ export function ActivityCampaignsForm() {
         title: values.title,
         description: values.description || undefined,
         amount_usd: values.amountUSD,
+        audience_type: values.audienceType,
+        recipient_user_ids:
+          values.audienceType === 'selected'
+            ? selectedUsers.map((user) => user.id)
+            : undefined,
       }
       if (values.type === 'claimable') {
         const endsAt = parseActivityCampaignEndAt(values.endsAt)
@@ -168,6 +181,7 @@ export function ActivityCampaignsForm() {
       })
       setConfirmation(null)
       form.reset(defaultActivityCampaignFormValues)
+      setSelectedUsers([])
       toast.success(
         campaign.type === 'immediate'
           ? t('Immediate activity campaign queued.')
@@ -208,9 +222,18 @@ export function ActivityCampaignsForm() {
   const formDisabled = createMutation.isPending || confirmation !== null
   const immediateDisabled = hasActiveImmediateCampaign || formDisabled
   const createDisabled =
-    formDisabled || (campaignType === 'immediate' && hasActiveImmediateCampaign)
+    formDisabled ||
+    (campaignType === 'immediate' && hasActiveImmediateCampaign) ||
+    (audienceType === 'selected' && selectedUsers.length === 0)
 
   const openConfirmation = form.handleSubmit((values) => {
+    if (values.audienceType === 'selected' && selectedUsers.length === 0) {
+      form.setError('audienceType', {
+        type: 'validate',
+        message: t('Select at least one user.'),
+      })
+      return
+    }
     if (values.type === 'claimable') {
       const endsAt = parseActivityCampaignEndAt(values.endsAt)
       if (!endsAt || endsAt * 1000 <= Date.now()) {
@@ -235,12 +258,50 @@ export function ActivityCampaignsForm() {
     if (nextType === 'immediate') form.clearErrors('endsAt')
   }
 
+  const handleAudienceTypeChange = (values: string[]) => {
+    const nextType = values.find((value) => value !== audienceType)
+    if (nextType !== 'all' && nextType !== 'selected') return
+    form.setValue('audienceType', nextType, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+    if (nextType === 'selected') {
+      form.setValue('type', 'claimable', { shouldDirty: true })
+    }
+  }
+
+  const searchForUsers = async () => {
+    if (!userSearch.trim()) return
+    setSearchingUsers(true)
+    try {
+      const response = await searchUsers({
+        keyword: userSearch.trim(),
+        status: '1',
+        page_size: 20,
+      })
+      setUserResults(response.data?.items ?? [])
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : t('Failed to search users')
+      )
+    } finally {
+      setSearchingUsers(false)
+    }
+  }
+
+  const toggleSelectedUser = (user: User) => {
+    form.clearErrors('audienceType')
+    setSelectedUsers((current) =>
+      current.some((item) => item.id === user.id)
+        ? current.filter((item) => item.id !== user.id)
+        : [...current, user]
+    )
+  }
+
   return (
     <div className='space-y-5'>
       <div>
-        <h4 className='text-sm font-medium'>
-          {t('All-user activity campaigns')}
-        </h4>
+        <h4 className='text-sm font-medium'>{t('Activity campaigns')}</h4>
         <p className='text-muted-foreground text-sm'>
           {t('Publish a claimable activity or issue a frozen USD credit.')}
         </p>
@@ -262,6 +323,102 @@ export function ActivityCampaignsForm() {
                     disabled={formDisabled}
                   />
                 </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='audienceType'
+            render={({ field }) => (
+              <FormItem className='lg:col-span-2'>
+                <FormLabel>{t('Audience')}</FormLabel>
+                <ToggleGroup
+                  value={[field.value]}
+                  onValueChange={handleAudienceTypeChange}
+                  variant='outline'
+                  spacing={2}
+                  className='grid w-full grid-cols-2 gap-2'
+                >
+                  <ToggleGroupItem value='all' className='h-auto min-h-12'>
+                    {t('All users')}
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value='selected' className='h-auto min-h-12'>
+                    {t('Selected users')}
+                  </ToggleGroupItem>
+                </ToggleGroup>
+                {audienceType === 'selected' ? (
+                  <div className='space-y-2 rounded-md border p-3'>
+                    <div className='flex gap-2'>
+                      <Input
+                        value={userSearch}
+                        onChange={(event) => setUserSearch(event.target.value)}
+                        placeholder={t('Search users')}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault()
+                            void searchForUsers()
+                          }
+                        }}
+                      />
+                      <Button
+                        type='button'
+                        variant='outline'
+                        onClick={() => void searchForUsers()}
+                        disabled={searchingUsers}
+                      >
+                        <Search />
+                        {t('Search')}
+                      </Button>
+                    </div>
+                    {userResults.map((user) => (
+                      <button
+                        type='button'
+                        key={user.id}
+                        className='hover:bg-muted flex w-full items-center justify-between rounded px-2 py-1 text-left text-sm'
+                        onClick={() => toggleSelectedUser(user)}
+                      >
+                        <span>
+                          {user.username}{' '}
+                          {user.display_name &&
+                          user.display_name !== user.username
+                            ? `(${user.display_name})`
+                            : ''}
+                        </span>
+                        <span aria-hidden='true'>
+                          {selectedUsers.some((item) => item.id === user.id) ? (
+                            <Check className='size-4' />
+                          ) : (
+                            ''
+                          )}
+                        </span>
+                      </button>
+                    ))}
+                    <div className='flex flex-wrap gap-1'>
+                      {selectedUsers.map((user) => (
+                        <span
+                          key={user.id}
+                          className='bg-muted inline-flex items-center gap-1 rounded px-2 py-1 text-xs'
+                        >
+                          {user.username}
+                          <button
+                            type='button'
+                            aria-label={t('Remove')}
+                            onClick={() => toggleSelectedUser(user)}
+                          >
+                            <X className='size-3' />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                    <p className='text-muted-foreground text-xs'>
+                      {t('{{count}} users selected', {
+                        count: selectedUsers.length,
+                      })}
+                    </p>
+                  </div>
+                ) : null}
                 <FormMessage />
               </FormItem>
             )}
@@ -339,7 +496,7 @@ export function ActivityCampaignsForm() {
                   </ToggleGroupItem>
                   <ToggleGroupItem
                     value='immediate'
-                    disabled={immediateDisabled}
+                    disabled={immediateDisabled || audienceType === 'selected'}
                     className='h-auto min-h-12 w-full gap-2 px-3 py-2'
                   >
                     <Send aria-hidden='true' />
@@ -478,6 +635,14 @@ export function ActivityCampaignsForm() {
               {confirmation?.type === 'immediate'
                 ? t('Immediate credit')
                 : t('Claimable')}
+            </dd>
+          </div>
+          <div className='flex justify-between gap-3'>
+            <dt className='text-muted-foreground'>{t('Audience')}</dt>
+            <dd>
+              {confirmation?.audienceType === 'selected'
+                ? t('{{count}} selected users', { count: selectedUsers.length })
+                : t('All users')}
             </dd>
           </div>
           {confirmation?.type === 'claimable' ? (
