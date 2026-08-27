@@ -150,6 +150,16 @@ func formatUserLogs(logs []*Log, startIdx int) {
 		var otherMap map[string]interface{}
 		otherMap, _ = common.StrToMap(logs[i].Other)
 		if otherMap != nil {
+			// Historical Hupijiao top-up logs used the provider name in user-facing
+			// content. Show the concrete payment channel instead while retaining the
+			// provider in the admin-only metadata below.
+			if logs[i].Type == LogTypeTopup && strings.Contains(logs[i].Content, "虎皮椒") {
+				method := ""
+				if adminInfo, ok := otherMap["admin_info"].(map[string]interface{}); ok {
+					method, _ = adminInfo["payment_method"].(string)
+				}
+				logs[i].Content = strings.ReplaceAll(logs[i].Content, "虎皮椒", paymentMethodDisplayName(method))
+			}
 			if logs[i].Type == LogTypeError {
 				if adminInfo, ok := otherMap["admin_info"].(map[string]interface{}); ok {
 					if mappedError, ok := adminInfo["mapped_error"].(string); ok && strings.TrimSpace(mappedError) != "" {

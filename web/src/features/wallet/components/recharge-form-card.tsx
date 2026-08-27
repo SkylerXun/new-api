@@ -386,7 +386,7 @@ export function RechargeFormCard({
               )}
 
               {activeHupijiaoMethod ? (
-                <div className='space-y-3 sm:max-w-md'>
+                <div className='space-y-3 sm:max-w-sm'>
                   {hupijiaoPaymentMethods.length > 1 && (
                     <div className='space-y-2'>
                       <Label className='text-muted-foreground text-xs font-medium'>

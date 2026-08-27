@@ -52,6 +52,17 @@ var (
 	ErrTopUpStatusInvalid    = errors.New("topup status invalid")
 )
 
+func paymentMethodDisplayName(method string) string {
+	switch method {
+	case "alipay":
+		return "支付宝"
+	case "wxpay":
+		return "微信支付"
+	default:
+		return "在线支付"
+	}
+}
+
 func (topUp *TopUp) Insert() error {
 	var err error
 	err = DB.Create(topUp).Error
@@ -111,7 +122,7 @@ func RechargeHupijiao(tradeNo string, actualPaymentMethod string, callerIp strin
 		return true, nil
 	}
 	syncCreditUserQuotaCache(int(topUp.UserId), int(quotaToAdd), "hupijiao topup")
-	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用虎皮椒充值成功，充值额度：%d，支付金额：%.2f", quotaToAdd, topUp.Money), callerIp, topUp.PaymentMethod, PaymentProviderHupijiao)
+	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用%s充值成功，充值额度：%d，支付金额：%.2f", paymentMethodDisplayName(topUp.PaymentMethod), quotaToAdd, topUp.Money), callerIp, topUp.PaymentMethod, PaymentProviderHupijiao)
 	return false, nil
 }
 

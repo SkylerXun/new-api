@@ -113,6 +113,10 @@ function getPaymentRequestError(error: unknown, fallback: string): string {
   return candidate.response?.data?.message || candidate.message || fallback
 }
 
+function isPaymentSuccess(response: { success?: boolean; message?: string }) {
+  return response.success === true || response.message === 'success'
+}
+
 export function SubscriptionPurchaseDialog(props: Props) {
   const { t } = useTranslation()
   const { currency } = useSystemConfig()
@@ -238,7 +242,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
     setPaying(true)
     try {
       const res = await paySubscriptionStripe({ plan_id: plan.id })
-      if (res.message === 'success' && res.data?.pay_link) {
+      if (isPaymentSuccess(res) && res.data?.pay_link) {
         window.open(res.data.pay_link, '_blank')
         toast.success(t('Payment page opened'))
         props.onOpenChange(false)
@@ -260,7 +264,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
     setPaying(true)
     try {
       const res = await paySubscriptionCreem({ plan_id: plan.id })
-      if (res.message === 'success' && res.data?.checkout_url) {
+      if (isPaymentSuccess(res) && res.data?.checkout_url) {
         window.open(res.data.checkout_url, '_blank')
         toast.success(t('Payment page opened'))
         props.onOpenChange(false)
@@ -284,7 +288,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
     setPaying(true)
     try {
       const res = await paySubscriptionWaffoPancake({ plan_id: plan.id })
-      if (res.message === 'success' && res.data?.checkout_url) {
+      if (isPaymentSuccess(res) && res.data?.checkout_url) {
         toast.success(t('Redirecting to payment page...'))
         window.location.href = res.data.checkout_url
       } else {
@@ -324,7 +328,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
       const redirectUrl = res.data?.redirect_url
       const qrcodeUrl = res.data?.qrcode_url
       const tradeNo = res.data?.trade_no
-      if (res.message === 'success' && (redirectUrl || qrcodeUrl)) {
+      if (isPaymentSuccess(res) && (redirectUrl || qrcodeUrl)) {
         if (hasHupijiao && !tradeNo) {
           toast.error(t('Payment request failed'))
           return
@@ -359,7 +363,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
         }
         return
       }
-      if (res.message === 'success' && res.url) {
+      if (isPaymentSuccess(res) && res.url) {
         const form = document.createElement('form')
         form.action = res.url
         form.method = 'POST'

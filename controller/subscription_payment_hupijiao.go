@@ -21,7 +21,7 @@ func SubscriptionRequestHupijiao(c *gin.Context) {
 		return
 	}
 	if !hupijiaoEnabled() {
-		common.ApiErrorMsg(c, "虎皮椒支付未启用")
+		common.ApiErrorMsg(c, "在线支付未启用")
 		return
 	}
 	var req SubscriptionEpayPayRequest
@@ -75,7 +75,7 @@ func SubscriptionRequestHupijiao(c *gin.Context) {
 	if err != nil {
 		_ = model.ExpireSubscriptionOrder(tradeNo, model.PaymentProviderHupijiao)
 		logger.LogError(c.Request.Context(), fmt.Sprintf("虎皮椒订阅下单失败 trade_no=%s error=%q", tradeNo, err.Error()))
-		common.ApiErrorMsg(c, "虎皮椒下单失败："+err.Error())
+		common.ApiErrorMsg(c, "支付下单失败，请稍后重试")
 		return
 	}
 	common.ApiSuccess(c, gin.H{"redirect_url": result["url"], "qrcode_url": result["url_qrcode"], "trade_no": tradeNo, "original_amount": plan.PriceAmount, "actual_amount": actual})

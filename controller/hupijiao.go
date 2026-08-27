@@ -147,7 +147,7 @@ func hupijiaoEnabled() bool {
 
 func RequestHupijiao(c *gin.Context) {
 	if !hupijiaoEnabled() {
-		common.ApiErrorMsg(c, "虎皮椒支付未启用")
+		common.ApiErrorMsg(c, "在线支付未启用")
 		return
 	}
 	var req HupijiaoPayRequest
@@ -200,7 +200,7 @@ func RequestHupijiao(c *gin.Context) {
 	if err != nil {
 		_ = model.UpdatePendingTopUpStatus(tradeNo, model.PaymentProviderHupijiao, common.TopUpStatusExpired)
 		logger.LogError(c.Request.Context(), fmt.Sprintf("虎皮椒充值下单失败 trade_no=%s error=%q", tradeNo, err.Error()))
-		common.ApiErrorMsg(c, "虎皮椒下单失败："+err.Error())
+		common.ApiErrorMsg(c, "支付下单失败，请稍后重试")
 		return
 	}
 	common.ApiSuccess(c, gin.H{"redirect_url": result["url"], "qrcode_url": result["url_qrcode"], "trade_no": tradeNo, "package_id": selected.ID, "original_amount": selected.OriginalAmount, "actual_amount": actual, "quota": selected.Quota})

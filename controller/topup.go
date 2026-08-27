@@ -450,7 +450,7 @@ func RequestAmount(c *gin.Context) {
 				return
 			}
 		}
-		common.ApiErrorMsg(c, "虎皮椒模式仅支持已配置套餐")
+		common.ApiErrorMsg(c, "当前支付方式仅支持已配置套餐")
 		return
 	}
 
