@@ -66,6 +66,8 @@ interface RechargeFormCardProps {
   onPaymentMethodChange: (method: PaymentMethod) => void
   onPaymentMethodSelect: (method: PaymentMethod) => void
   paymentLoading: string | null
+  canResumePayment?: boolean
+  onResumePayment?: () => void
   redemptionCode: string
   onRedemptionCodeChange: (code: string) => void
   onRedeem: () => void
@@ -98,6 +100,8 @@ export function RechargeFormCard({
   onPaymentMethodChange,
   onPaymentMethodSelect,
   paymentLoading,
+  canResumePayment,
+  onResumePayment,
   redemptionCode,
   onRedemptionCodeChange,
   onRedeem,
@@ -527,6 +531,17 @@ export function RechargeFormCard({
                     </Alert>
                   )}
                 </div>
+              )}
+
+              {canResumePayment && onResumePayment && (
+                <Button
+                  type='button'
+                  variant='outline'
+                  onClick={onResumePayment}
+                  className='h-10 w-full border-sky-200 text-sky-700 hover:bg-sky-50 sm:max-w-md dark:border-sky-900 dark:text-sky-300 dark:hover:bg-sky-950'
+                >
+                  {t('Continue pending payment')}
+                </Button>
               )}
 
               {enableWaffoTopup &&

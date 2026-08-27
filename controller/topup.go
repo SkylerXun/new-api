@@ -497,6 +497,26 @@ func GetUserTopUps(c *gin.Context) {
 	common.ApiSuccess(c, pageInfo)
 }
 
+// GetHupijiaoPaymentStatus lets an authenticated client safely poll its own
+// pending order after the gateway has opened a QR-code payment.
+func GetHupijiaoPaymentStatus(c *gin.Context) {
+	tradeNo := strings.TrimSpace(c.Query("trade_no"))
+	if tradeNo == "" {
+		common.ApiErrorMsg(c, "缺少订单号")
+		return
+	}
+	topup := model.GetTopUpByTradeNo(tradeNo)
+	if topup == nil || topup.UserId != c.GetInt("id") || topup.PaymentProvider != model.PaymentProviderHupijiao {
+		common.ApiErrorMsg(c, "订单不存在")
+		return
+	}
+	common.ApiSuccess(c, gin.H{
+		"trade_no": tradeNo,
+		"status":   topup.Status,
+		"quota":    topup.Amount,
+	})
+}
+
 // GetAllTopUps 管理员获取全平台充值记录
 func GetAllTopUps(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)

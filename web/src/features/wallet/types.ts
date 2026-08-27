@@ -40,6 +40,12 @@ export type PaymentResponse = ApiResponse<Record<string, unknown>> & {
   redirect_url?: string
   qrcode_url?: string
 }
+export type PaymentStatus = 'pending' | 'success' | 'failed' | 'expired'
+export type PaymentStatusResponse = ApiResponse<{
+  trade_no: string
+  status: PaymentStatus
+  quota?: number
+}>
 export type StripePaymentResponse = ApiResponse<{ pay_link: string }>
 export type AffiliateCodeResponse = ApiResponse<string>
 export type AffiliateTransferResponse = ApiResponse

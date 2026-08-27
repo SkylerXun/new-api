@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -198,7 +199,8 @@ func RequestHupijiao(c *gin.Context) {
 	result, err := hupijiaoRequest(values, secret)
 	if err != nil {
 		_ = model.UpdatePendingTopUpStatus(tradeNo, model.PaymentProviderHupijiao, common.TopUpStatusExpired)
-		common.ApiErrorMsg(c, "拉起支付失败")
+		logger.LogError(c.Request.Context(), fmt.Sprintf("虎皮椒充值下单失败 trade_no=%s error=%q", tradeNo, err.Error()))
+		common.ApiErrorMsg(c, "虎皮椒下单失败："+err.Error())
 		return
 	}
 	common.ApiSuccess(c, gin.H{"redirect_url": result["url"], "qrcode_url": result["url_qrcode"], "trade_no": tradeNo, "package_id": selected.ID, "original_amount": selected.OriginalAmount, "actual_amount": actual, "quota": selected.Quota})

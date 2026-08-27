@@ -45,6 +45,7 @@ import {
   paySubscriptionHupijiao,
   paySubscriptionWaffoPancake,
   paySubscriptionBalance,
+  getSubscriptionHupijiaoPaymentStatus,
 } from '../../api'
 import { formatDuration, formatResetPeriod } from '../../lib'
 import type { PlanRecord } from '../../types'
@@ -70,12 +71,56 @@ interface Props {
   onPurchaseSuccess?: () => void | Promise<void>
 }
 
+const PENDING_SUBSCRIPTION_PAYMENT_KEY = 'new-api:pending-hupijiao-subscription'
+const PENDING_SUBSCRIPTION_PAYMENT_MAX_AGE = 30 * 60 * 1000
+
+interface PendingSubscriptionPayment {
+  tradeNo: string
+  qrcodeUrl: string
+  redirectUrl: string
+  paymentMethod: string
+  actualAmount: number
+  planId: number
+  createdAt: number
+}
+
+function readPendingSubscriptionPayment(): PendingSubscriptionPayment | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const parsed = JSON.parse(
+      window.sessionStorage.getItem(PENDING_SUBSCRIPTION_PAYMENT_KEY) || 'null'
+    ) as PendingSubscriptionPayment | null
+    if (
+      !parsed?.tradeNo ||
+      Date.now() - parsed.createdAt > PENDING_SUBSCRIPTION_PAYMENT_MAX_AGE
+    ) {
+      window.sessionStorage.removeItem(PENDING_SUBSCRIPTION_PAYMENT_KEY)
+      return null
+    }
+    return parsed
+  } catch {
+    window.sessionStorage.removeItem(PENDING_SUBSCRIPTION_PAYMENT_KEY)
+    return null
+  }
+}
+
+function getPaymentRequestError(error: unknown, fallback: string): string {
+  if (!error || typeof error !== 'object') return fallback
+  const candidate = error as {
+    message?: string
+    response?: { data?: { message?: string } }
+  }
+  return candidate.response?.data?.message || candidate.message || fallback
+}
+
 export function SubscriptionPurchaseDialog(props: Props) {
   const { t } = useTranslation()
   const { currency } = useSystemConfig()
+  const { onOpenChange, onPurchaseSuccess } = props
   const [paying, setPaying] = useState(false)
   const [selectedEpayMethod, setSelectedEpayMethod] = useState('')
-  const [hupijiaoQRCode, setHupijiaoQRCode] = useState('')
+  const [pendingHupijiaoPayment, setPendingHupijiaoPayment] =
+    useState<PendingSubscriptionPayment | null>(readPendingSubscriptionPayment)
 
   useEffect(() => {
     if (props.open && props.epayMethods && props.epayMethods.length > 0) {
@@ -85,9 +130,71 @@ export function SubscriptionPurchaseDialog(props: Props) {
       )
     } else if (!props.open) {
       setSelectedEpayMethod('')
-      setHupijiaoQRCode('')
     }
   }, [props.open, props.epayMethods])
+
+  useEffect(() => {
+    const tradeNo = pendingHupijiaoPayment?.tradeNo
+    if (!tradeNo) return
+    let active = true
+    let finished = false
+    let timer: number | undefined
+
+    const clearPending = () => {
+      setPendingHupijiaoPayment(null)
+      window.sessionStorage.removeItem(PENDING_SUBSCRIPTION_PAYMENT_KEY)
+    }
+    const poll = async () => {
+      try {
+        if (
+          Date.now() - pendingHupijiaoPayment.createdAt >
+          PENDING_SUBSCRIPTION_PAYMENT_MAX_AGE
+        ) {
+          finished = true
+          clearPending()
+          toast.error(t('Payment order expired or failed.'))
+          return
+        }
+        const response = await getSubscriptionHupijiaoPaymentStatus(tradeNo)
+        if (!active) return
+        if (!response.success || !response.data) {
+          finished = true
+          clearPending()
+          toast.error(response.message || t('Payment order expired or failed.'))
+          return
+        }
+        if (response.data.status === 'success') {
+          finished = true
+          clearPending()
+          toast.success(t('Payment successful. Subscription activated.'))
+          await onPurchaseSuccess?.()
+          onOpenChange(false)
+          return
+        }
+        if (['failed', 'expired'].includes(response.data.status)) {
+          finished = true
+          clearPending()
+          toast.error(t('Payment order expired or failed.'))
+        }
+      } catch {
+        // Keep polling through temporary network failures.
+      } finally {
+        if (active && !finished) timer = window.setTimeout(poll, 2000)
+      }
+    }
+
+    timer = window.setTimeout(poll, 1200)
+    return () => {
+      active = false
+      if (timer) window.clearTimeout(timer)
+    }
+  }, [
+    pendingHupijiaoPayment?.tradeNo,
+    pendingHupijiaoPayment?.createdAt,
+    onOpenChange,
+    onPurchaseSuccess,
+    t,
+  ])
 
   const plan = props.plan?.plan
   if (!plan) return null
@@ -142,8 +249,8 @@ export function SubscriptionPurchaseDialog(props: Props) {
             : t('Payment request failed')
         )
       }
-    } catch {
-      toast.error(t('Payment request failed'))
+    } catch (error) {
+      toast.error(getPaymentRequestError(error, t('Payment request failed')))
     } finally {
       setPaying(false)
     }
@@ -215,13 +322,40 @@ export function SubscriptionPurchaseDialog(props: Props) {
             payment_method: selectedEpayMethod,
           }))
       const redirectUrl = res.data?.redirect_url
-      if (res.message === 'success' && redirectUrl) {
+      const qrcodeUrl = res.data?.qrcode_url
+      const tradeNo = res.data?.trade_no
+      if (res.message === 'success' && (redirectUrl || qrcodeUrl)) {
+        if (hasHupijiao && !tradeNo) {
+          toast.error(t('Payment request failed'))
+          return
+        }
+        if (hasHupijiao && tradeNo) {
+          const pending = {
+            tradeNo,
+            qrcodeUrl: qrcodeUrl || '',
+            redirectUrl: redirectUrl || '',
+            paymentMethod: selectedEpayMethod,
+            actualAmount: Number(res.data?.actual_amount || hupijiaoPrice),
+            planId: plan.id,
+            createdAt: Date.now(),
+          }
+          setPendingHupijiaoPayment(pending)
+          window.sessionStorage.setItem(
+            PENDING_SUBSCRIPTION_PAYMENT_KEY,
+            JSON.stringify(pending)
+          )
+        }
         const mobile = /Mobile|Android|iPhone/i.test(navigator.userAgent)
-        if (mobile || !res.data?.qrcode_url) {
+        if (mobile || !qrcodeUrl) {
+          if (!redirectUrl) {
+            toast.error(t('Payment QR code was not returned'))
+            return
+          }
           window.location.href = redirectUrl
           props.onOpenChange(false)
         } else {
-          setHupijiaoQRCode(res.data.qrcode_url)
+          // The pending payment state keeps the QR image available even if
+          // the dialog is closed and reopened before the callback arrives.
         }
         return
       }
@@ -251,8 +385,8 @@ export function SubscriptionPurchaseDialog(props: Props) {
             : t('Payment request failed')
         )
       }
-    } catch {
-      toast.error(t('Payment request failed'))
+    } catch (error) {
+      toast.error(getPaymentRequestError(error, t('Payment request failed')))
     } finally {
       setPaying(false)
     }
@@ -284,6 +418,13 @@ export function SubscriptionPurchaseDialog(props: Props) {
     }
   }
 
+  const visiblePendingPayment =
+    pendingHupijiaoPayment?.planId === plan.id ? pendingHupijiaoPayment : null
+  const visiblePendingPaymentMethodLabel =
+    (props.epayMethods || []).find(
+      (method) => method.type === visiblePendingPayment?.paymentMethod
+    )?.name || selectedEpayMethodLabel
+
   return (
     <Dialog
       open={props.open}
@@ -300,22 +441,38 @@ export function SubscriptionPurchaseDialog(props: Props) {
       bodyClassName='space-y-4'
     >
       <div className='space-y-3 sm:space-y-4'>
-        {hupijiaoQRCode && (
+        {visiblePendingPayment?.qrcodeUrl && (
           <div className='flex flex-col items-center gap-3 rounded-md border p-4'>
             <div className='text-center'>
               <div className='text-muted-foreground text-sm'>
                 {t('Amount Due')}
               </div>
-              <div className='text-3xl font-semibold'>¥{hupijiaoPrice}</div>
+              <div className='text-3xl font-semibold'>
+                ¥
+                {Number(
+                  visiblePendingPayment.actualAmount || hupijiaoPrice
+                ).toFixed(2)}
+              </div>
             </div>
             <img
-              src={hupijiaoQRCode}
+              src={visiblePendingPayment.qrcodeUrl}
               alt={t('Scan to pay')}
               className='h-[220px] w-[220px] max-w-full object-contain'
             />
             <p className='text-muted-foreground text-center text-xs'>
-              {selectedEpayMethodLabel}
+              {visiblePendingPaymentMethodLabel}
             </p>
+            {visiblePendingPayment.redirectUrl && (
+              <Button
+                type='button'
+                variant='outline'
+                onClick={() => {
+                  window.location.href = visiblePendingPayment.redirectUrl
+                }}
+              >
+                {t('Open payment page')}
+              </Button>
+            )}
           </div>
         )}
         <div className='bg-muted/50 space-y-2.5 rounded-lg border p-3 sm:space-y-3 sm:p-4'>

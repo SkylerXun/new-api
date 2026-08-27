@@ -30,6 +30,7 @@ import type {
   SubscriptionPayResponse,
   SubscriptionPayRequest,
   SelfSubscriptionData,
+  SubscriptionPaymentStatusResponse,
 } from './types'
 
 // ============================================================================
@@ -206,7 +207,22 @@ export async function paySubscriptionHupijiao(
 ): Promise<SubscriptionPayResponse> {
   const res = await api.post('/api/subscription/hupijiao/pay', data, {
     skipBusinessError: true,
+    skipErrorHandler: true,
   } as Record<string, unknown>)
+  return res.data
+}
+
+export async function getSubscriptionHupijiaoPaymentStatus(
+  tradeNo: string
+): Promise<SubscriptionPaymentStatusResponse> {
+  const res = await api.get(
+    `/api/subscription/hupijiao/status?trade_no=${encodeURIComponent(tradeNo)}`,
+    {
+      disableDuplicate: true,
+      skipBusinessError: true,
+      skipErrorHandler: true,
+    }
+  )
   return res.data
 }
 

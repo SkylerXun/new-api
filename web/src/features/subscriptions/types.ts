@@ -103,6 +103,9 @@ export interface SubscriptionPayResponse {
     pay_link?: string
     redirect_url?: string
     qrcode_url?: string
+    trade_no?: string
+    original_amount?: number
+    actual_amount?: number
     // Waffo Pancake / Creem hosted checkout URL.
     checkout_url?: string
     // Pancake-only: order metadata + self-service buyer session token,
@@ -114,6 +117,15 @@ export interface SubscriptionPayResponse {
     token_expires_at?: number | string
   }
   url?: string
+}
+
+export interface SubscriptionPaymentStatusResponse {
+  success: boolean
+  message?: string
+  data?: {
+    trade_no: string
+    status: 'pending' | 'success' | 'failed' | 'expired'
+  }
 }
 
 export interface CreateUserSubscriptionRequest {

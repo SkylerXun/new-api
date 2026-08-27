@@ -28,6 +28,7 @@ import type {
   RedemptionResponse,
   AmountResponse,
   PaymentResponse,
+  PaymentStatusResponse,
   StripePaymentResponse,
   AffiliateCodeResponse,
   AffiliateTransferResponse,
@@ -122,11 +123,26 @@ export async function requestPayment(
 ): Promise<PaymentResponse> {
   const res = await api.post('/api/user/pay', request, {
     skipBusinessError: true,
+    skipErrorHandler: true,
   } as Record<string, unknown>)
   return {
     ...res.data,
     url: res.data.url || (res as unknown as { url?: string }).url,
   }
+}
+
+export async function getHupijiaoPaymentStatus(
+  tradeNo: string
+): Promise<PaymentStatusResponse> {
+  const res = await api.get(
+    `/api/user/topup/status?trade_no=${encodeURIComponent(tradeNo)}`,
+    {
+      disableDuplicate: true,
+      skipBusinessError: true,
+      skipErrorHandler: true,
+    }
+  )
+  return res.data
 }
 
 /**

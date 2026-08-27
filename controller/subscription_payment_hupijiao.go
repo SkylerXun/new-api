@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -72,7 +74,8 @@ func SubscriptionRequestHupijiao(c *gin.Context) {
 	result, err := hupijiaoRequest(values, secret)
 	if err != nil {
 		_ = model.ExpireSubscriptionOrder(tradeNo, model.PaymentProviderHupijiao)
-		common.ApiErrorMsg(c, "拉起支付失败")
+		logger.LogError(c.Request.Context(), fmt.Sprintf("虎皮椒订阅下单失败 trade_no=%s error=%q", tradeNo, err.Error()))
+		common.ApiErrorMsg(c, "虎皮椒下单失败："+err.Error())
 		return
 	}
 	common.ApiSuccess(c, gin.H{"redirect_url": result["url"], "qrcode_url": result["url_qrcode"], "trade_no": tradeNo, "original_amount": plan.PriceAmount, "actual_amount": actual})
@@ -80,6 +83,23 @@ func SubscriptionRequestHupijiao(c *gin.Context) {
 
 func SubscriptionHupijiaoNotify(c *gin.Context) { subscriptionHupijiaoCallback(c, false) }
 func SubscriptionHupijiaoReturn(c *gin.Context) { subscriptionHupijiaoCallback(c, true) }
+
+func GetSubscriptionHupijiaoPaymentStatus(c *gin.Context) {
+	tradeNo := strings.TrimSpace(c.Query("trade_no"))
+	if tradeNo == "" {
+		common.ApiErrorMsg(c, "缺少订单号")
+		return
+	}
+	order := model.GetSubscriptionOrderByTradeNo(tradeNo)
+	if order == nil || order.UserId != c.GetInt("id") || order.PaymentProvider != model.PaymentProviderHupijiao {
+		common.ApiErrorMsg(c, "订单不存在")
+		return
+	}
+	common.ApiSuccess(c, gin.H{
+		"trade_no": tradeNo,
+		"status":   order.Status,
+	})
+}
 
 func subscriptionHupijiaoCallback(c *gin.Context, redirect bool) {
 	_ = c.Request.ParseForm()
@@ -118,7 +138,7 @@ func subscriptionHupijiaoCallback(c *gin.Context, redirect bool) {
 		if accepted && params["status"] == "OD" {
 			result = "success"
 		}
-		target := "/wallet?pay=" + result
+		target := "/my-subscriptions?pay=" + result
 		c.Redirect(http.StatusFound, paymentReturnPath(target))
 		return
 	}

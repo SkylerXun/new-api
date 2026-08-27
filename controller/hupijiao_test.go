@@ -27,7 +27,7 @@ func TestHupijiaoRequestFallsBackToBackup(t *testing.T) {
 		require.NoError(t, r.ParseForm())
 		require.Equal(t, "app", r.Form.Get("appid"))
 		require.Equal(t, hupijiaoSign(map[string]string{"appid": "app"}, "secret"), r.Form.Get("hash"))
-		_, _ = w.Write([]byte(`{"errcode":0,"url":"https://pay.example/h5","url_qrcode":"qr-content"}`))
+		_, _ = w.Write([]byte(`{"errcode":0,"url":"https://pay.example/h5","url_qrcode":"https://pay.example/qr.png"}`))
 	}))
 	defer backup.Close()
 
@@ -40,7 +40,7 @@ func TestHupijiaoRequestFallsBackToBackup(t *testing.T) {
 	result, err := hupijiaoRequest(map[string]string{"appid": "app"}, "secret")
 	require.NoError(t, err)
 	require.Equal(t, "https://pay.example/h5", result["url"])
-	require.Equal(t, "qr-content", result["url_qrcode"])
+	require.Equal(t, "https://pay.example/qr.png", result["url_qrcode"])
 }
 
 func TestParseHupijiaoPackagesRejectsInvalidDiscount(t *testing.T) {

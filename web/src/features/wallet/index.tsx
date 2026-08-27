@@ -20,6 +20,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SectionPageLayout } from '@/components/layout'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -110,7 +111,14 @@ export function Wallet(props: WalletProps) {
     calculatePaymentAmount,
     processPayment,
     qrcodeUrl,
+    redirectUrl,
+    qrcodeOpen,
+    pendingTradeNo,
+    paymentCompletedAt,
+    pendingActualAmount,
+    pendingPaymentMethod,
     closeQRCode,
+    resumeQRCode,
     setAmount: setPaymentAmount,
   } = usePayment()
   const {
@@ -150,6 +158,12 @@ export function Wallet(props: WalletProps) {
   useEffect(() => {
     fetchUser()
   }, [fetchUser])
+
+  useEffect(() => {
+    if (paymentCompletedAt > 0) {
+      void fetchUser()
+    }
+  }, [fetchUser, paymentCompletedAt])
 
   useEffect(() => {
     if (props.initialShowHistory) {
@@ -354,6 +368,8 @@ export function Wallet(props: WalletProps) {
                 onPaymentMethodChange={setSelectedPaymentMethod}
                 onPaymentMethodSelect={handlePaymentMethodSelect}
                 paymentLoading={paymentLoading}
+                canResumePayment={Boolean(pendingTradeNo) && !qrcodeOpen}
+                onResumePayment={resumeQRCode}
                 redemptionCode={redemptionCode}
                 onRedemptionCodeChange={setRedemptionCode}
                 onRedeem={handleRedeem}
@@ -412,16 +428,20 @@ export function Wallet(props: WalletProps) {
       />
 
       <Dialog
-        open={Boolean(qrcodeUrl)}
+        open={qrcodeOpen}
         onOpenChange={(open) => {
-          if (!open) closeQRCode()
+          if (open) resumeQRCode()
+          else closeQRCode()
         }}
       >
         <DialogContent className='sm:max-w-sm'>
           <DialogHeader>
             <DialogTitle>{t('Scan to pay')}</DialogTitle>
             <DialogDescription>
-              {selectedPaymentMethod?.name ||
+              {topupInfo?.pay_methods?.find(
+                (method) => method.type === pendingPaymentMethod
+              )?.name ||
+                selectedPaymentMethod?.name ||
                 t('Use Alipay or WeChat to scan the QR code')}
             </DialogDescription>
           </DialogHeader>
@@ -431,7 +451,7 @@ export function Wallet(props: WalletProps) {
                 {t('Amount Due')}
               </div>
               <div className='text-3xl font-semibold'>
-                ¥{paymentAmount.toFixed(2)}
+                ¥{(pendingActualAmount || paymentAmount).toFixed(2)}
               </div>
             </div>
             {qrcodeUrl && (
@@ -440,6 +460,17 @@ export function Wallet(props: WalletProps) {
                 alt={t('Scan to pay')}
                 className='h-60 w-60 max-w-full object-contain'
               />
+            )}
+            {redirectUrl && (
+              <Button
+                type='button'
+                variant='outline'
+                onClick={() => {
+                  window.location.href = redirectUrl
+                }}
+              >
+                {t('Open payment page')}
+              </Button>
             )}
           </div>
         </DialogContent>
