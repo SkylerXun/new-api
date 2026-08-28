@@ -18,13 +18,16 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQueryClient, useIsFetching } from '@tanstack/react-query'
 import { useNavigate, getRouteApi } from '@tanstack/react-router'
-import { type Table } from '@tanstack/react-table'
+import type { Table } from '@tanstack/react-table'
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { ComboboxInput } from '@/components/ui/combobox-input'
 
 import { buildSearchParams } from '../lib/filter'
 import { getDefaultTimeRange } from '../lib/utils'
 import type { DrawingLogFilters, LogCategory, TaskLogFilters } from '../types'
+import { useLogFilterOptions } from '../use-log-filter-options'
 import { CompactDateTimeRangePicker } from './compact-date-time-range-picker'
 import {
   LogsFilterField,
@@ -70,6 +73,7 @@ export function TaskLogsFilterBar<TData>(props: TaskLogsFilterBarProps<TData>) {
   const queryClient = useQueryClient()
   const searchParams = route.useSearch()
   const { isAdminView: isAdmin } = useLogsViewScope()
+  const filterOptions = useLogFilterOptions(isAdmin)
   const fetchingLogs = useIsFetching({ queryKey: ['logs'] })
 
   const [filters, setFilters] = useState<TaskLogsFilters>(() => {
@@ -165,6 +169,13 @@ export function TaskLogsFilterBar<TData>(props: TaskLogsFilterBarProps<TData>) {
       ? t('Filter by MjProxy task ID')
       : t('Filter by task ID')
   const hasAdditionalFilters = !!filterValue || !!filters.channel
+  const channelOptions = [
+    { value: '', label: t('All') },
+    ...filterOptions.channels.map((channel) => ({
+      value: String(channel.id),
+      label: `${channel.name} (#${channel.id})`,
+    })),
+  ]
   const dateRangeFilter = (
     <LogsFilterField wide>
       <CompactDateTimeRangePicker
@@ -190,11 +201,13 @@ export function TaskLogsFilterBar<TData>(props: TaskLogsFilterBarProps<TData>) {
   )
   const channelFilter = isAdmin ? (
     <LogsFilterField>
-      <LogsFilterInput
-        placeholder={t('Channel ID')}
+      <ComboboxInput
+        placeholder={t('Channel')}
+        emptyText='No channels found'
+        options={channelOptions}
         value={filters.channel || ''}
-        onChange={(e) => handleChange('channel', e.target.value)}
-        onKeyDown={handleKeyDown}
+        onValueChange={(value) => handleChange('channel', value || undefined)}
+        className='h-8 min-w-0 text-sm leading-5'
       />
     </LogsFilterField>
   ) : null

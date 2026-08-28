@@ -575,15 +575,17 @@ export function PaymentSettingsSection({
       'HupijiaoAlipayAppID',
       'HupijiaoPackages',
     ] as const) {
-      if (sanitized[key] !== initial[key])
+      if (sanitized[key] !== initial[key]) {
         updates.push({ key, value: sanitized[key] })
+      }
     }
     for (const key of [
       'HupijiaoWechatSecret',
       'HupijiaoAlipaySecret',
     ] as const) {
-      if (sanitized[key] && sanitized[key] !== initial[key])
+      if (sanitized[key] && sanitized[key] !== initial[key]) {
         updates.push({ key, value: sanitized[key] })
+      }
     }
 
     if (sanitized.PayAddress !== initial.PayAddress) {
@@ -1551,7 +1553,7 @@ export function PaymentSettingsSection({
                           <FormLabel>{t('Recharge packages')}</FormLabel>
                           <FormDescription>
                             {t(
-                              'Original prices are in CNY. Credited quota uses the internal system quota unit.'
+                              'Original prices are in CNY. Enter the balance amount in USD; the system converts it to internal quota units automatically.'
                             )}
                           </FormDescription>
                         </div>
@@ -1592,7 +1594,7 @@ export function PaymentSettingsSection({
                             name={field.name}
                             onBlur={field.onBlur}
                             textareaRef={field.ref}
-                            placeholder='[{"id":"cny10","title":"10元套餐","original_amount":10,"quota":1000,"discount_rate":0.8,"enabled":true}]'
+                            placeholder='[{"id":"cny10","title":"10元套餐","original_amount":10,"quota":10,"discount_rate":0.8,"enabled":true}]'
                             heightClassName='h-48 min-h-48 max-h-48'
                             aria-invalid={Boolean(
                               form.formState.errors.HupijiaoPackages

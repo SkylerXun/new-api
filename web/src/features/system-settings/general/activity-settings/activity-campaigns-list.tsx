@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Clock3, Loader2, RefreshCw, X } from 'lucide-react'
+import { Clock3, List, Loader2, RefreshCw, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
@@ -40,6 +40,7 @@ type ActivityCampaignsListProps = {
   taskById: Record<string, AllUsersActivityGrantTask>
   closingActivityKey?: string
   onClose: (campaign: ActivityCampaign) => void
+  onViewGrants: (campaign: ActivityCampaign) => void
   onRetry: () => void
   onRetryTaskProgress: () => void
 }
@@ -165,7 +166,7 @@ export function ActivityCampaignsList(props: ActivityCampaignsListProps) {
 
   if (!props.campaigns?.length) {
     return (
-      <div className='text-muted-foreground rounded-lg border border-dashed px-4 py-8 text-center text-sm'>
+      <div className='text-muted-foreground rounded-md border border-dashed px-4 py-8 text-center text-sm'>
         {t('No activity campaigns have been created yet.')}
       </div>
     )
@@ -190,105 +191,136 @@ export function ActivityCampaignsList(props: ActivityCampaignsListProps) {
         </div>
       ) : null}
 
-      {props.campaigns.map((campaign) => {
-        const task = campaign.task_id
-          ? props.taskById[campaign.task_id]
-          : undefined
-        const isClosing = props.closingActivityKey === campaign.activity_key
-        const isClosable =
-          campaign.type === 'claimable' && campaign.status === 'active'
+      <div className='divide-y rounded-md border'>
+        {props.campaigns.map((campaign) => {
+          const task = campaign.task_id
+            ? props.taskById[campaign.task_id]
+            : undefined
+          const isClosing = props.closingActivityKey === campaign.activity_key
+          const isClosable =
+            campaign.type === 'claimable' && campaign.status === 'active'
 
-        return (
-          <article
-            key={campaign.activity_key}
-            className='space-y-3 rounded-lg border p-3'
-          >
-            <div className='flex flex-wrap items-start justify-between gap-3'>
-              <div className='min-w-0 space-y-1'>
-                <div className='flex flex-wrap items-center gap-2'>
-                  <h5 className='min-w-0 text-sm font-medium break-words'>
-                    {campaign.title}
-                  </h5>
-                  <Badge variant={statusVariant(campaign.status)}>
-                    {t(statusLabel(campaign.status))}
-                  </Badge>
-                  <Badge variant='outline'>
-                    {campaign.type === 'claimable'
-                      ? t('Claimable')
-                      : t('Immediate credit')}
-                  </Badge>
-                  <Badge variant='outline'>
-                    {campaign.audience_type === 'selected'
-                      ? t('Selected users')
-                      : t('All users')}
-                  </Badge>
+          return (
+            <article key={campaign.activity_key} className='space-y-4 p-4'>
+              <div className='flex flex-wrap items-start justify-between gap-3'>
+                <div className='min-w-0 space-y-1'>
+                  <div className='flex flex-wrap items-center gap-2'>
+                    <h5 className='min-w-0 text-sm font-medium break-words'>
+                      {campaign.title}
+                    </h5>
+                    <Badge variant={statusVariant(campaign.status)}>
+                      {t(statusLabel(campaign.status))}
+                    </Badge>
+                    <Badge variant='outline'>
+                      {campaign.type === 'claimable'
+                        ? t('Claimable')
+                        : t('Immediate credit')}
+                    </Badge>
+                    <Badge variant='outline'>
+                      {campaign.audience_type === 'selected'
+                        ? t('Selected users')
+                        : t('All users')}
+                    </Badge>
+                  </div>
+                  {campaign.description ? (
+                    <p className='text-muted-foreground max-w-3xl text-sm whitespace-pre-wrap'>
+                      {campaign.description}
+                    </p>
+                  ) : null}
                 </div>
-                {campaign.description ? (
-                  <p className='text-muted-foreground max-w-3xl text-sm whitespace-pre-wrap'>
-                    {campaign.description}
+                <div className='flex shrink-0 flex-wrap items-center gap-2'>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='sm'
+                    onClick={() => props.onViewGrants(campaign)}
+                  >
+                    <List aria-hidden='true' />
+                    {campaign.type === 'immediate'
+                      ? t('View credit details')
+                      : t('View claim details')}
+                  </Button>
+                  {isClosable ? (
+                    <Button
+                      type='button'
+                      variant='outline'
+                      size='sm'
+                      disabled={isClosing}
+                      onClick={() => props.onClose(campaign)}
+                    >
+                      {isClosing ? <Loader2 className='animate-spin' /> : <X />}
+                      {t('Close activity')}
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+
+              <dl className='grid gap-x-5 gap-y-3 text-xs sm:grid-cols-2 lg:grid-cols-5'>
+                <div>
+                  <dt className='text-muted-foreground'>{t('Amount')}</dt>
+                  <dd className='mt-0.5 font-mono font-medium'>
+                    ${campaign.amount_usd}
+                  </dd>
+                </div>
+                <div>
+                  <dt className='text-muted-foreground'>
+                    {t('Activity audience')}
+                  </dt>
+                  <dd className='mt-0.5 tabular-nums'>
+                    {t('{{count}} users', { count: campaign.recipient_count })}
+                  </dd>
+                </div>
+                <div>
+                  <dt className='text-muted-foreground'>
+                    {campaign.type === 'immediate'
+                      ? t('Credited users')
+                      : t('Claimed users')}
+                  </dt>
+                  <dd className='mt-0.5 tabular-nums'>
+                    {t('{{count}} users', {
+                      count: campaign.granted_count ?? 0,
+                    })}
+                  </dd>
+                </div>
+                <div>
+                  <dt className='text-muted-foreground'>
+                    {campaign.type === 'claimable'
+                      ? t('Claim deadline')
+                      : t('Created')}
+                  </dt>
+                  <dd className='mt-0.5 tabular-nums'>
+                    {formatTimestampToDate(
+                      campaign.type === 'claimable'
+                        ? campaign.ends_at
+                        : campaign.created_at
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt className='text-muted-foreground'>
+                    {t('Quota per user')}
+                  </dt>
+                  <dd className='mt-0.5 font-mono tabular-nums'>
+                    {campaign.quota.toLocaleString()}
+                  </dd>
+                  <p className='text-muted-foreground mt-1'>
+                    {t('Fixed when published; no account balance is frozen.')}
                   </p>
-                ) : null}
-              </div>
-              {isClosable ? (
-                <Button
-                  type='button'
-                  variant='outline'
-                  size='sm'
-                  disabled={isClosing}
-                  onClick={() => props.onClose(campaign)}
-                >
-                  {isClosing ? <Loader2 className='animate-spin' /> : <X />}
-                  {t('Close activity')}
-                </Button>
+                </div>
+              </dl>
+
+              {campaign.type === 'immediate' ? (
+                <ImmediateCampaignProgress campaign={campaign} task={task} />
               ) : null}
-            </div>
-
-            <dl className='grid gap-x-5 gap-y-2 text-xs sm:grid-cols-2 lg:grid-cols-4'>
-              <div>
-                <dt className='text-muted-foreground'>{t('Amount')}</dt>
-                <dd className='mt-0.5 font-mono font-medium'>
-                  ${campaign.amount_usd}
-                </dd>
-              </div>
-              <div>
-                <dt className='text-muted-foreground'>{t('Recipients')}</dt>
-                <dd className='mt-0.5 tabular-nums'>
-                  {t('{{count}} users', { count: campaign.recipient_count })}
-                </dd>
-              </div>
-              <div>
-                <dt className='text-muted-foreground'>
-                  {campaign.type === 'claimable'
-                    ? t('Claim deadline')
-                    : t('Created')}
-                </dt>
-                <dd className='mt-0.5 tabular-nums'>
-                  {formatTimestampToDate(
-                    campaign.type === 'claimable'
-                      ? campaign.ends_at
-                      : campaign.created_at
-                  )}
-                </dd>
-              </div>
-              <div>
-                <dt className='text-muted-foreground'>{t('Frozen quota')}</dt>
-                <dd className='mt-0.5 font-mono tabular-nums'>
-                  {campaign.quota.toLocaleString()}
-                </dd>
-              </div>
-            </dl>
-
-            {campaign.type === 'immediate' ? (
-              <ImmediateCampaignProgress campaign={campaign} task={task} />
-            ) : null}
-            {campaign.failure_reason ? (
-              <p className='text-destructive text-xs'>
-                {campaign.failure_reason}
-              </p>
-            ) : null}
-          </article>
-        )
-      })}
+              {campaign.failure_reason ? (
+                <p className='text-destructive text-xs'>
+                  {campaign.failure_reason}
+                </p>
+              ) : null}
+            </article>
+          )
+        })}
+      </div>
     </div>
   )
 }

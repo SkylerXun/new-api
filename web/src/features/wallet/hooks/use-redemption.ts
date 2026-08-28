@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -20,6 +21,7 @@ import i18next from 'i18next'
 import { useState, useCallback } from 'react'
 import { toast } from 'sonner'
 
+import { activityAttentionQueryKey } from '@/features/activity-center/api'
 import { getSelf } from '@/lib/api'
 import { formatQuota } from '@/lib/format'
 
@@ -31,37 +33,44 @@ import { redeemTopupCode } from '../api'
 
 export function useRedemption() {
   const [redeeming, setRedeeming] = useState(false)
+  const queryClient = useQueryClient()
 
-  const redeemCode = useCallback(async (code: string): Promise<boolean> => {
-    if (!code || code.trim() === '') {
-      toast.error(i18next.t('Please enter a redemption code'))
-      return false
-    }
-
-    try {
-      setRedeeming(true)
-      const response = await redeemTopupCode({ key: code })
-
-      if (response.success && response.data) {
-        const quotaAdded = response.data
-        toast.success(
-          i18next.t('Redemption successful! Added: {{quota}}', {
-            quota: formatQuota(quotaAdded),
-          })
-        )
-        await getSelf()
-        return true
+  const redeemCode = useCallback(
+    async (code: string): Promise<boolean> => {
+      if (!code || code.trim() === '') {
+        toast.error(i18next.t('Please enter a redemption code'))
+        return false
       }
 
-      toast.error(response.message || i18next.t('Redemption failed'))
-      return false
-    } catch (_error) {
-      toast.error(i18next.t('Redemption failed'))
-      return false
-    } finally {
-      setRedeeming(false)
-    }
-  }, [])
+      try {
+        setRedeeming(true)
+        const response = await redeemTopupCode({ key: code })
+
+        if (response.success && response.data) {
+          const quotaAdded = response.data
+          toast.success(
+            i18next.t('Redemption successful! Added: {{quota}}', {
+              quota: formatQuota(quotaAdded),
+            })
+          )
+          await getSelf()
+          await queryClient.invalidateQueries({
+            queryKey: activityAttentionQueryKey,
+          })
+          return true
+        }
+
+        toast.error(response.message || i18next.t('Redemption failed'))
+        return false
+      } catch {
+        toast.error(i18next.t('Redemption failed'))
+        return false
+      } finally {
+        setRedeeming(false)
+      }
+    },
+    [queryClient]
+  )
 
   return {
     redeeming,

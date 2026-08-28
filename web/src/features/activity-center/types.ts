@@ -68,3 +68,11 @@ export type ClaimActivityResponse = {
     reward_quota: number
   }
 }
+
+export type ActivityAttentionResponse = {
+  success: boolean
+  message: string
+  data?: {
+    has_pending: boolean
+  }
+}

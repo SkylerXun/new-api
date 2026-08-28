@@ -59,6 +59,10 @@ import type {
 import { formatQuota } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
+import {
+  formatSubscriptionDiscount,
+  subscriptionDiscountClassName,
+} from '../lib/subscription-discount'
 import { isSubscriptionPurchaseBlocked } from '../lib/subscription-purchase'
 import type { PaymentMethod, TopupInfo } from '../types'
 
@@ -503,8 +507,10 @@ export function SubscriptionPlansCard({
                               render={<span className='cursor-help' />}
                             >
                               {formatQuota(usedAmount)}/
-                              {formatQuota(totalAmount)} · {t('Remaining')}{' '}
-                              {formatQuota(remainAmount)}
+                              <strong className='font-bold'>
+                                {formatQuota(totalAmount)}
+                              </strong>{' '}
+                              · {t('Remaining')} {formatQuota(remainAmount)}
                             </TooltipTrigger>
                             <TooltipContent>
                               {t('Raw Quota')}: {usedAmount}/{totalAmount} ·{' '}
@@ -545,8 +551,7 @@ export function SubscriptionPlansCard({
               if (!plan) return null
               const totalAmount = Number(plan.total_amount || 0)
               const price = Number(plan.price_amount || 0).toFixed(2)
-              const priceSymbol =
-                topupInfo?.online_payment_provider === 'hupijiao' ? '¥' : '$'
+              const priceSymbol = '¥'
               const hupijiaoDiscountRate = Number(
                 plan.hupijiao_discount_rate || 1
               )
@@ -559,18 +564,31 @@ export function SubscriptionPlansCard({
               const reached = limit > 0 && count >= limit
 
               const benefits = [
-                `${t('Validity Period')}: ${formatDuration(plan, t)}`,
+                {
+                  label: `${t('Validity Period')}: ${formatDuration(plan, t)}`,
+                },
                 formatResetPeriod(plan, t) !== t('No Reset')
-                  ? `${t('Quota Reset')}: ${formatResetPeriod(plan, t)}`
+                  ? {
+                      label: `${t('Quota Reset')}: ${formatResetPeriod(plan, t)}`,
+                    }
                   : null,
-                totalAmount > 0
-                  ? `${t('Total Quota')}: ${formatQuota(totalAmount)}`
-                  : `${t('Total Quota')}: ${t('Unlimited')}`,
-                limit > 0 ? `${t('Purchase Limit')}: ${limit}` : null,
+                {
+                  label: t('Total Quota'),
+                  value:
+                    totalAmount > 0 ? formatQuota(totalAmount) : t('Unlimited'),
+                  emphasizeValue: true,
+                },
+                limit > 0
+                  ? { label: `${t('Purchase Limit')}: ${limit}` }
+                  : null,
                 plan.upgrade_group
-                  ? `${t('Upgrade Group')}: ${plan.upgrade_group}`
+                  ? { label: `${t('Upgrade Group')}: ${plan.upgrade_group}` }
                   : null,
-              ].filter(Boolean) as string[]
+              ].filter(Boolean) as {
+                label: string
+                value?: string
+                emphasizeValue?: boolean
+              }[]
 
               let purchaseAction = (
                 <Button
@@ -656,24 +674,41 @@ export function SubscriptionPlansCard({
                       </span>
                     </div>
                     {priceSymbol === '¥' && hupijiaoDiscountRate < 1 && (
-                      <p className='text-muted-foreground -mt-1 text-xs'>
-                        {t('Discount rate')}：
-                        {(hupijiaoDiscountRate * 10).toFixed(1)}
-                        {t('折')} · {t('Save')} ¥
-                        {(
-                          Number(plan.price_amount || 0) - Number(hupijiaoPrice)
-                        ).toFixed(2)}
+                      <p className={subscriptionDiscountClassName}>
+                        {formatSubscriptionDiscount(
+                          hupijiaoDiscountRate,
+                          Number(plan.price_amount || 0) -
+                            Number(hupijiaoPrice),
+                          t
+                        )}
                       </p>
                     )}
 
                     <div className='flex-1 space-y-1.5 pb-3'>
-                      {benefits.map((label) => (
+                      {benefits.map((benefit) => (
                         <div
-                          key={label}
+                          key={`${benefit.label}-${benefit.value || ''}`}
                           className='text-muted-foreground flex items-center gap-2 text-xs'
                         >
                           <Check className='text-primary h-3 w-3 shrink-0' />
-                          <span>{label}</span>
+                          <span>
+                            {benefit.value ? (
+                              <>
+                                {benefit.label}:{' '}
+                                <strong
+                                  className={
+                                    benefit.emphasizeValue
+                                      ? 'font-bold'
+                                      : undefined
+                                  }
+                                >
+                                  {benefit.value}
+                                </strong>
+                              </>
+                            ) : (
+                              benefit.label
+                            )}
+                          </span>
                         </div>
                       ))}
                     </div>

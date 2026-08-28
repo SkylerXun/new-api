@@ -20,6 +20,7 @@ import { api } from '@/lib/api'
 
 import type {
   ActivityCampaign,
+  ActivityCampaignGrantPage,
   ActivityCampaignListResponse,
   ActivityCampaignResponse,
   AllUsersActivityGrantTask,
@@ -162,6 +163,24 @@ export async function closeActivityCampaign(
   }>(`/api/activity/admin/campaigns/${encodeURIComponent(activityKey)}/close`)
   if (!res.data.success || !res.data.data) {
     throw new Error(res.data.message || 'Failed to close activity campaign')
+  }
+  return res.data.data
+}
+
+export async function getActivityCampaignGrants(
+  activityKey: string,
+  cursor?: string
+): Promise<ActivityCampaignGrantPage> {
+  const res = await api.get<{
+    success: boolean
+    message: string
+    data?: ActivityCampaignGrantPage
+  }>(
+    `/api/activity/admin/campaigns/${encodeURIComponent(activityKey)}/grants`,
+    { params: { limit: 50, ...(cursor ? { cursor } : {}) } }
+  )
+  if (!res.data.success || !res.data.data) {
+    throw new Error(res.data.message || 'Failed to load activity recipients')
   }
   return res.data.data
 }

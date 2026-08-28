@@ -33,6 +33,19 @@ func GetAllLogs(c *gin.Context) {
 	return
 }
 
+func GetLogFilterOptions(c *gin.Context) {
+	usernames, channels, err := model.GetLogFilterOptions()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	common.ApiSuccess(c, gin.H{
+		"users":    usernames,
+		"channels": channels,
+	})
+}
+
 func GetUserLogs(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	userId := c.GetInt("id")

@@ -117,6 +117,16 @@ function NavBadge({ children }: { children: ReactNode }) {
   return <Badge className='shrink-0 px-1 py-0 text-xs'>{children}</Badge>
 }
 
+function NavAttentionDot(props: { label?: string }) {
+  return (
+    <span
+      role='status'
+      aria-label={props.label}
+      className='bg-destructive ring-sidebar absolute top-1.5 right-1.5 size-2 rounded-full ring-2'
+    />
+  )
+}
+
 /**
  * Sidebar menu link item
  */
@@ -138,6 +148,9 @@ function SidebarMenuLink({ item, href }: { item: NavLink; href: string }) {
         {item.icon && <item.icon className='shrink-0' />}
         <span className='min-w-0 flex-1 truncate'>{item.title}</span>
         {item.badge && <NavBadge>{item.badge}</NavBadge>}
+        {item.attention ? (
+          <NavAttentionDot label={item.attentionLabel} />
+        ) : null}
       </SidebarMenuButton>
     </SidebarMenuItem>
   )
@@ -181,6 +194,9 @@ function SidebarMenuCollapsible({
         {item.icon && <item.icon className='shrink-0' />}
         <span className='min-w-0 flex-1 truncate'>{item.title}</span>
         {item.badge && <NavBadge>{item.badge}</NavBadge>}
+        {item.attention ? (
+          <NavAttentionDot label={item.attentionLabel} />
+        ) : null}
         <ChevronRight className='ms-auto size-4 shrink-0 transition-transform duration-200 group-data-[panel-open]/collapsible-trigger:rotate-90' />
       </CollapsibleTrigger>
       <CollapsibleContent className='CollapsibleContent'>
@@ -234,6 +250,9 @@ function SidebarMenuCollapsedDropdown({
           {item.icon && <item.icon className='shrink-0' />}
           <span className='min-w-0 flex-1 truncate'>{item.title}</span>
           {item.badge && <NavBadge>{item.badge}</NavBadge>}
+          {item.attention ? (
+            <NavAttentionDot label={item.attentionLabel} />
+          ) : null}
           <ChevronRight className='ms-auto size-4 shrink-0 transition-transform duration-200 group-data-[popup-open]/dropdown-trigger:rotate-90' />
         </DropdownMenuTrigger>
         <DropdownMenuContent side='right' align='start' sideOffset={4}>

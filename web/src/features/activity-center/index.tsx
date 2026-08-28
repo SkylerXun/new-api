@@ -36,11 +36,14 @@ import { getSelf } from '@/lib/api'
 import { formatQuota } from '@/lib/format'
 import { useAuthStore, type AuthUser } from '@/stores/auth-store'
 
-import { claimUserActivity, getUserActivities } from './api'
+import {
+  activityAttentionQueryKey,
+  claimUserActivity,
+  getUserActivities,
+  userActivitiesQueryKey,
+} from './api'
 import { ActivityCard } from './components/activity-card'
 import type { UserActivity } from './types'
-
-const activityQueryKey = ['activities', 'self'] as const
 
 async function refreshCurrentUser() {
   const response = await getSelf()
@@ -59,7 +62,7 @@ export function ActivityCenter() {
   const [view, setView] = useState<'ongoing' | 'participated'>('ongoing')
   const queryClient = useQueryClient()
   const query = useInfiniteQuery({
-    queryKey: [...activityQueryKey, view],
+    queryKey: [...userActivitiesQueryKey, view],
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam }) => {
       const response = await getUserActivities(view, pageParam)
@@ -81,7 +84,8 @@ export function ActivityCenter() {
     },
     onSuccess: async (data) => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: activityQueryKey }),
+        queryClient.invalidateQueries({ queryKey: userActivitiesQueryKey }),
+        queryClient.invalidateQueries({ queryKey: activityAttentionQueryKey }),
         refreshCurrentUser(),
       ])
       toast.success(

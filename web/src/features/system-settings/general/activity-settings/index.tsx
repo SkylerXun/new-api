@@ -18,7 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
 
-import { Separator } from '@/components/ui/separator'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 
 import { SettingsSection } from '../../components/settings-section'
 import { ActivityCampaignsForm } from './activity-campaigns-form'
@@ -33,9 +39,18 @@ export function ActivitySettingsSection(props: ActivitySettingsSectionProps) {
   const { t } = useTranslation()
 
   return (
-    <SettingsSection title={t('Activity Settings')}>
-      <ActivitySettingsForm defaultValues={props.defaultValues} />
-      <Separator />
+    <SettingsSection title={t('Activity Settings')} className='gap-4'>
+      <Card data-card-hover='false'>
+        <CardHeader className='border-b'>
+          <CardTitle>{t('New-user redemption bonus')}</CardTitle>
+          <CardDescription>
+            {t('Configure the bonus available shortly after registration.')}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ActivitySettingsForm defaultValues={props.defaultValues} />
+        </CardContent>
+      </Card>
       <ActivityCampaignsForm />
     </SettingsSection>
   )

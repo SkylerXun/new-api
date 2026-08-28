@@ -221,8 +221,8 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const hupijiaoPrice = (
     Number(plan.price_amount || 0) * Number(plan.hupijiao_discount_rate || 1)
   ).toFixed(2)
-  const subscriptionSymbol =
-    props.onlinePaymentProvider === 'hupijiao' ? '¥' : '$'
+  // Subscription checkout is settled in RMB by the configured online gateway.
+  const subscriptionSymbol = '¥'
   const quotaPerUnit =
     currency?.quotaPerUnit && currency.quotaPerUnit > 0
       ? currency.quotaPerUnit
@@ -509,7 +509,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
             <span className='text-muted-foreground text-sm'>
               {t('Plan Quota')}
             </span>
-            <span className='flex items-center gap-1 text-sm'>
+            <span className='flex items-center gap-1 text-sm font-bold'>
               <Package className='h-3.5 w-3.5' />
               {totalAmount > 0 ? formatQuota(totalAmount) : t('Unlimited')}
             </span>

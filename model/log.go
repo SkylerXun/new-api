@@ -664,6 +664,30 @@ type Stat struct {
 	Tpm   int `json:"tpm"`
 }
 
+type LogFilterChannelOption struct {
+	Id   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+func GetLogFilterOptions() (usernames []string, channels []LogFilterChannelOption, err error) {
+	usernames = make([]string, 0)
+	channels = make([]LogFilterChannelOption, 0)
+
+	if err = DB.Model(&User{}).Order("username ASC").Pluck("username", &usernames).Error; err != nil {
+		return nil, nil, err
+	}
+
+	err = DB.Model(&Channel{}).
+		Select("id, name").
+		Order("id ASC").
+		Scan(&channels).Error
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return usernames, channels, nil
+}
+
 func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
 	tx := LOG_DB.Table("logs").Select("COALESCE(sum(quota), 0) quota")
 

@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -42,8 +43,13 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import type { SidebarData } from '@/components/layout/types'
+import {
+  activityAttentionQueryKey,
+  getActivityAttention,
+} from '@/features/activity-center/api'
 import { useStatus } from '@/hooks/use-status'
 import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
 
 type Translate = ReturnType<typeof useTranslation>['t']
 
@@ -55,7 +61,8 @@ type Translate = ReturnType<typeof useTranslation>['t']
  */
 export function getSidebarData(
   t: Translate,
-  checkinEnabled: boolean
+  checkinEnabled: boolean,
+  activityAttention = false
 ): SidebarData {
   return {
     navGroups: [
@@ -127,6 +134,8 @@ export function getSidebarData(
             title: t('Activity Center'),
             url: '/activities',
             icon: Gift,
+            attention: activityAttention,
+            attentionLabel: t('Unclaimed activity available'),
           },
           {
             title: t('My Subscriptions'),
@@ -209,5 +218,24 @@ export function getSidebarData(
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
   const { status } = useStatus()
-  return getSidebarData(t, status?.checkin_enabled === true)
+  const userId = useAuthStore((state) => state.auth.user?.id)
+  const attentionQuery = useQuery({
+    queryKey: activityAttentionQueryKey,
+    enabled: Boolean(userId),
+    queryFn: async () => {
+      const response = await getActivityAttention()
+      if (!response.success || !response.data) {
+        throw new Error(response.message || 'Failed to load activity attention')
+      }
+      return response.data
+    },
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+  })
+  return getSidebarData(
+    t,
+    status?.checkin_enabled === true,
+    attentionQuery.data?.has_pending === true
+  )
 }

@@ -25,7 +25,8 @@ import (
 
 type HupijiaoPackage struct {
 	operation_setting.HupijiaoPackageConfig
-	ActualAmount float64 `json:"actual_amount,omitempty"`
+	ActualAmount  float64 `json:"actual_amount,omitempty"`
+	InternalQuota int64   `json:"-"`
 }
 
 func hupijiaoSign(values map[string]string, secret string) string {
@@ -59,6 +60,15 @@ func parseHupijiaoPackages() ([]HupijiaoPackage, error) {
 	for i, config := range configured {
 		packages[i].HupijiaoPackageConfig = config
 		p := &packages[i]
+		// The package quota is configured as a USD balance and converted to the
+		// internal quota unit only when the package is used to create an order.
+		internalQuota, quotaErr := common.QuotaFromDecimalStrict(
+			decimal.NewFromInt(p.Quota).Mul(decimal.NewFromFloat(common.QuotaPerUnit)),
+		)
+		if quotaErr != nil || internalQuota <= 0 {
+			return nil, errors.New("虎皮椒套餐到账金额无效")
+		}
+		p.InternalQuota = int64(internalQuota)
 		p.ActualAmount = decimal.NewFromFloat(p.OriginalAmount).Mul(decimal.NewFromFloat(p.DiscountRate)).Round(2).InexactFloat64()
 		if p.ActualAmount < 0.01 {
 			return nil, errors.New("虎皮椒套餐支付金额无效")
@@ -191,7 +201,7 @@ func RequestHupijiao(c *gin.Context) {
 	tradeNo := fmt.Sprintf("USR%dNO%s%d", id, common.GetRandomString(6), time.Now().Unix())
 	callback := service.GetCallbackAddress()
 	values := map[string]string{"version": "1.1", "appid": appid, "trade_order_id": tradeNo, "total_fee": strconv.FormatFloat(actual, 'f', 2, 64), "title": selected.Title, "time": strconv.FormatInt(time.Now().Unix(), 10), "notify_url": callback + "/api/user/hupijiao/notify", "return_url": callback + "/api/user/hupijiao/return", "callback_url": callback + "/api/user/hupijiao/return", "plugins": "new-api", "attach": selected.ID, "nonce_str": common.GetRandomString(16)}
-	topup := &model.TopUp{UserId: id, Amount: selected.Quota, Money: actual, OriginalAmount: selected.OriginalAmount, DiscountRate: selected.DiscountRate, ActualAmount: actual, PackageID: selected.ID, TradeNo: tradeNo, PaymentMethod: req.PaymentMethod, PaymentProvider: model.PaymentProviderHupijiao, CreateTime: time.Now().Unix(), Status: common.TopUpStatusPending}
+	topup := &model.TopUp{UserId: id, Amount: selected.InternalQuota, Money: actual, OriginalAmount: selected.OriginalAmount, DiscountRate: selected.DiscountRate, ActualAmount: actual, PackageID: selected.ID, TradeNo: tradeNo, PaymentMethod: req.PaymentMethod, PaymentProvider: model.PaymentProviderHupijiao, CreateTime: time.Now().Unix(), Status: common.TopUpStatusPending}
 	if err := topup.Insert(); err != nil {
 		common.ApiErrorMsg(c, "创建订单失败")
 		return

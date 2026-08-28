@@ -172,6 +172,7 @@ export type ActivityCampaign = {
   ends_at: number
   recipient_max_user_id: number
   recipient_count: number
+  granted_count: number
   task_id?: string
   failure_reason?: string
   created_by: number
@@ -179,6 +180,20 @@ export type ActivityCampaign = {
   closed_at?: number
   created_at: number
   updated_at: number
+}
+
+export type ActivityCampaignGrantDetail = {
+  id: number
+  user_id: number
+  username: string
+  display_name: string
+  quota: number
+  granted_at: number
+}
+
+export type ActivityCampaignGrantPage = {
+  items: ActivityCampaignGrantDetail[]
+  next_cursor?: string
 }
 
 export type CreateActivityCampaignRequest = {

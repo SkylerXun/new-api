@@ -98,6 +98,7 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.POST("/sessions/revoke-others", middleware.DisableCache(), controller.RevokeOtherLoginSessions)
 				selfRoute.GET("/self/groups", controller.GetUserGroups)
 				selfRoute.GET("/activities", controller.GetUserActivities)
+				selfRoute.GET("/activities/attention", controller.GetUserActivityAttention)
 				selfRoute.POST("/activities/:key/claim", middleware.CriticalRateLimit(), controller.ClaimUserActivity)
 				selfRoute.GET("/self", controller.GetSelf)
 				selfRoute.GET("/monthly-billing", controller.GetMonthlyBillingProgress)
@@ -172,6 +173,7 @@ func SetApiRouter(router *gin.Engine) {
 		activityAdminRoute.Use(middleware.RootAuth())
 		{
 			activityAdminRoute.GET("/campaigns", controller.ListActivityCampaigns)
+			activityAdminRoute.GET("/campaigns/:key/grants", controller.ListActivityCampaignGrants)
 			activityAdminRoute.POST("/campaigns", middleware.CriticalRateLimit(), controller.CreateActivityCampaign)
 			activityAdminRoute.POST("/campaigns/:key/close", middleware.CriticalRateLimit(), controller.CloseActivityCampaign)
 			activityAdminRoute.POST("/grant-all", middleware.CriticalRateLimit(), controller.GrantAllUsersActivityQuota)
@@ -302,6 +304,7 @@ func SetApiRouter(router *gin.Engine) {
 		}
 		logRoute := apiRouter.Group("/log")
 		logRoute.GET("/", middleware.AdminAuth(), controller.GetAllLogs)
+		logRoute.GET("/filter_options", middleware.AdminAuth(), controller.GetLogFilterOptions)
 		logRoute.GET("/stat", middleware.AdminAuth(), controller.GetLogsStat)
 		logRoute.GET("/self/stat", middleware.UserAuth(), controller.GetLogsSelfStat)
 		logRoute.GET("/channel_affinity_usage_cache", middleware.AdminAuth(), controller.GetChannelAffinityUsageCacheStats)

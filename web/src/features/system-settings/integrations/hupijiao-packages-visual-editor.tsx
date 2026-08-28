@@ -45,7 +45,7 @@ const emptyPackage = (): HupijiaoPackage => ({
   id: `package-${Date.now()}`,
   title: '',
   original_amount: 10,
-  quota: 1000,
+  quota: 10,
   discount_rate: 1,
   enabled: true,
 })
@@ -79,8 +79,9 @@ export function HupijiaoPackagesVisualEditor({
       !newPackage.title.trim() ||
       newPackage.original_amount <= 0 ||
       newPackage.quota <= 0
-    )
+    ) {
       return
+    }
     update([...packages, { ...newPackage, title: newPackage.title.trim() }])
     setNewPackage(emptyPackage())
   }
@@ -95,7 +96,7 @@ export function HupijiaoPackagesVisualEditor({
       {packages.length > 0 && (
         <div className='space-y-3'>
           {packages.map((pkg, index) => (
-            <div key={`${pkg.id}-${index}`} className='rounded-md border p-4'>
+            <div key={pkg.id} className='rounded-md border p-4'>
               <div className='grid gap-3 md:grid-cols-6'>
                 <div className='md:col-span-2'>
                   <Label>{t('Package name')}</Label>
@@ -126,7 +127,7 @@ export function HupijiaoPackagesVisualEditor({
                   />
                 </div>
                 <div>
-                  <Label>{t('Credited quota')}</Label>
+                  <Label>{t('Credited balance (USD)')}</Label>
                   <Input
                     type='number'
                     min='1'
@@ -221,7 +222,7 @@ export function HupijiaoPackagesVisualEditor({
             />
           </div>
           <div>
-            <Label>{t('Credited quota')}</Label>
+            <Label>{t('Credited balance (USD)')}</Label>
             <Input
               type='number'
               min='1'

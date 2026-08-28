@@ -19,7 +19,14 @@ For commercial licensing, please contact support@quantumnous.com
 
 import { api } from '@/lib/api'
 
-import type { ActivityCenterResponse, ClaimActivityResponse } from './types'
+import type {
+  ActivityAttentionResponse,
+  ActivityCenterResponse,
+  ClaimActivityResponse,
+} from './types'
+
+export const userActivitiesQueryKey = ['activities', 'self'] as const
+export const activityAttentionQueryKey = ['activities', 'attention'] as const
 
 export async function getUserActivities(
   view: 'ongoing' | 'participated' = 'ongoing',
@@ -37,5 +44,10 @@ export async function claimUserActivity(
   const response = await api.post(
     `/api/user/activities/${encodeURIComponent(activityKey)}/claim`
   )
+  return response.data
+}
+
+export async function getActivityAttention(): Promise<ActivityAttentionResponse> {
+  const response = await api.get('/api/user/activities/attention')
   return response.data
 }

@@ -285,3 +285,90 @@ func TestListActivityCampaignsPageUsesLastCampaignIDAsCursor(t *testing.T) {
 	assert.Equal(t, "campaign-page-one", secondPage[0].ActivityKey)
 	assert.Zero(t, nextCursor)
 }
+
+func TestActivityCampaignGrantDetailsAndCountsUseOnlyCampaignLedgerSources(t *testing.T) {
+	setupActivityGrantTest(t)
+	first := createActivityGrantTestUser(t, "details-first", common.UserStatusEnabled, 0)
+	second := createActivityGrantTestUser(t, "details-second", common.UserStatusEnabled, 0)
+	now := common.GetTimestamp()
+	campaign := &ActivityCampaign{
+		ActivityKey: "campaign-details", Type: ActivityCampaignTypeClaimable,
+		Title: "Campaign details", AmountUSD: "0.01", Quota: 100,
+		StartsAt: now - 10, EndsAt: now + 3600, CreatedBy: 1,
+	}
+	require.NoError(t, CreateActivityCampaign(context.Background(), campaign))
+	require.NoError(t, DB.Create(&ActivityGrant{
+		ActivityKey: campaign.ActivityKey, UserId: first.Id, SourceType: ActivityGrantSourceCampaignClaim,
+		SourceRef: ActivityGrantSourceRefClaim, Quota: 100, CreatedAt: now - 2,
+	}).Error)
+	require.NoError(t, DB.Create(&ActivityGrant{
+		ActivityKey: campaign.ActivityKey, UserId: second.Id, SourceType: ActivityGrantSourceCampaignClaim,
+		SourceRef: ActivityGrantSourceRefClaim, Quota: 100, CreatedAt: now - 1,
+	}).Error)
+	require.NoError(t, DB.Create(&ActivityGrant{
+		ActivityKey: campaign.ActivityKey, UserId: second.Id, SourceType: ActivityGrantSourceRedeem,
+		SourceRef: "unrelated-redemption", Quota: 50, CreatedAt: now,
+	}).Error)
+	require.NoError(t, DB.Create(&ActivityGrant{
+		ActivityKey: campaign.ActivityKey, UserId: first.Id, SourceType: ActivityGrantSourceCampaignClaim,
+		SourceRef: "unrelated-claim-source", Quota: 50, CreatedAt: now,
+	}).Error)
+
+	campaigns, _, err := ListActivityCampaignsPage(context.Background(), 0, 50)
+	require.NoError(t, err)
+	require.Len(t, campaigns, 1)
+	assert.Equal(t, int64(2), campaigns[0].GrantedCount)
+
+	firstPage, nextCursor, err := ListActivityCampaignGrantDetailsPage(context.Background(), campaign, 0, 1)
+	require.NoError(t, err)
+	require.Len(t, firstPage, 1)
+	assert.Equal(t, second.Id, firstPage[0].UserId)
+	assert.Equal(t, second.Username, firstPage[0].Username)
+	assert.Equal(t, now-1, firstPage[0].GrantedAt)
+	assert.NotZero(t, nextCursor)
+
+	secondPage, nextCursor, err := ListActivityCampaignGrantDetailsPage(context.Background(), campaign, nextCursor, 1)
+	require.NoError(t, err)
+	require.Len(t, secondPage, 1)
+	assert.Equal(t, first.Id, secondPage[0].UserId)
+	assert.Zero(t, nextCursor)
+}
+
+func TestHasUnclaimedActivityCampaignForUserHonorsAudienceStatusAndClaims(t *testing.T) {
+	setupActivityGrantTest(t)
+	selected := createActivityGrantTestUser(t, "attention-selected", common.UserStatusEnabled, 0)
+	other := createActivityGrantTestUser(t, "attention-other", common.UserStatusEnabled, 0)
+	now := common.GetTimestamp()
+	campaign := &ActivityCampaign{
+		ActivityKey: "attention-selected-campaign", Type: ActivityCampaignTypeClaimable,
+		AudienceType: ActivityCampaignAudienceSelected, Title: "Selected attention",
+		AmountUSD: "0.01", Quota: 100, StartsAt: now - 10, EndsAt: now + 3600, CreatedBy: 1,
+	}
+	require.NoError(t, CreateActivityCampaignWithRecipients(context.Background(), campaign, []int{selected.Id}))
+
+	hasPending, err := HasUnclaimedActivityCampaignForUser(context.Background(), selected.Id, now)
+	require.NoError(t, err)
+	assert.True(t, hasPending)
+	hasPending, err = HasUnclaimedActivityCampaignForUser(context.Background(), other.Id, now)
+	require.NoError(t, err)
+	assert.False(t, hasPending)
+
+	_, granted, err := ClaimActivityCampaignQuota(context.Background(), selected.Id, campaign.ActivityKey)
+	require.NoError(t, err)
+	require.True(t, granted)
+	hasPending, err = HasUnclaimedActivityCampaignForUser(context.Background(), selected.Id, now)
+	require.NoError(t, err)
+	assert.False(t, hasPending)
+
+	for _, status := range []string{ActivityCampaignStatusClosed, ActivityCampaignStatusCompleted} {
+		allCampaign := &ActivityCampaign{
+			ActivityKey: "attention-" + status, Type: ActivityCampaignTypeClaimable, Status: status,
+			AudienceType: ActivityCampaignAudienceAll, Title: status, AmountUSD: "0.01", Quota: 100,
+			StartsAt: now - 10, EndsAt: now + 3600, RecipientMaxUserID: other.Id, RecipientCount: 2, CreatedBy: 1,
+		}
+		require.NoError(t, DB.Create(allCampaign).Error)
+	}
+	hasPending, err = HasUnclaimedActivityCampaignForUser(context.Background(), other.Id, now)
+	require.NoError(t, err)
+	assert.False(t, hasPending)
+}

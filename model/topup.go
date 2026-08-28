@@ -122,7 +122,7 @@ func RechargeHupijiao(tradeNo string, actualPaymentMethod string, callerIp strin
 		return true, nil
 	}
 	syncCreditUserQuotaCache(int(topUp.UserId), int(quotaToAdd), "hupijiao topup")
-	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用%s充值成功，充值额度：%d，支付金额：%.2f", paymentMethodDisplayName(topUp.PaymentMethod), quotaToAdd, topUp.Money), callerIp, topUp.PaymentMethod, PaymentProviderHupijiao)
+	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用%s充值成功，充值余额：$%.2f，支付金额：¥%.2f", paymentMethodDisplayName(topUp.PaymentMethod), float64(quotaToAdd)/common.QuotaPerUnit, topUp.Money), callerIp, topUp.PaymentMethod, PaymentProviderHupijiao)
 	return false, nil
 }
 

@@ -241,3 +241,68 @@ func TestCreateActivityCampaignAcceptsSelectedRecipients(t *testing.T) {
 	assert.Equal(t, model.ActivityCampaignAudienceSelected, payload.Data.Campaign.AudienceType)
 	assert.Equal(t, int64(1), payload.Data.Campaign.RecipientCount)
 }
+
+func TestGetUserActivityAttentionClearsAfterNewUserParticipation(t *testing.T) {
+	user := setupActivityControllerTest(t)
+
+	requestAttention := func() bool {
+		recorder := httptest.NewRecorder()
+		requestContext, _ := gin.CreateTestContext(recorder)
+		requestContext.Request = httptest.NewRequest(http.MethodGet, "/api/user/activities/attention", nil)
+		requestContext.Set("id", user.Id)
+		GetUserActivityAttention(requestContext)
+		require.Equal(t, http.StatusOK, recorder.Code)
+		var payload struct {
+			Success bool `json:"success"`
+			Data    struct {
+				HasPending bool `json:"has_pending"`
+			} `json:"data"`
+		}
+		require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+		require.True(t, payload.Success)
+		return payload.Data.HasPending
+	}
+
+	assert.True(t, requestAttention())
+	require.NoError(t, model.DB.Create(&model.ActivityGrant{
+		ActivityKey: model.ActivityKeyNewUserRedeemBonus, UserId: user.Id,
+		SourceType: model.ActivityGrantSourceRedeem, SourceRef: "attention-redemption", Quota: 100,
+	}).Error)
+	assert.False(t, requestAttention())
+}
+
+func TestListActivityCampaignGrantsReturnsPagedUserDetails(t *testing.T) {
+	user := setupActivityControllerTest(t)
+	now := common.GetTimestamp()
+	campaign := &model.ActivityCampaign{
+		ActivityKey: "controller-grant-details", Type: model.ActivityCampaignTypeClaimable,
+		Title: "Grant details", AmountUSD: "0.01", Quota: 100,
+		StartsAt: now - 10, EndsAt: now + 3600, CreatedBy: 1,
+	}
+	require.NoError(t, model.CreateActivityCampaign(context.Background(), campaign))
+	require.NoError(t, model.DB.Create(&model.ActivityGrant{
+		ActivityKey: campaign.ActivityKey, UserId: user.Id,
+		SourceType: model.ActivityGrantSourceCampaignClaim, SourceRef: model.ActivityGrantSourceRefClaim,
+		Quota: 100, CreatedAt: now,
+	}).Error)
+
+	recorder := httptest.NewRecorder()
+	requestContext, _ := gin.CreateTestContext(recorder)
+	requestContext.Request = httptest.NewRequest(http.MethodGet, "/api/activity/admin/campaigns/"+campaign.ActivityKey+"/grants?limit=1", nil)
+	requestContext.Params = gin.Params{{Key: "key", Value: campaign.ActivityKey}}
+	ListActivityCampaignGrants(requestContext)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var payload struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Items []model.ActivityCampaignGrantDetail `json:"items"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.True(t, payload.Success)
+	require.Len(t, payload.Data.Items, 1)
+	assert.Equal(t, user.Id, payload.Data.Items[0].UserId)
+	assert.Equal(t, user.Username, payload.Data.Items[0].Username)
+	assert.Equal(t, now, payload.Data.Items[0].GrantedAt)
+}

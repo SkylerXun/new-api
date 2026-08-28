@@ -386,7 +386,7 @@ export function RechargeFormCard({
               )}
 
               {activeHupijiaoMethod ? (
-                <div className='space-y-3 sm:max-w-sm'>
+                <div className='space-y-3 sm:mx-auto sm:max-w-sm'>
                   {hupijiaoPaymentMethods.length > 1 && (
                     <div className='space-y-2'>
                       <Label className='text-muted-foreground text-xs font-medium'>
@@ -425,7 +425,7 @@ export function RechargeFormCard({
                     type='button'
                     onClick={() => onPaymentMethodSelect(activeHupijiaoMethod)}
                     disabled={!!paymentLoading || selectedPreset === null}
-                    className='h-12 w-full justify-between rounded-md bg-sky-600 px-4 text-white shadow-sm hover:bg-sky-700'
+                    className='mx-auto h-12 w-full justify-center gap-4 rounded-md bg-sky-600 px-5 text-white shadow-sm hover:bg-sky-700 sm:w-auto sm:max-w-[340px] sm:min-w-[260px]'
                   >
                     <span className='flex items-center gap-2 font-semibold'>
                       {paymentLoading === activeHupijiaoMethod.type ? (
@@ -656,12 +656,12 @@ export function RechargeFormCard({
       {redemptionEnabled ? (
         <div className='space-y-2.5 border-t pt-4 sm:space-y-3 sm:pt-6'>
           <div className='flex items-center gap-2'>
-            <IconBadge tone='warning' size='xs'>
+            <IconBadge tone='warning' size='sm'>
               <Gift />
             </IconBadge>
             <Label
               htmlFor='redemption-code'
-              className='text-muted-foreground text-xs font-medium tracking-wider uppercase'
+              className='text-muted-foreground text-sm font-semibold'
             >
               {t('Have a Code?')}
             </Label>
@@ -672,13 +672,13 @@ export function RechargeFormCard({
               value={redemptionCode}
               onChange={(e) => onRedemptionCodeChange(e.target.value)}
               placeholder={t('Enter your redemption code')}
-              className='h-9 min-w-0'
+              className='h-11 min-w-0 text-base'
             />
             <Button
               onClick={onRedeem}
               disabled={redeeming}
               variant='outline'
-              className='h-9 px-4'
+              className='h-11 px-5 text-sm font-semibold'
             >
               {redeeming && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
               {t('Redeem')}

@@ -228,6 +228,41 @@ func GetUserActivities(c *gin.Context) {
 	common.ApiSuccess(c, response)
 }
 
+func GetUserActivityAttention(c *gin.Context) {
+	userId := c.GetInt("id")
+	var user model.User
+	if err := model.DB.Select("id", "created_at").Where("id = ?", userId).First(&user).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	now := common.GetTimestamp()
+	setting := operation_setting.GetActivitySetting()
+	windowDays := setting.NewUserRedeemBonusWindowDays
+	bonusPercent := setting.NewUserRedeemBonusPercent
+	validConfiguration := windowDays >= 1 && windowDays <= 3650 &&
+		!math.IsNaN(bonusPercent) && !math.IsInf(bonusPercent, 0) &&
+		bonusPercent > 0 && bonusPercent <= 1000
+	if setting.NewUserRedeemBonusEnabled && validConfiguration && user.CreatedAt > 0 && now < user.CreatedAt+int64(windowDays)*24*60*60 {
+		rewardQuota, err := model.SumActivityGrantQuotaForUser(c.Request.Context(), userId, model.ActivityKeyNewUserRedeemBonus)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if rewardQuota == 0 {
+			common.ApiSuccess(c, gin.H{"has_pending": true})
+			return
+		}
+	}
+
+	hasPending, err := model.HasUnclaimedActivityCampaignForUser(c.Request.Context(), userId, now)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{"has_pending": hasPending})
+}
+
 func ClaimUserActivity(c *gin.Context) {
 	grant, granted, err := model.ClaimActivityCampaignQuota(c.Request.Context(), c.GetInt("id"), c.Param("key"))
 	if err != nil {
@@ -334,6 +369,38 @@ func ListActivityCampaigns(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, campaigns)
+}
+
+func ListActivityCampaignGrants(c *gin.Context) {
+	cursor := int64(0)
+	if cursorText := strings.TrimSpace(c.Query("cursor")); cursorText != "" {
+		parsedCursor, err := strconv.ParseInt(cursorText, 10, 64)
+		if err != nil || parsedCursor < 1 {
+			common.ApiErrorMsg(c, "activity campaign grant cursor is invalid")
+			return
+		}
+		cursor = parsedCursor
+	}
+	limit, _ := strconv.Atoi(c.Query("limit"))
+	campaign, err := model.GetActivityCampaignByKey(c.Request.Context(), c.Param("key"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if campaign == nil {
+		common.ApiError(c, model.ErrActivityCampaignNotFound)
+		return
+	}
+	details, nextCursor, err := model.ListActivityCampaignGrantDetailsPage(c.Request.Context(), campaign, cursor, limit)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	data := gin.H{"items": details}
+	if nextCursor > 0 {
+		data["next_cursor"] = strconv.FormatInt(nextCursor, 10)
+	}
+	common.ApiSuccess(c, data)
 }
 
 func CreateActivityCampaign(c *gin.Context) {

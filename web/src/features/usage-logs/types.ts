@@ -56,6 +56,14 @@ export interface CommonLogFilters extends CommonFilters {
   upstreamRequestId?: string
 }
 
+export interface LogFilterOptions {
+  users: string[]
+  channels: Array<{
+    id: number
+    name: string
+  }>
+}
+
 /**
  * Drawing logs specific filters
  */

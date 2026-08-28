@@ -35,7 +35,7 @@ type HupijiaoPackageConfig struct {
 	ID             string  `json:"id"`
 	Title          string  `json:"title"`
 	OriginalAmount float64 `json:"original_amount"`
-	Quota          int64   `json:"quota"`
+	Quota          int64   `json:"quota"` // credited USD balance; converted to internal quota at settlement
 	DiscountRate   float64 `json:"discount_rate"`
 	Enabled        bool    `json:"enabled"`
 }

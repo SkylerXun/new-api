@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/stretchr/testify/require"
 )
@@ -49,4 +50,15 @@ func TestParseHupijiaoPackagesRejectsInvalidDiscount(t *testing.T) {
 	t.Cleanup(func() { operation_setting.HupijiaoPackages = original })
 	_, err := parseHupijiaoPackages()
 	require.Error(t, err)
+}
+
+func TestParseHupijiaoPackagesConvertsUsdBalanceToInternalQuota(t *testing.T) {
+	original := operation_setting.HupijiaoPackages
+	operation_setting.HupijiaoPackages = `[{"id":"usd15","title":"15美元余额","original_amount":100,"quota":15,"discount_rate":1,"enabled":true}]`
+	t.Cleanup(func() { operation_setting.HupijiaoPackages = original })
+
+	packages, err := parseHupijiaoPackages()
+	require.NoError(t, err)
+	require.Len(t, packages, 1)
+	require.Equal(t, int64(15*common.QuotaPerUnit), packages[0].InternalQuota)
 }

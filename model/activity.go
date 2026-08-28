@@ -85,6 +85,16 @@ type ActivityCampaign struct {
 	ClosedAt           int64  `json:"closed_at,omitempty" gorm:"bigint;not null;default:0"`
 	CreatedAt          int64  `json:"created_at" gorm:"bigint;not null;index"`
 	UpdatedAt          int64  `json:"updated_at" gorm:"bigint;not null;index"`
+	GrantedCount       int64  `json:"granted_count" gorm:"-"`
+}
+
+type ActivityCampaignGrantDetail struct {
+	Id          int64  `json:"id"`
+	UserId      int    `json:"user_id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name"`
+	Quota       int    `json:"quota"`
+	GrantedAt   int64  `json:"granted_at"`
 }
 
 // ActivityCampaignRecipient freezes the explicit audience of a selected-user
@@ -447,11 +457,100 @@ func ListActivityCampaignsPage(ctx context.Context, cursor int64, limit int) ([]
 	if err := query.Limit(limit + 1).Find(&campaigns).Error; err != nil {
 		return nil, 0, err
 	}
-	if len(campaigns) <= limit {
-		return campaigns, 0, nil
+	nextCursor := int64(0)
+	if len(campaigns) > limit {
+		nextCursor = campaigns[limit-1].Id
+		campaigns = campaigns[:limit]
 	}
-	nextCursor := campaigns[limit-1].Id
-	return campaigns[:limit], nextCursor, nil
+	if err := populateActivityCampaignGrantedCounts(ctx, campaigns); err != nil {
+		return nil, 0, err
+	}
+	return campaigns, nextCursor, nil
+}
+
+func populateActivityCampaignGrantedCounts(ctx context.Context, campaigns []*ActivityCampaign) error {
+	if len(campaigns) == 0 {
+		return nil
+	}
+	type grantCount struct {
+		ActivityKey string
+		SourceType  string
+		SourceRef   string
+		Count       int64
+	}
+	keys := make([]string, 0, len(campaigns))
+	for _, campaign := range campaigns {
+		keys = append(keys, campaign.ActivityKey)
+	}
+	var counts []grantCount
+	err := DB.WithContext(ctx).Model(&ActivityGrant{}).
+		Select("activity_key, source_type, source_ref, COUNT(*) AS count").
+		Where("activity_key IN ?", keys).
+		Where("(source_type = ? AND source_ref = ?) OR (source_type = ? AND source_ref = ?)", ActivityGrantSourceCampaignClaim, ActivityGrantSourceRefClaim, ActivityGrantSourceCampaignImmediate, ActivityGrantSourceRefImmediate).
+		Group("activity_key, source_type, source_ref").
+		Scan(&counts).Error
+	if err != nil {
+		return err
+	}
+	countBySource := make(map[string]int64, len(counts))
+	for _, count := range counts {
+		countBySource[count.ActivityKey+"\x00"+count.SourceType+"\x00"+count.SourceRef] = count.Count
+	}
+	for _, campaign := range campaigns {
+		sourceType, sourceRef := activityCampaignGrantSource(campaign.Type)
+		campaign.GrantedCount = countBySource[campaign.ActivityKey+"\x00"+sourceType+"\x00"+sourceRef]
+	}
+	return nil
+}
+
+func ListActivityCampaignGrantDetailsPage(ctx context.Context, campaign *ActivityCampaign, cursor int64, limit int) ([]ActivityCampaignGrantDetail, int64, error) {
+	if campaign == nil {
+		return nil, 0, errors.New("activity campaign is required")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if cursor < 0 {
+		return nil, 0, errors.New("activity campaign grant cursor is invalid")
+	}
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	sourceType, sourceRef := activityCampaignGrantSource(campaign.Type)
+	if sourceType == "" {
+		return nil, 0, errors.New("activity campaign type is invalid")
+	}
+
+	details := make([]ActivityCampaignGrantDetail, 0, limit+1)
+	query := DB.WithContext(ctx).Table("activity_grants AS grants").
+		Select("grants.id, grants.user_id, COALESCE(users.username, '') AS username, COALESCE(users.display_name, '') AS display_name, grants.quota, grants.created_at AS granted_at").
+		Joins("LEFT JOIN users AS users ON users.id = grants.user_id AND users.deleted_at IS NULL").
+		Where("grants.activity_key = ? AND grants.source_type = ? AND grants.source_ref = ?", campaign.ActivityKey, sourceType, sourceRef).
+		Order("grants.id DESC")
+	if cursor > 0 {
+		query = query.Where("grants.id < ?", cursor)
+	}
+	if err := query.Limit(limit + 1).Scan(&details).Error; err != nil {
+		return nil, 0, err
+	}
+	if len(details) <= limit {
+		return details, 0, nil
+	}
+	nextCursor := details[limit-1].Id
+	return details[:limit], nextCursor, nil
+}
+
+func activityCampaignGrantSource(campaignType string) (string, string) {
+	if campaignType == ActivityCampaignTypeClaimable {
+		return ActivityGrantSourceCampaignClaim, ActivityGrantSourceRefClaim
+	}
+	if campaignType == ActivityCampaignTypeImmediate {
+		return ActivityGrantSourceCampaignImmediate, ActivityGrantSourceRefImmediate
+	}
+	return "", ""
 }
 
 func CloseActivityCampaign(ctx context.Context, activityKey string, closedBy int) (*ActivityCampaign, error) {
@@ -741,6 +840,28 @@ func ListActivityCampaignsForUserPage(ctx context.Context, userId int, cursor in
 		return campaigns, 0, nil
 	}
 	return campaigns[:limit], campaigns[limit-1].Id, nil
+}
+
+func HasUnclaimedActivityCampaignForUser(ctx context.Context, userId int, now int64) (bool, error) {
+	if userId <= 0 {
+		return false, errors.New("activity user is invalid")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	selectedCampaignIds := DB.WithContext(ctx).Model(&ActivityCampaignRecipient{}).
+		Select("campaign_id").Where("user_id = ?", userId)
+	claimedActivityKeys := DB.WithContext(ctx).Model(&ActivityGrant{}).
+		Select("activity_key").
+		Where("user_id = ? AND source_type = ? AND source_ref = ?", userId, ActivityGrantSourceCampaignClaim, ActivityGrantSourceRefClaim)
+	var count int64
+	err := DB.WithContext(ctx).Model(&ActivityCampaign{}).
+		Where("type = ? AND status = ? AND starts_at <= ? AND ends_at > ?", ActivityCampaignTypeClaimable, ActivityCampaignStatusActive, now, now).
+		Where("((audience_type = ? AND id IN (?)) OR ((audience_type = ? OR audience_type = '') AND recipient_max_user_id >= ?))", ActivityCampaignAudienceSelected, selectedCampaignIds, ActivityCampaignAudienceAll, userId).
+		Where("activity_key NOT IN (?)", claimedActivityKeys).
+		Limit(1).
+		Count(&count).Error
+	return count > 0, err
 }
 
 // ListActivityGrantsForUserActivityKeys returns grants keyed by activity key

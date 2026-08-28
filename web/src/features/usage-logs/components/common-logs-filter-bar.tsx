@@ -24,6 +24,7 @@ import { useState, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { ComboboxInput } from '@/components/ui/combobox-input'
 import {
   Select,
   SelectContent,
@@ -42,6 +43,7 @@ import { LOG_TYPE_ALL_VALUE, LOG_TYPE_FILTERS } from '../constants'
 import { buildSearchParams } from '../lib/filter'
 import { getDefaultTimeRange } from '../lib/utils'
 import type { CommonLogFilters } from '../types'
+import { useLogFilterOptions } from '../use-log-filter-options'
 import { CommonLogsStats } from './common-logs-stats'
 import { CompactDateTimeRangePicker } from './compact-date-time-range-picker'
 import {
@@ -118,6 +120,7 @@ export function CommonLogsFilterBar<TData>(
   const searchParams = route.useSearch()
   const { isAdminView: isAdmin } = useLogsViewScope()
   const { sensitiveVisible, setSensitiveVisible } = useUsageLogsContext()
+  const filterOptions = useLogFilterOptions(isAdmin)
   const fetchingLogs = useIsFetching({ queryKey: ['logs'] })
 
   const searchState = useMemo<CommonLogDraft>(() => {
@@ -262,6 +265,28 @@ export function CommonLogsFilterBar<TData>(
   )
   const logTypeLabel =
     logTypeItems.find((type) => type.value === logType)?.label ?? t('All Types')
+  const userOptions = useMemo(
+    () => [
+      { value: '', label: t('All') },
+      ...filterOptions.users.map((username) => ({
+        value: username,
+        label: sensitiveVisible ? username : '••••',
+      })),
+    ],
+    [filterOptions.users, sensitiveVisible, t]
+  )
+  const channelOptions = useMemo(
+    () => [
+      { value: '', label: t('All') },
+      ...filterOptions.channels.map((channel) => ({
+        value: String(channel.id),
+        label: sensitiveVisible
+          ? `${channel.name} (#${channel.id})`
+          : `#${channel.id}`,
+      })),
+    ],
+    [filterOptions.channels, sensitiveVisible, t]
+  )
 
   const statsBar = (
     <div className='flex flex-wrap items-center gap-2'>
@@ -371,22 +396,29 @@ export function CommonLogsFilterBar<TData>(
       </LogsFilterField>
       {isAdmin && (
         <LogsFilterField>
-          <LogsFilterInput
+          <ComboboxInput
             placeholder={t('Username')}
-            type={sensitiveType}
+            emptyText='No users'
+            options={userOptions}
             value={filters.username || ''}
-            onChange={(e) => handleChange('username', e.target.value)}
-            onKeyDown={handleKeyDown}
+            onValueChange={(value) =>
+              handleChange('username', value || undefined)
+            }
+            className='h-8 min-w-0 text-sm leading-5'
           />
         </LogsFilterField>
       )}
       {isAdmin && (
         <LogsFilterField>
-          <LogsFilterInput
-            placeholder={t('Channel ID')}
+          <ComboboxInput
+            placeholder={t('Channel')}
+            emptyText='No channels found'
+            options={channelOptions}
             value={filters.channel || ''}
-            onChange={(e) => handleChange('channel', e.target.value)}
-            onKeyDown={handleKeyDown}
+            onValueChange={(value) =>
+              handleChange('channel', value || undefined)
+            }
+            className='h-8 min-w-0 text-sm leading-5'
           />
         </LogsFilterField>
       )}

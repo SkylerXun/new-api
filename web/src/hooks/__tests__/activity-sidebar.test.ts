@@ -51,3 +51,19 @@ test('activity entry remains available when daily check-in is enabled', () => {
   )
   assert.equal(activityEntries.length, 1)
 })
+
+test('activity entry exposes attention state only when an action is pending', () => {
+  const withoutAttention = getSidebarData(translate, false, false)
+  const withAttention = getSidebarData(translate, false, true)
+  const findActivity = (data: ReturnType<typeof getSidebarData>) =>
+    data.navGroups
+      .find((group) => group.id === 'personal')
+      ?.items.find((item) => 'url' in item && item.url === '/activities')
+
+  assert.equal(findActivity(withoutAttention)?.attention, false)
+  assert.equal(findActivity(withAttention)?.attention, true)
+  assert.equal(
+    findActivity(withAttention)?.attentionLabel,
+    'Unclaimed activity available'
+  )
+})
