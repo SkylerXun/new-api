@@ -120,6 +120,8 @@ export function SubscriptionPlansCard({
   const [allSubscriptions, setAllSubscriptions] = useState<
     UserSubscriptionRecord[]
   >([])
+  const [selectedSubscriptionStatus, setSelectedSubscriptionStatus] =
+    useState<'active' | 'expired'>('active')
   const [billingPreference, setBillingPreference] =
     useState('subscription_first')
   const [loading, setLoading] = useState(true)
@@ -254,6 +256,23 @@ export function SubscriptionPlansCard({
     if (total <= 0) return 0
     return Math.round((used / total) * 100)
   }
+
+  const subscriptionStatus = (sub: UserSubscriptionRecord) => {
+    const endTime = sub?.subscription?.end_time || 0
+    return sub?.subscription?.status === 'active' &&
+      (endTime === 0 || endTime >= Date.now() / 1000)
+      ? 'active'
+      : 'expired'
+  }
+
+  const activeSubscriptionCount = allSubscriptions.filter(
+    (sub) => subscriptionStatus(sub) === 'active'
+  ).length
+  const expiredSubscriptionCount =
+    allSubscriptions.length - activeSubscriptionCount
+  const filteredSubscriptions = allSubscriptions.filter(
+    (sub) => subscriptionStatus(sub) === selectedSubscriptionStatus
+  )
 
   if (loading) {
     return (
@@ -416,56 +435,99 @@ export function SubscriptionPlansCard({
           {hasAny && (
             <>
               <Separator className='my-3' />
+              <div className='flex items-center gap-4 border-b pb-2'>
+                {[
+                  {
+                    key: 'active' as const,
+                    label: t('Active'),
+                    count: activeSubscriptionCount,
+                  },
+                  {
+                    key: 'expired' as const,
+                    label: t('Expired'),
+                    count: expiredSubscriptionCount,
+                  },
+                ].map((tab) => (
+                  <button
+                    key={tab.key}
+                    type='button'
+                    className={cn(
+                      'relative px-1 pb-1 text-xs font-medium transition-colors',
+                      selectedSubscriptionStatus === tab.key
+                        ? 'text-primary'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
+                    onClick={() => setSelectedSubscriptionStatus(tab.key)}
+                  >
+                    {tab.label}{' '}
+                    <span className='text-[11px]'>({tab.count})</span>
+                    {selectedSubscriptionStatus === tab.key && (
+                      <span className='bg-primary absolute inset-x-0 -bottom-2 h-0.5 rounded-full' />
+                    )}
+                  </button>
+                ))}
+              </div>
               <div className='max-h-64 space-y-3 overflow-y-auto pr-1'>
-                {allSubscriptions.map((sub) => {
-                  const subscription = sub.subscription
-                  const totalAmount = Number(subscription?.amount_total || 0)
-                  const usedAmount = Number(subscription?.amount_used || 0)
-                  const remainAmount =
-                    totalAmount > 0 ? Math.max(0, totalAmount - usedAmount) : 0
-                  const planTitle =
-                    planTitleMap.get(subscription?.plan_id) || ''
-                  const remainDays = getRemainingDays(sub)
-                  const usagePercent = getUsagePercent(sub)
-                  const now = Date.now() / 1000
-                  const isExpired = (subscription?.end_time || 0) < now
-                  const isCancelled = subscription?.status === 'cancelled'
-                  const isActive =
-                    subscription?.status === 'active' && !isExpired
-                  const nextResetTime = subscription?.next_reset_time ?? 0
-                  let statusBadge = (
+                {filteredSubscriptions.length === 0 ? (
+                  <p className='text-muted-foreground py-3 text-center text-xs'>
+                    {selectedSubscriptionStatus === 'active'
+                      ? t('No Active')
+                      : t('No expired subscriptions')}
+                  </p>
+                ) : (
+                  filteredSubscriptions.map((sub) => {
+                    const subscription = sub.subscription
+                    const totalAmount = Number(subscription?.amount_total || 0)
+                    const usedAmount = Number(subscription?.amount_used || 0)
+                    const remainAmount =
+                      totalAmount > 0
+                        ? Math.max(0, totalAmount - usedAmount)
+                        : 0
+                    const planTitle =
+                      planTitleMap.get(subscription?.plan_id) || ''
+                    const remainDays = getRemainingDays(sub)
+                    const usagePercent = getUsagePercent(sub)
+                    const now = Date.now() / 1000
+                    const isExpired =
+                      (subscription?.end_time || 0) > 0 &&
+                      (subscription?.end_time || 0) < now
+                    const isCancelled = subscription?.status === 'cancelled'
+                    const isActive =
+                      subscription?.status === 'active' && !isExpired
+                    const nextResetTime = subscription?.next_reset_time ?? 0
+                    let statusBadge = (
                     <StatusBadge
                       label={t('Expired')}
                       variant='neutral'
                       copyable={false}
                     />
                   )
-                  if (isActive) {
-                    statusBadge = (
-                      <StatusBadge
-                        label={t('Active')}
-                        variant='success'
-                        copyable={false}
-                      />
-                    )
-                  } else if (isCancelled) {
-                    statusBadge = (
-                      <StatusBadge
-                        label={t('Cancelled')}
-                        variant='neutral'
-                        copyable={false}
-                      />
-                    )
-                  }
+                    if (isActive) {
+                      statusBadge = (
+                        <StatusBadge
+                          label={t('Active')}
+                          variant='success'
+                          copyable={false}
+                        />
+                      )
+                    } else if (isCancelled) {
+                      statusBadge = (
+                        <StatusBadge
+                          label={t('Cancelled')}
+                          variant='neutral'
+                          copyable={false}
+                        />
+                      )
+                    }
 
-                  let endTimeLabel = t('Expired at')
-                  if (isActive) {
-                    endTimeLabel = t('Until')
-                  } else if (isCancelled) {
-                    endTimeLabel = t('Cancelled at')
-                  }
+                    let endTimeLabel = t('Expired at')
+                    if (isActive) {
+                      endTimeLabel = t('Until')
+                    } else if (isCancelled) {
+                      endTimeLabel = t('Cancelled at')
+                    }
 
-                  return (
+                    return (
                     <div
                       key={subscription?.id}
                       className='bg-background rounded-md border p-3 text-xs'
@@ -530,8 +592,9 @@ export function SubscriptionPlansCard({
                         <Progress value={usagePercent} className='mt-2 h-1.5' />
                       )}
                     </div>
-                  )
-                })}
+                    )
+                  })
+                )}
               </div>
             </>
           )}

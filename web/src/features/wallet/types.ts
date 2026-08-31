@@ -356,6 +356,14 @@ export interface StatementTopUpItem {
   completed_at: number
 }
 
+export interface StatementSubscriptionItem {
+  record_id: number
+  plan_id: number
+  plan_title: string
+  amount_cents: number
+  paid_at: number
+}
+
 export interface StatementWarnings {
   unpriced_redemptions: number
   unknown_currency_topups: number
@@ -375,8 +383,10 @@ export interface StatementSnapshot {
   tokens: StatementTokenItem[]
   redemptions: StatementRedemptionItem[]
   topups: StatementTopUpItem[]
+  subscriptions: StatementSubscriptionItem[]
   redemption_total_cents: number
   topup_total_cents: number
+  subscription_total_cents: number
   total_cents: number
   warnings: StatementWarnings
   disclaimers: string[]
@@ -413,6 +423,7 @@ export interface StatementMonthlySummary {
   billing_count: number
   redemption_total_cents: number
   topup_total_cents: number
+  subscription_total_cents: number
   total_cents: number
   warnings: StatementWarnings
   version_count: number

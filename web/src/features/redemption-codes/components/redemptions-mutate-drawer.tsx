@@ -65,7 +65,7 @@ import {
   getRedemption,
   getRedemptionCategories,
 } from '../api'
-import { SUCCESS_MESSAGES } from '../constants'
+import { REDEMPTION_STATUS, SUCCESS_MESSAGES } from '../constants'
 import {
   getRedemptionFormSchema,
   type RedemptionFormValues,
@@ -306,7 +306,9 @@ export function RedemptionsMutateDrawer({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>{t('Redemption category')}</FormLabel>
-                      {isUpdate && loadedRedemption?.category_priced_at ? (
+                      {isUpdate &&
+                      loadedRedemption?.status === REDEMPTION_STATUS.USED &&
+                      loadedRedemption?.category_priced_at ? (
                         <div className='bg-muted/40 rounded-md border px-3 py-2 text-sm'>
                           {loadedRedemption?.category_id
                             ? `${loadedRedemption.category_name} · ¥${((loadedRedemption.category_price_cents ?? 0) / 100).toFixed(2)}`

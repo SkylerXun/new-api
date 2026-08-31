@@ -322,6 +322,21 @@ function StatementPreview({
                 )}
               </div>
             </div>
+            <div>
+              <h4 className='mb-2 font-semibold'>{t('Subscription purchases')}</h4>
+              <div className='space-y-1 text-sm'>
+                {snapshot.subscriptions?.length ? (
+                  snapshot.subscriptions.map((item) => (
+                    <div key={item.record_id} className='flex justify-between gap-3 border-b py-1.5'>
+                      <span>#{item.record_id} · {item.plan_title} · {formatTime(item.paid_at)}</span>
+                      <span className='font-medium'>{formatCents(item.amount_cents)}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className='text-neutral-500'>{t('No subscription purchases')}</div>
+                )}
+              </div>
+            </div>
           </div>
 
           {(snapshot.warnings.unpriced_redemptions > 0 ||
@@ -342,6 +357,10 @@ function StatementPreview({
             <div className='flex justify-between border-b pb-1'>
               <span>{t('CNY wallet top-up total')}</span>
               <strong>{formatCents(snapshot.topup_total_cents)}</strong>
+            </div>
+            <div className='flex justify-between border-b pb-1'>
+              <span>{t('Subscription purchase total')}</span>
+              <strong>{formatCents(snapshot.subscription_total_cents || 0)}</strong>
             </div>
             <div className='flex justify-between border-b-2 border-neutral-900 pb-2 text-base'>
               <span>{t('RMB bookkeeping total')}</span>

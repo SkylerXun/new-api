@@ -122,11 +122,14 @@ func AssignRedemptionCategory(ids []int, categoryID int, operatorID int) (int64,
 			if err := lockForUpdate(tx).Unscoped().Where("id = ?", id).First(&redemption).Error; err != nil {
 				return err
 			}
-			if redemption.CategoryPricedAt != 0 || redemption.CategoryID != 0 {
+			// CategoryPricedAt is the durable completion marker. Some older rows
+			// may already contain a category_id but lack the pricing timestamp;
+			// those rows still need to be repairable.
+			if redemption.CategoryPricedAt != 0 && redemption.Status == common.RedemptionCodeStatusUsed {
 				return errors.New("兑换码已完成补价，不能重复修改")
 			}
 			result := tx.Unscoped().Model(&Redemption{}).
-				Where("id = ? AND category_priced_at = ? AND category_id = ?", id, 0, 0).
+				Where("id = ? AND (category_priced_at = ? OR status != ?)", id, 0, common.RedemptionCodeStatusUsed).
 				Updates(map[string]any{
 					"category_id":            category.ID,
 					"category_name_snapshot": category.Name,
@@ -150,7 +153,20 @@ func AssignRedemptionCategory(ids []int, categoryID int, operatorID int) (int64,
 				AssignedBy:       operatorID,
 				AssignedAt:       now,
 			}
-			if err := tx.Create(&audit).Error; err != nil {
+			var existingAudit RedemptionPricingAudit
+			if err := tx.Where("redemption_id = ?", id).First(&existingAudit).Error; err == nil {
+				if err := tx.Model(&existingAudit).Updates(map[string]any{
+					"category_id": category.ID, "category_name": category.Name,
+					"price_cents": category.PriceCents, "previous_category": redemption.CategoryNameSnapshot,
+					"previous_cents": redemption.CategoryPriceCents, "assigned_by": operatorID, "assigned_at": now,
+				}).Error; err != nil {
+					return err
+				}
+			} else if errors.Is(err, gorm.ErrRecordNotFound) {
+				if err := tx.Create(&audit).Error; err != nil {
+					return err
+				}
+			} else {
 				return err
 			}
 			assigned++

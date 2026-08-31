@@ -278,8 +278,21 @@ func renderConsumptionStatementPDF(statement *model.ConsumptionStatement, logo [
 	if len(snapshot.TopUps) == 0 {
 		row([]string{"-", "本账期无符合条件的人民币充值", "¥0.00"}, topUpColumns, topUpWidths, []string{"C", "L", "R"})
 	} else {
-		for _, item := range snapshot.TopUps {
+	for _, item := range snapshot.TopUps {
 			row([]string{fmt.Sprintf("%d", item.RecordID), statementTime(item.CompletedAt), statementMoney(item.AmountCents)}, topUpColumns, topUpWidths, []string{"C", "L", "R"})
+		}
+	}
+	pdf.Ln(5)
+
+	sectionTitle("订阅购买明细")
+	subscriptionWidths := []float64{26, 92, 48}
+	subscriptionColumns := []string{"记录ID", "套餐", "人民币金额"}
+	tableHeader(subscriptionColumns, subscriptionWidths)
+	if len(snapshot.Subscriptions) == 0 {
+		row([]string{"-", "本账期无订阅购买记录", "¥0.00"}, subscriptionColumns, subscriptionWidths, []string{"C", "L", "R"})
+	} else {
+		for _, item := range snapshot.Subscriptions {
+			row([]string{fmt.Sprintf("%d", item.RecordID), statementFitText(pdf, item.PlanTitle, subscriptionWidths[1]-2), statementMoney(item.AmountCents)}, subscriptionColumns, subscriptionWidths, []string{"C", "L", "R"})
 		}
 	}
 	pdf.Ln(5)
@@ -295,6 +308,10 @@ func renderConsumptionStatementPDF(statement *model.ConsumptionStatement, logo [
 	pdf.SetX(98)
 	pdf.CellFormat(62, 8, "钱包人民币充值金额", "B", 0, "L", false, 0, "")
 	pdf.CellFormat(36, 8, statementMoney(snapshot.TopUpTotalCents), "B", 1, "R", false, 0, "")
+	pdf.SetX(98)
+	pdf.SetFont("NotoSC", "", 10)
+	pdf.CellFormat(62, 8, "订阅购买金额", "B", 0, "L", false, 0, "")
+	pdf.CellFormat(36, 8, statementMoney(snapshot.SubscriptionTotalCents), "B", 1, "R", false, 0, "")
 	pdf.SetX(98)
 	pdf.SetFont("NotoSC", "", 12)
 	pdf.CellFormat(62, 9, "人民币记账金额合计", "B", 0, "L", false, 0, "")

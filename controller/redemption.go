@@ -171,9 +171,13 @@ func UpdateRedemption(c *gin.Context) {
 			return
 		}
 		// Legacy rows (including already used codes) may have no category
-		// snapshot. Allow admins to backfill it from the edit drawer; the
-		// category is immutable once it has been priced.
-		if redemption.CategoryID > 0 && cleanRedemption.CategoryID == 0 && cleanRedemption.CategoryPricedAt == 0 {
+		// snapshot. Allow admins to backfill it from the edit drawer. Used rows
+		// become immutable once their pricing snapshot is complete; unused rows
+		// may still be recategorized.
+		categoryNeedsUpdate := redemption.CategoryID > 0 &&
+			(cleanRedemption.CategoryPricedAt == 0 ||
+				(cleanRedemption.Status != common.RedemptionCodeStatusUsed && cleanRedemption.CategoryID != redemption.CategoryID))
+		if categoryNeedsUpdate {
 			if _, err := model.AssignRedemptionCategory([]int{cleanRedemption.Id}, redemption.CategoryID, c.GetInt("id")); err != nil {
 				common.ApiError(c, err)
 				return

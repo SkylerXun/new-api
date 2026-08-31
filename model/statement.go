@@ -27,6 +27,7 @@ var statementDisclaimers = []string{
 	"本单据不是税务发票、财政票据、付款收据或完税证明。",
 	"是否可用于报销由用户所在单位财务审核；正式发票需另行联系。",
 	"钱包充值只统计站内确认成功的人民币充值订单。",
+	"订阅购买统计站内确认成功的订阅订单，支付渠道可能为虎皮椒等在线支付。",
 	"当前月账单为截至生成时的阶段性数据，后续调用、充值或兑换不会追溯修改已生成版本。",
 }
 
@@ -98,6 +99,14 @@ type StatementTopUpItem struct {
 	CompletedAt int64 `json:"completed_at"`
 }
 
+type StatementSubscriptionItem struct {
+	RecordID    int    `json:"record_id"`
+	PlanID      int    `json:"plan_id"`
+	PlanTitle   string `json:"plan_title"`
+	AmountCents int64  `json:"amount_cents"`
+	PaidAt      int64  `json:"paid_at"`
+}
+
 type StatementWarnings struct {
 	UnpricedRedemptions   int64 `json:"unpriced_redemptions"`
 	UnknownCurrencyTopUps int64 `json:"unknown_currency_topups"`
@@ -117,8 +126,10 @@ type StatementSnapshot struct {
 	Tokens               []StatementTokenItem      `json:"tokens"`
 	Redemptions          []StatementRedemptionItem `json:"redemptions"`
 	TopUps               []StatementTopUpItem      `json:"topups"`
+	Subscriptions       []StatementSubscriptionItem `json:"subscriptions"`
 	RedemptionTotalCents int64                     `json:"redemption_total_cents"`
 	TopUpTotalCents      int64                     `json:"topup_total_cents"`
+	SubscriptionTotalCents int64                  `json:"subscription_total_cents"`
 	TotalCents           int64                     `json:"total_cents"`
 	Warnings             StatementWarnings         `json:"warnings"`
 	Disclaimers          []string                  `json:"disclaimers"`
@@ -382,6 +393,24 @@ func buildStatementSnapshot(user *User, statementNo string, start, end time.Time
 		Where("paid_currency = ?", "").Count(&unknownCurrency).Error; err != nil {
 		return StatementSnapshot{}, err
 	}
+	var subscriptionOrders []SubscriptionOrder
+	if err := DB.Where("user_id = ? AND status = ? AND money > ? AND payment_provider = ? AND complete_time >= ? AND complete_time < ?", user.Id, common.TopUpStatusSuccess, 0, PaymentProviderHupijiao, start.Unix(), end.Unix()).Order("complete_time asc, id asc").Find(&subscriptionOrders).Error; err != nil {
+		return StatementSnapshot{}, err
+	}
+	subscriptionItems := make([]StatementSubscriptionItem, 0, len(subscriptionOrders))
+	var subscriptionTotal int64
+	for _, order := range subscriptionOrders {
+		planTitle := fmt.Sprintf("套餐 #%d", order.PlanId)
+		if plan, planErr := GetSubscriptionPlanById(order.PlanId); planErr == nil && plan != nil && strings.TrimSpace(plan.Title) != "" {
+			planTitle = plan.Title
+		}
+		amountCents := MoneyToMinorUnits(order.Money)
+		if amountCents <= 0 {
+			continue
+		}
+		subscriptionItems = append(subscriptionItems, StatementSubscriptionItem{RecordID: order.Id, PlanID: order.PlanId, PlanTitle: planTitle, AmountCents: amountCents, PaidAt: order.CompleteTime})
+		subscriptionTotal += amountCents
+	}
 
 	settings := system_setting.GetStatementSettings()
 	website := strings.TrimSpace(system_setting.ServerAddress)
@@ -398,8 +427,8 @@ func buildStatementSnapshot(user *User, statementNo string, start, end time.Time
 		Recipient:   StatementRecipient{UserID: user.Id, Username: user.Username, Email: user.Email, BillingTitle: title, BillingAddress: address, UserSupplied: title != "" || address != ""},
 		PeriodStart: start.Unix(), PeriodEnd: end.Unix(), Timezone: "Asia/Shanghai", Source: input.Source,
 		IsFinal: input.Source == StatementSourceSystemMonthly, GeneratedAt: generatedAt.Unix(), GeneratedBy: input.GeneratedBy,
-		Tokens: tokens, Redemptions: redemptionItems, TopUps: topUpItems,
-		RedemptionTotalCents: redemptionTotal, TopUpTotalCents: topUpTotal, TotalCents: redemptionTotal + topUpTotal,
+		Tokens: tokens, Redemptions: redemptionItems, TopUps: topUpItems, Subscriptions: subscriptionItems,
+		RedemptionTotalCents: redemptionTotal, TopUpTotalCents: topUpTotal, SubscriptionTotalCents: subscriptionTotal, TotalCents: redemptionTotal + topUpTotal + subscriptionTotal,
 		Warnings:    StatementWarnings{UnpricedRedemptions: unpriced, UnknownCurrencyTopUps: unknownCurrency},
 		Disclaimers: append([]string(nil), statementDisclaimers...), ComplianceVersion: StatementComplianceVersion,
 	}, nil
@@ -579,6 +608,7 @@ type StatementMonthlySummary struct {
 	BillingCount         int64             `json:"billing_count"`
 	RedemptionTotalCents int64             `json:"redemption_total_cents"`
 	TopUpTotalCents      int64             `json:"topup_total_cents"`
+	SubscriptionTotalCents int64           `json:"subscription_total_cents"`
 	TotalCents           int64             `json:"total_cents"`
 	Warnings             StatementWarnings `json:"warnings"`
 	VersionCount         int64             `json:"version_count"`
@@ -619,7 +649,7 @@ func ListStatementMonthlySummaries(month, keyword string, offset, limit int) ([]
 		if buildErr != nil {
 			return nil, 0, buildErr
 		}
-		summary := StatementMonthlySummary{UserID: users[i].Id, Username: users[i].Username, Email: users[i].Email, TokenModelCount: len(preview.Tokens), RedemptionTotalCents: preview.RedemptionTotalCents, TopUpTotalCents: preview.TopUpTotalCents, TotalCents: preview.TotalCents, Warnings: preview.Warnings}
+		summary := StatementMonthlySummary{UserID: users[i].Id, Username: users[i].Username, Email: users[i].Email, TokenModelCount: len(preview.Tokens), RedemptionTotalCents: preview.RedemptionTotalCents, TopUpTotalCents: preview.TopUpTotalCents, SubscriptionTotalCents: preview.SubscriptionTotalCents, TotalCents: preview.TotalCents, Warnings: preview.Warnings}
 		for _, item := range preview.Tokens {
 			summary.InputTokens += item.InputTokens
 			summary.OutputTokens += item.OutputTokens
