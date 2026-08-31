@@ -128,8 +128,10 @@ func AssignRedemptionCategory(ids []int, categoryID int, operatorID int) (int64,
 			if redemption.CategoryPricedAt != 0 && redemption.Status == common.RedemptionCodeStatusUsed {
 				return errors.New("兑换码已完成补价，不能重复修改")
 			}
+			// Older schemas may contain NULL in category_priced_at. Treat NULL
+			// exactly like zero so those rows can be repaired as well.
 			result := tx.Unscoped().Model(&Redemption{}).
-				Where("id = ? AND (category_priced_at = ? OR status != ?)", id, 0, common.RedemptionCodeStatusUsed).
+				Where("id = ? AND (category_priced_at = ? OR category_priced_at IS NULL OR status != ?)", id, 0, common.RedemptionCodeStatusUsed).
 				Updates(map[string]any{
 					"category_id":            category.ID,
 					"category_name_snapshot": category.Name,
