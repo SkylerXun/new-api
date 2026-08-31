@@ -27,6 +27,7 @@ import { RatioSettingsCard } from '../models/ratio-settings-card'
 import type { BillingSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 import { ProgressiveBillingSection } from './progressive-billing-section'
+import { StatementSettingsSection } from './statement-settings-section'
 
 const getModelDefaults = (settings: BillingSettings) => ({
   ModelPrice: settings.ModelPrice,
@@ -208,6 +209,20 @@ const BILLING_SECTIONS = [
             settings['payment_setting.compliance_terms_version'] ?? '',
           confirmedAt: settings['payment_setting.compliance_confirmed_at'] ?? 0,
           confirmedBy: settings['payment_setting.compliance_confirmed_by'] ?? 0,
+        }}
+      />
+    ),
+  },
+  {
+    id: 'statements',
+    titleKey: 'Consumption Statements',
+    build: (settings: BillingSettings) => (
+      <StatementSettingsSection
+        defaultValues={{
+          statement_setting: {
+            contact_email: settings['statement_setting.contact_email'],
+            issuer_address: settings['statement_setting.issuer_address'],
+          },
         }}
       />
     ),

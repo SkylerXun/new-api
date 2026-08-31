@@ -390,6 +390,10 @@ type RecordConsumeLogParams struct {
 }
 
 func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams) {
+	createdAt := common.GetTimestamp()
+	if err := IncrementStatementUsage(userId, createdAt, params.ModelName, params.PromptTokens, params.CompletionTokens); err != nil {
+		logger.LogError(c, "failed to update statement usage: "+err.Error())
+	}
 	if !common.LogConsumeEnabled {
 		return
 	}
@@ -397,7 +401,6 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	username := c.GetString("username")
 	requestId := c.GetString(common.RequestIdKey)
 	upstreamRequestId := c.GetString(common.UpstreamRequestIdKey)
-	createdAt := common.GetTimestamp()
 	otherStr := common.MapToJsonStr(params.Other)
 	// 判断是否需要记录 IP
 	needRecordIp := false
@@ -466,6 +469,12 @@ type RecordTaskBillingLogParams struct {
 }
 
 func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
+	createdAt := common.GetTimestamp()
+	if params.LogType == LogTypeConsume {
+		if err := IncrementStatementUsage(params.UserId, createdAt, params.ModelName, 0, 0); err != nil {
+			common.SysError("failed to update task statement usage: " + err.Error())
+		}
+	}
 	if params.LogType == LogTypeConsume && !common.LogConsumeEnabled {
 		return
 	}
@@ -476,7 +485,6 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 			tokenName = token.Name
 		}
 	}
-	createdAt := common.GetTimestamp()
 	log := &Log{
 		UserId:    params.UserId,
 		Username:  username,

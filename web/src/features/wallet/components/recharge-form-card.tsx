@@ -16,7 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Gift, ExternalLink, Loader2, Receipt, WalletCards } from 'lucide-react'
+import {
+  FileText,
+  Gift,
+  ExternalLink,
+  Loader2,
+  Receipt,
+  WalletCards,
+} from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -77,6 +84,7 @@ interface RechargeFormCardProps {
   priceRatio?: number
   usdExchangeRate?: number
   onOpenBilling?: () => void
+  onOpenStatement?: () => void
   creemProducts?: CreemProduct[]
   enableCreemTopup?: boolean
   onCreemProductSelect?: (product: CreemProduct) => void
@@ -111,6 +119,7 @@ export function RechargeFormCard({
   priceRatio = 1,
   usdExchangeRate = 1,
   onOpenBilling,
+  onOpenStatement,
   creemProducts,
   enableCreemTopup,
   onCreemProductSelect,
@@ -226,16 +235,36 @@ export function RechargeFormCard({
       iconTone='success'
       disableHoverEffect
       action={
-        onOpenBilling ? (
-          <Button
-            variant='outline'
-            size='sm'
-            onClick={onOpenBilling}
-            className='w-full gap-2 sm:w-auto'
-          >
-            <Receipt className='h-4 w-4' />
-            {t('Order History')}
-          </Button>
+        onOpenBilling || onOpenStatement ? (
+          <div className='flex flex-col items-stretch gap-1.5 sm:items-end'>
+            {onOpenBilling && (
+              <Button
+                variant='outline'
+                size='sm'
+                onClick={onOpenBilling}
+                className='w-full gap-2 sm:w-auto'
+              >
+                <Receipt className='h-4 w-4' />
+                {t('Order History')}
+              </Button>
+            )}
+            {onOpenStatement && (
+              <>
+                <Button
+                  variant='outline'
+                  size='sm'
+                  onClick={onOpenStatement}
+                  className='w-full gap-2 sm:w-auto'
+                >
+                  <FileText className='h-4 w-4' />
+                  {t('Export Statement')}
+                </Button>
+                <span className='text-muted-foreground text-center text-[11px] sm:text-right'>
+                  {t('For consumption reconciliation only')}
+                </span>
+              </>
+            )}
+          </div>
         ) : null
       }
       contentClassName='space-y-4 sm:space-y-6'

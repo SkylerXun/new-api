@@ -201,7 +201,7 @@ func RequestHupijiao(c *gin.Context) {
 	tradeNo := fmt.Sprintf("USR%dNO%s%d", id, common.GetRandomString(6), time.Now().Unix())
 	callback := service.GetCallbackAddress()
 	values := map[string]string{"version": "1.1", "appid": appid, "trade_order_id": tradeNo, "total_fee": strconv.FormatFloat(actual, 'f', 2, 64), "title": selected.Title, "time": strconv.FormatInt(time.Now().Unix(), 10), "notify_url": callback + "/api/user/hupijiao/notify", "return_url": callback + "/api/user/hupijiao/return", "callback_url": callback + "/api/user/hupijiao/return", "plugins": "new-api", "attach": selected.ID, "nonce_str": common.GetRandomString(16)}
-	topup := &model.TopUp{UserId: id, Amount: selected.InternalQuota, Money: actual, OriginalAmount: selected.OriginalAmount, DiscountRate: selected.DiscountRate, ActualAmount: actual, PackageID: selected.ID, TradeNo: tradeNo, PaymentMethod: req.PaymentMethod, PaymentProvider: model.PaymentProviderHupijiao, CreateTime: time.Now().Unix(), Status: common.TopUpStatusPending}
+	topup := &model.TopUp{UserId: id, Amount: selected.InternalQuota, Money: actual, OriginalAmount: selected.OriginalAmount, DiscountRate: selected.DiscountRate, ActualAmount: actual, PackageID: selected.ID, TradeNo: tradeNo, PaymentMethod: req.PaymentMethod, PaymentProvider: model.PaymentProviderHupijiao, PaidCurrency: "CNY", PaidAmountMinor: decimal.NewFromFloat(actual).Mul(decimal.NewFromInt(100)).Round(0).IntPart(), CreateTime: time.Now().Unix(), Status: common.TopUpStatusPending}
 	if err := topup.Insert(); err != nil {
 		common.ApiErrorMsg(c, "创建订单失败")
 		return

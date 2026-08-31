@@ -22,6 +22,51 @@ func RegisterScheduledSystemTasks() {
 	service.RegisterSystemTaskHandler(modelUpdateHandler{})
 	service.RegisterSystemTaskHandler(midjourneyPollHandler{})
 	service.RegisterSystemTaskHandler(asyncTaskPollHandler{})
+	service.RegisterSystemTaskHandler(statementMonthlyCloseHandler{})
+}
+
+type statementMonthlyCloseHandler struct{}
+
+func (statementMonthlyCloseHandler) Type() string            { return model.SystemTaskTypeStatementMonth }
+func (statementMonthlyCloseHandler) Enabled() bool           { return true }
+func (statementMonthlyCloseHandler) Interval() time.Duration { return 24 * time.Hour }
+func (statementMonthlyCloseHandler) NewPayload() any         { return nil }
+
+func (statementMonthlyCloseHandler) ShouldSchedule(nowUnix int64, latest *model.SystemTask) bool {
+	location, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		location = time.FixedZone("Asia/Shanghai", 8*60*60)
+	}
+	now := time.Unix(nowUnix, 0).In(location)
+	currentMonthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, location).Unix()
+	if latest == nil {
+		return true
+	}
+	if latest.Status == model.SystemTaskStatusSucceeded {
+		return latest.UpdatedAt < currentMonthStart
+	}
+	return nowUnix-latest.UpdatedAt >= int64((5 * time.Minute).Seconds())
+}
+
+func (statementMonthlyCloseHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
+	select {
+	case <-ctx.Done():
+		finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusFailed, nil, ctx.Err())
+		return
+	default:
+	}
+	location, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		location = time.FixedZone("Asia/Shanghai", 8*60*60)
+	}
+	now := time.Now().In(location)
+	previousMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, location).AddDate(0, -1, 0).Format("2006-01")
+	generated, skipped, err := model.GenerateClosedMonthStatements(previousMonth, now)
+	if err != nil {
+		finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusFailed, nil, err)
+		return
+	}
+	finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusSucceeded, map[string]any{"month": previousMonth, "generated": generated, "skipped": skipped}, nil)
 }
 
 // channelTestHandler runs the scheduled "test all channels" job. Enablement and

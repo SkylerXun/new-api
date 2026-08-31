@@ -89,16 +89,26 @@ func AddRedemption(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": msg})
 		return
 	}
+	category, err := model.GetEnabledRedemptionCategory(redemption.CategoryID)
+	if err != nil {
+		common.ApiErrorMsg(c, "创建兑换码必须选择已启用的类别")
+		return
+	}
 	var keys []string
 	for i := 0; i < redemption.Count; i++ {
 		key := common.GetUUID()
 		cleanRedemption := model.Redemption{
-			UserId:      c.GetInt("id"),
-			Name:        redemption.Name,
-			Key:         key,
-			CreatedTime: common.GetTimestamp(),
-			Quota:       redemption.Quota,
-			ExpiredTime: redemption.ExpiredTime,
+			UserId:               c.GetInt("id"),
+			Name:                 redemption.Name,
+			Key:                  key,
+			CreatedTime:          common.GetTimestamp(),
+			Quota:                redemption.Quota,
+			ExpiredTime:          redemption.ExpiredTime,
+			CategoryID:           category.ID,
+			CategoryNameSnapshot: category.Name,
+			CategoryPriceCents:   category.PriceCents,
+			CategoryPricedAt:     common.GetTimestamp(),
+			CategoryPricedBy:     c.GetInt("id"),
 		}
 		err = cleanRedemption.Insert()
 		if err != nil {
@@ -113,9 +123,12 @@ func AddRedemption(c *gin.Context) {
 		keys = append(keys, key)
 	}
 	recordManageAudit(c, "redemption.create", map[string]interface{}{
-		"name":  redemption.Name,
-		"count": redemption.Count,
-		"quota": logger.LogQuota(redemption.Quota),
+		"name":          redemption.Name,
+		"count":         redemption.Count,
+		"quota":         logger.LogQuota(redemption.Quota),
+		"category_id":   category.ID,
+		"category_name": category.Name,
+		"price_cents":   category.PriceCents,
 	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

@@ -41,6 +41,9 @@ import type {
   WaffoPancakePaymentRequest,
   WaffoPancakePaymentResponse,
   MonthlyBillingProgress,
+  ConsumptionStatement,
+  StatementMonthlySummary,
+  PaginatedData,
 } from './types'
 
 // ============================================================================
@@ -268,5 +271,80 @@ export async function completeOrder(
   request: CompleteOrderRequest
 ): Promise<ApiResponse> {
   const res = await api.post('/api/user/topup/complete', request)
+  return res.data
+}
+
+export async function generateCurrentStatement(input: {
+  billing_title?: string
+  billing_address?: string
+}): Promise<ApiResponse<ConsumptionStatement>> {
+  const res = await api.post('/api/statements/self/current', input)
+  return res.data
+}
+
+export async function getPreviousStatement(): Promise<
+  ApiResponse<ConsumptionStatement>
+> {
+  const res = await api.get('/api/statements/self/previous', {
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+export async function getStatement(
+  id: number
+): Promise<ApiResponse<ConsumptionStatement>> {
+  const res = await api.get(`/api/statements/${id}`)
+  return res.data
+}
+
+export async function downloadStatementPdf(id: number): Promise<Blob> {
+  const res = await api.get(`/api/statements/${id}/pdf`, {
+    responseType: 'blob',
+  })
+  return res.data as Blob
+}
+
+export async function getAdminStatementMonthly(params: {
+  month: string
+  keyword?: string
+  page?: number
+  pageSize?: number
+}): Promise<ApiResponse<PaginatedData<StatementMonthlySummary>>> {
+  const query = new URLSearchParams({
+    month: params.month,
+    p: String(params.page || 1),
+    page_size: String(params.pageSize || 20),
+  })
+  if (params.keyword) query.set('keyword', params.keyword)
+  const res = await api.get(`/api/statements/admin/monthly?${query}`)
+  return res.data
+}
+
+export async function generateAdminStatement(input: {
+  user_id: number
+  month: string
+  billing_title?: string
+  billing_address?: string
+}): Promise<ApiResponse<ConsumptionStatement>> {
+  const res = await api.post('/api/statements/admin/generate', input)
+  return res.data
+}
+
+export async function getAdminStatementHistory(params: {
+  month?: string
+  keyword?: string
+  source?: string
+  page?: number
+  pageSize?: number
+}): Promise<ApiResponse<PaginatedData<ConsumptionStatement>>> {
+  const query = new URLSearchParams({
+    p: String(params.page || 1),
+    page_size: String(params.pageSize || 20),
+  })
+  if (params.month) query.set('month', params.month)
+  if (params.keyword) query.set('keyword', params.keyword)
+  if (params.source) query.set('source', params.source)
+  const res = await api.get(`/api/statements/admin/history?${query}`)
   return res.data
 }

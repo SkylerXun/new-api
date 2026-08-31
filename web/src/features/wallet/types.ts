@@ -319,3 +319,109 @@ export interface BillingHistoryResponse {
 export interface CompleteOrderRequest {
   trade_no: string
 }
+
+export interface StatementIssuer {
+  name: string
+  contact_email: string
+  address: string
+  website: string
+}
+
+export interface StatementRecipient {
+  user_id: number
+  username: string
+  email: string
+  billing_title?: string
+  billing_address?: string
+  user_supplied: boolean
+}
+
+export interface StatementTokenItem {
+  model_name: string
+  input_tokens: number
+  output_tokens: number
+  record_count: number
+}
+
+export interface StatementRedemptionItem {
+  record_id: number
+  category: string
+  amount_cents: number
+  redeemed_at: number
+}
+
+export interface StatementTopUpItem {
+  record_id: number
+  amount_cents: number
+  completed_at: number
+}
+
+export interface StatementWarnings {
+  unpriced_redemptions: number
+  unknown_currency_topups: number
+}
+
+export interface StatementSnapshot {
+  statement_no: string
+  issuer: StatementIssuer
+  recipient: StatementRecipient
+  period_start: number
+  period_end: number
+  timezone: string
+  source: 'user_export' | 'admin' | 'system_monthly'
+  is_final: boolean
+  generated_at: number
+  generated_by: number
+  tokens: StatementTokenItem[]
+  redemptions: StatementRedemptionItem[]
+  topups: StatementTopUpItem[]
+  redemption_total_cents: number
+  topup_total_cents: number
+  total_cents: number
+  warnings: StatementWarnings
+  disclaimers: string[]
+  compliance_version: string
+}
+
+export interface ConsumptionStatement {
+  id: number
+  statement_no: string
+  user_id: number
+  username: string
+  email: string
+  month_start: number
+  period_start: number
+  period_end: number
+  timezone: string
+  source: StatementSnapshot['source']
+  is_final: boolean
+  generated_by: number
+  generated_at: number
+  content_hash: string
+  compliance_version: string
+  renderer_version: string
+  snapshot: StatementSnapshot
+}
+
+export interface StatementMonthlySummary {
+  user_id: number
+  username: string
+  email: string
+  token_model_count: number
+  input_tokens: number
+  output_tokens: number
+  billing_count: number
+  redemption_total_cents: number
+  topup_total_cents: number
+  total_cents: number
+  warnings: StatementWarnings
+  version_count: number
+  has_system_final: boolean
+}
+
+export interface PaginatedData<T> {
+  items: T[]
+  total: number
+  page: number
+  page_size: number
+}

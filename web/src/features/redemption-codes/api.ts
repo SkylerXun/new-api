@@ -25,6 +25,7 @@ import type {
   GetRedemptionsResponse,
   SearchRedemptionsParams,
   RedemptionFormData,
+  RedemptionCategory,
 } from './types'
 
 // ============================================================================
@@ -96,5 +97,56 @@ export async function deleteRedemption(id: number): Promise<ApiResponse> {
 // Delete invalid redemption codes (used, disabled, expired)
 export async function deleteInvalidRedemptions(): Promise<ApiResponse<number>> {
   const res = await api.delete('/api/redemption/invalid')
+  return res.data
+}
+
+export async function getRedemptionCategories(includeDisabled = false) {
+  const res = await api.get<ApiResponse<RedemptionCategory[]>>(
+    `/api/redemption/categories?include_disabled=${includeDisabled}`
+  )
+  return res.data
+}
+
+export async function createRedemptionCategory(input: {
+  name: string
+  price_cents: number
+}) {
+  const res = await api.post<ApiResponse<RedemptionCategory>>(
+    '/api/redemption/categories',
+    input
+  )
+  return res.data
+}
+
+export async function updateRedemptionCategory(
+  id: number,
+  input: { name: string; price_cents: number }
+) {
+  const res = await api.put<ApiResponse<RedemptionCategory>>(
+    `/api/redemption/categories/${id}`,
+    input
+  )
+  return res.data
+}
+
+export async function updateRedemptionCategoryStatus(
+  id: number,
+  enabled: boolean
+) {
+  const res = await api.patch<ApiResponse>(
+    `/api/redemption/categories/${id}/status`,
+    { enabled }
+  )
+  return res.data
+}
+
+export async function assignRedemptionCategory(
+  redemptionIds: number[],
+  categoryId: number
+) {
+  const res = await api.post<ApiResponse<{ assigned: number }>>(
+    '/api/redemption/categories/assign',
+    { redemption_ids: redemptionIds, category_id: categoryId }
+  )
   return res.data
 }

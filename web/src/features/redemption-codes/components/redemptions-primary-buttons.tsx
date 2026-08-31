@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Tags, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -26,6 +26,7 @@ import { Button } from '@/components/ui/button'
 
 import { deleteInvalidRedemptions } from '../api'
 import { ERROR_MESSAGES } from '../constants'
+import { RedemptionCategoryDialog } from './redemption-category-dialog'
 import { useRedemptions } from './redemptions-provider'
 
 export function RedemptionsPrimaryButtons() {
@@ -34,6 +35,7 @@ export function RedemptionsPrimaryButtons() {
   const [showDeleteInvalidConfirm, setShowDeleteInvalidConfirm] =
     useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [categoryOpen, setCategoryOpen] = useState(false)
 
   const handleDeleteInvalid = async () => {
     setIsDeleting(true)
@@ -59,6 +61,14 @@ export function RedemptionsPrimaryButtons() {
   return (
     <>
       <div className='flex flex-wrap gap-2'>
+        <Button
+          size='sm'
+          variant='outline'
+          onClick={() => setCategoryOpen(true)}
+        >
+          <Tags className='h-4 w-4' />
+          {t('Category Management')}
+        </Button>
         <Button
           size='sm'
           variant='outline'
@@ -92,6 +102,10 @@ export function RedemptionsPrimaryButtons() {
           </>
         }
         confirmText={t('Delete Invalid')}
+      />
+      <RedemptionCategoryDialog
+        open={categoryOpen}
+        onOpenChange={setCategoryOpen}
       />
     </>
   )

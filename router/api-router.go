@@ -294,6 +294,11 @@ func SetApiRouter(router *gin.Engine) {
 		redemptionRoute := apiRouter.Group("/redemption")
 		redemptionRoute.Use(middleware.AdminAuth())
 		{
+			redemptionRoute.GET("/categories", controller.ListRedemptionCategories)
+			redemptionRoute.POST("/categories", controller.CreateRedemptionCategory)
+			redemptionRoute.PUT("/categories/:id", controller.UpdateRedemptionCategory)
+			redemptionRoute.PATCH("/categories/:id/status", controller.UpdateRedemptionCategoryStatus)
+			redemptionRoute.POST("/categories/assign", controller.AssignRedemptionCategories)
 			redemptionRoute.GET("/", controller.GetAllRedemptions)
 			redemptionRoute.GET("/search", controller.SearchRedemptions)
 			redemptionRoute.GET("/:id", controller.GetRedemption)
@@ -301,6 +306,23 @@ func SetApiRouter(router *gin.Engine) {
 			redemptionRoute.PUT("/", controller.UpdateRedemption)
 			redemptionRoute.DELETE("/invalid", controller.DeleteInvalidRedemption)
 			redemptionRoute.DELETE("/:id", controller.DeleteRedemption)
+		}
+
+		statementRoute := apiRouter.Group("/statements")
+		statementRoute.Use(middleware.UserAuth())
+		{
+			statementRoute.POST("/self/current", middleware.CriticalRateLimit(), controller.GenerateSelfCurrentStatement)
+			statementRoute.GET("/self/previous", controller.GetSelfPreviousStatement)
+			statementRoute.GET("/:id", controller.GetStatement)
+			statementRoute.GET("/:id/pdf", middleware.CriticalRateLimit(), controller.DownloadStatementPDF)
+		}
+
+		statementAdminRoute := apiRouter.Group("/statements/admin")
+		statementAdminRoute.Use(middleware.AdminAuth())
+		{
+			statementAdminRoute.GET("/monthly", controller.AdminListStatementMonthly)
+			statementAdminRoute.POST("/generate", middleware.CriticalRateLimit(), controller.AdminGenerateStatement)
+			statementAdminRoute.GET("/history", controller.AdminListStatementHistory)
 		}
 		logRoute := apiRouter.Group("/log")
 		logRoute.GET("/", middleware.AdminAuth(), controller.GetAllLogs)

@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -23,9 +24,38 @@ type TopUp struct {
 	TradeNo         string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
 	PaymentMethod   string  `json:"payment_method" gorm:"type:varchar(50)"`
 	PaymentProvider string  `json:"payment_provider" gorm:"type:varchar(50);default:''"`
+	PaidCurrency    string  `json:"paid_currency" gorm:"type:char(3);index"`
+	PaidAmountMinor int64   `json:"paid_amount_minor"`
 	CreateTime      int64   `json:"create_time"`
 	CompleteTime    int64   `json:"complete_time"`
 	Status          string  `json:"status"`
+}
+
+func MoneyToMinorUnits(money float64) int64 {
+	return decimal.NewFromFloat(money).Mul(decimal.NewFromInt(100)).Round(0).IntPart()
+}
+
+// BackfillKnownCNYTopUps snapshots the currency only for providers whose
+// historical wallet orders are known to settle in CNY. Unknown providers are
+// intentionally left blank and excluded from statement totals.
+func BackfillKnownCNYTopUps() error {
+	var orders []TopUp
+	if err := DB.Where("paid_currency = ? AND money > ? AND payment_provider IN ?", "", 0, []string{PaymentProviderEpay, PaymentProviderHupijiao}).Find(&orders).Error; err != nil {
+		return err
+	}
+	for _, order := range orders {
+		minor := decimal.NewFromFloat(order.Money).Mul(decimal.NewFromInt(100)).Round(0).IntPart()
+		if minor <= 0 {
+			continue
+		}
+		if err := DB.Model(&TopUp{}).Where("id = ? AND paid_currency = ?", order.Id, "").Updates(map[string]any{
+			"paid_currency":     "CNY",
+			"paid_amount_minor": minor,
+		}).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 const (
@@ -249,7 +279,7 @@ func RechargeEpay(tradeNo string, actualPaymentMethod string, callerIp string) (
 	return false, nil
 }
 
-func Recharge(referenceId string, customerId string, callerIp string) (err error) {
+func Recharge(referenceId string, customerId string, callerIp string, paidCurrency string, paidAmountMinor int64) (err error) {
 	if referenceId == "" {
 		return errors.New("未提供支付单号")
 	}
@@ -278,6 +308,11 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 
 		topUp.CompleteTime = common.GetTimestamp()
 		topUp.Status = common.TopUpStatusSuccess
+		paidCurrency = strings.ToUpper(strings.TrimSpace(paidCurrency))
+		if len(paidCurrency) == 3 && paidAmountMinor > 0 {
+			topUp.PaidCurrency = paidCurrency
+			topUp.PaidAmountMinor = paidAmountMinor
+		}
 		err = tx.Save(topUp).Error
 		if err != nil {
 			return err
@@ -542,7 +577,7 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 	RecordTopupLog(userId, fmt.Sprintf("管理员补单成功，充值金额: %v，支付金额：%f", logger.FormatQuota(quotaToAdd), payMoney), callerIp, paymentMethod, "admin")
 	return nil
 }
-func RechargeCreem(referenceId string, customerEmail string, customerName string, callerIp string) (err error) {
+func RechargeCreem(referenceId string, customerEmail string, customerName string, callerIp string, paidCurrency string, paidAmountMinor int64) (err error) {
 	if referenceId == "" {
 		return errors.New("未提供支付单号")
 	}
@@ -571,6 +606,11 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 
 		topUp.CompleteTime = common.GetTimestamp()
 		topUp.Status = common.TopUpStatusSuccess
+		paidCurrency = strings.ToUpper(strings.TrimSpace(paidCurrency))
+		if len(paidCurrency) == 3 && paidAmountMinor > 0 {
+			topUp.PaidCurrency = paidCurrency
+			topUp.PaidAmountMinor = paidAmountMinor
+		}
 		err = tx.Save(topUp).Error
 		if err != nil {
 			return err

@@ -410,6 +410,8 @@ export type BillingSettings = {
   'billing_setting.billing_mode': string
   'billing_setting.billing_expr': string
   'billing_curve_setting.config': string
+  'statement_setting.contact_email': string
+  'statement_setting.issuer_address': string
   'tool_price_setting.prices': string
   TopupGroupRatio: string
   GroupRatio: string

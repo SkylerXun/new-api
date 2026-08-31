@@ -15,18 +15,23 @@ import (
 )
 
 type Redemption struct {
-	Id           int            `json:"id"`
-	UserId       int            `json:"user_id"`
-	Key          string         `json:"key" gorm:"type:char(32);uniqueIndex"`
-	Status       int            `json:"status" gorm:"default:1"`
-	Name         string         `json:"name" gorm:"index"`
-	Quota        int            `json:"quota" gorm:"default:100"`
-	CreatedTime  int64          `json:"created_time" gorm:"bigint"`
-	RedeemedTime int64          `json:"redeemed_time" gorm:"bigint"`
-	Count        int            `json:"count" gorm:"-:all"` // only for api request
-	UsedUserId   int            `json:"used_user_id"`
-	DeletedAt    gorm.DeletedAt `gorm:"index"`
-	ExpiredTime  int64          `json:"expired_time" gorm:"bigint"` // 过期时间，0 表示不过期
+	Id                   int            `json:"id"`
+	UserId               int            `json:"user_id"`
+	Key                  string         `json:"key" gorm:"type:char(32);uniqueIndex"`
+	Status               int            `json:"status" gorm:"default:1"`
+	Name                 string         `json:"name" gorm:"index"`
+	Quota                int            `json:"quota" gorm:"default:100"`
+	CreatedTime          int64          `json:"created_time" gorm:"bigint"`
+	RedeemedTime         int64          `json:"redeemed_time" gorm:"bigint"`
+	Count                int            `json:"count" gorm:"-:all"` // only for api request
+	UsedUserId           int            `json:"used_user_id"`
+	DeletedAt            gorm.DeletedAt `gorm:"index"`
+	ExpiredTime          int64          `json:"expired_time" gorm:"bigint"` // 过期时间，0 表示不过期
+	CategoryID           int            `json:"category_id" gorm:"index"`
+	CategoryNameSnapshot string         `json:"category_name" gorm:"type:varchar(80)"`
+	CategoryPriceCents   int64          `json:"category_price_cents"`
+	CategoryPricedAt     int64          `json:"category_priced_at" gorm:"bigint;index"`
+	CategoryPricedBy     int            `json:"category_priced_by"`
 }
 
 func GetAllRedemptions(startIdx int, num int) (redemptions []*Redemption, total int64, err error) {

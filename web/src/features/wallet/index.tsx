@@ -37,6 +37,7 @@ import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
 import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
 import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
 import { PaymentConfirmDialog } from './components/dialogs/payment-confirm-dialog'
+import { StatementDialog } from './components/dialogs/statement-dialog'
 import { TransferDialog } from './components/dialogs/transfer-dialog'
 import { MonthlyDiscountProgress } from './components/monthly-discount-progress'
 import { RechargeFormCard } from './components/recharge-form-card'
@@ -89,6 +90,7 @@ export function Wallet(props: WalletProps) {
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [transferDialogOpen, setTransferDialogOpen] = useState(false)
   const [billingDialogOpen, setBillingDialogOpen] = useState(false)
+  const [statementDialogOpen, setStatementDialogOpen] = useState(false)
   const [redemptionCode, setRedemptionCode] = useState('')
   const [creemDialogOpen, setCreemDialogOpen] = useState(false)
   const [selectedCreemProduct, setSelectedCreemProduct] =
@@ -387,6 +389,7 @@ export function Wallet(props: WalletProps) {
                     : effectiveUsdExchangeRate
                 }
                 onOpenBilling={() => setBillingDialogOpen(true)}
+                onOpenStatement={() => setStatementDialogOpen(true)}
                 creemProducts={topupInfo?.creem_products}
                 enableCreemTopup={topupInfo?.enable_creem_topup}
                 onCreemProductSelect={handleCreemProductSelect}
@@ -487,6 +490,11 @@ export function Wallet(props: WalletProps) {
       <BillingHistoryDialog
         open={billingDialogOpen}
         onOpenChange={setBillingDialogOpen}
+      />
+
+      <StatementDialog
+        open={statementDialogOpen}
+        onOpenChange={setStatementDialogOpen}
       />
 
       <CreemConfirmDialog

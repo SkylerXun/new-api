@@ -284,6 +284,8 @@ func RequestEpay(c *gin.Context) {
 		TradeNo:         tradeNo,
 		PaymentMethod:   req.PaymentMethod,
 		PaymentProvider: model.PaymentProviderEpay,
+		PaidCurrency:    "CNY",
+		PaidAmountMinor: decimal.NewFromFloat(payMoney).Mul(decimal.NewFromInt(100)).Round(0).IntPart(),
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
 	}

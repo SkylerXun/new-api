@@ -46,6 +46,13 @@ type ScheduledSystemTaskHandler interface {
 	NewPayload() any
 }
 
+// CalendarScheduledSystemTaskHandler lets calendar-bound jobs override the
+// rolling interval check while retaining the normal active-task deduplication.
+type CalendarScheduledSystemTaskHandler interface {
+	ScheduledSystemTaskHandler
+	ShouldSchedule(now int64, latest *model.SystemTask) bool
+}
+
 var (
 	systemTaskHandlersMu sync.RWMutex
 	systemTaskHandlers   = map[string]SystemTaskHandler{}
@@ -284,9 +291,13 @@ func runSystemTaskScheduler() {
 			if latest.Status == model.SystemTaskStatusPending || latest.Status == model.SystemTaskStatusRunning {
 				continue // an active row already exists
 			}
-			if now-latest.UpdatedAt < int64(scheduled.Interval().Seconds()) {
-				continue // not due yet
+		}
+		if calendarScheduled, ok := scheduled.(CalendarScheduledSystemTaskHandler); ok {
+			if !calendarScheduled.ShouldSchedule(now, latest) {
+				continue
 			}
+		} else if latest != nil && now-latest.UpdatedAt < int64(scheduled.Interval().Seconds()) {
+			continue // not due yet
 		}
 		if _, err := model.CreateSystemTask(scheduled.Type(), scheduled.NewPayload(), nil); err != nil {
 			activeTask, activeErr := model.GetActiveSystemTask(scheduled.Type())

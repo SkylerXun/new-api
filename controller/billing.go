@@ -1,12 +1,42 @@
 package controller
 
 import (
+	"net/http"
+
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 )
+
+// GetWalletUsage exposes the user's wallet balance in the shape expected by
+// CCSwitch. Subscription quota is intentionally not included here: wallet
+// quota lives on the user record, while subscription quota is tracked
+// separately by the billing session.
+func GetWalletUsage(c *gin.Context) {
+	userID := c.GetInt("id")
+	quota, err := model.GetUserQuota(userID, false)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"remaining": 0,
+			"unit":      "USD",
+			"is_active": false,
+			"error": gin.H{
+				"message": err.Error(),
+				"type":    "new_api_error",
+			},
+		})
+		return
+	}
+
+	remaining := float64(quota) / common.QuotaPerUnit
+	c.JSON(http.StatusOK, gin.H{
+		"remaining": remaining,
+		"unit":      "USD",
+		"is_active": true,
+	})
+}
 
 func GetSubscription(c *gin.Context) {
 	var remainQuota int

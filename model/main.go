@@ -214,7 +214,10 @@ func InitLogDB() (err error) {
 		LOG_DB = DB
 		common.SetLogDatabaseType(common.MainDatabaseType())
 		initCol()
-		return
+		if common.IsMasterNode {
+			return BackfillStatementUsageFromLogsOnce()
+		}
+		return nil
 	}
 	db, dbType, err := chooseDB("LOG_SQL_DSN", true)
 	if err == nil {
@@ -242,8 +245,10 @@ func InitLogDB() (err error) {
 			return nil
 		}
 		common.SysLog("database migration started")
-		err = migrateLOGDB()
-		return err
+		if err = migrateLOGDB(); err != nil {
+			return err
+		}
+		return BackfillStatementUsageFromLogsOnce()
 	} else {
 		common.FatalLog(err)
 	}
@@ -267,11 +272,15 @@ func migrateDB() error {
 		&ExternalIdentityClaim{},
 		&PasskeyCredential{},
 		&Option{},
+		&RedemptionCategory{},
+		&RedemptionPricingAudit{},
 		&Redemption{},
 		&Ability{},
 		&Log{},
 		&Midjourney{},
 		&TopUp{},
+		&StatementUsageMonthly{},
+		&ConsumptionStatement{},
 		&QuotaData{},
 		&Task{},
 		&Model{},
@@ -300,6 +309,9 @@ func migrateDB() error {
 		&AuthzRole{},
 	)
 	if err != nil {
+		return err
+	}
+	if err := BackfillKnownCNYTopUps(); err != nil {
 		return err
 	}
 	if err := MigrateActivityGrantIndexes(); err != nil {
@@ -339,11 +351,15 @@ func migrateDBFast() error {
 		{&ExternalIdentityClaim{}, "ExternalIdentityClaim"},
 		{&PasskeyCredential{}, "PasskeyCredential"},
 		{&Option{}, "Option"},
+		{&RedemptionCategory{}, "RedemptionCategory"},
+		{&RedemptionPricingAudit{}, "RedemptionPricingAudit"},
 		{&Redemption{}, "Redemption"},
 		{&Ability{}, "Ability"},
 		{&Log{}, "Log"},
 		{&Midjourney{}, "Midjourney"},
 		{&TopUp{}, "TopUp"},
+		{&StatementUsageMonthly{}, "StatementUsageMonthly"},
+		{&ConsumptionStatement{}, "ConsumptionStatement"},
 		{&QuotaData{}, "QuotaData"},
 		{&Task{}, "Task"},
 		{&Model{}, "Model"},
@@ -391,6 +407,9 @@ func migrateDBFast() error {
 		if err != nil {
 			return err
 		}
+	}
+	if err := BackfillKnownCNYTopUps(); err != nil {
+		return err
 	}
 	if err := MigrateActivityGrantIndexes(); err != nil {
 		return err

@@ -59,7 +59,12 @@ import {
 import { handleServerError } from '@/lib/handle-server-error'
 import { addTimeToDate } from '@/lib/time'
 
-import { createRedemption, updateRedemption, getRedemption } from '../api'
+import {
+  createRedemption,
+  updateRedemption,
+  getRedemption,
+  getRedemptionCategories,
+} from '../api'
 import { SUCCESS_MESSAGES } from '../constants'
 import {
   getRedemptionFormSchema,
@@ -68,7 +73,7 @@ import {
   transformFormDataToPayload,
   transformRedemptionToFormDefaults,
 } from '../lib'
-import type { Redemption } from '../types'
+import type { Redemption, RedemptionCategory } from '../types'
 import { useRedemptions } from './redemptions-provider'
 
 type RedemptionsMutateDrawerProps = {
@@ -93,11 +98,27 @@ export function RedemptionsMutateDrawer({
   const [loadedRedemption, setLoadedRedemption] = useState<Redemption | null>(
     null
   )
+  const [categories, setCategories] = useState<RedemptionCategory[]>([])
 
   const form = useForm<RedemptionFormValues>({
     resolver: zodResolver(getRedemptionFormSchema(t)),
     defaultValues: REDEMPTION_FORM_DEFAULT_VALUES,
   })
+
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    void getRedemptionCategories(false)
+      .then((result) => {
+        if (!cancelled && result.success) setCategories(result.data || [])
+      })
+      .catch(() => {
+        if (!cancelled) toast.error(t('Failed to load redemption categories'))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, t])
 
   // Load existing data when updating
   useEffect(() => {
@@ -273,6 +294,47 @@ export function RedemptionsMutateDrawer({
                       </FormControl>
                       <FormDescription>
                         {t('Name for this redemption code (1-20 characters)')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='category_id'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Redemption category')}</FormLabel>
+                      {isUpdate ? (
+                        <div className='bg-muted/40 rounded-md border px-3 py-2 text-sm'>
+                          {loadedRedemption?.category_id
+                            ? `${loadedRedemption.category_name} · ¥${((loadedRedemption.category_price_cents ?? 0) / 100).toFixed(2)}`
+                            : t('Pending pricing')}
+                        </div>
+                      ) : (
+                        <FormControl>
+                          <select
+                            value={field.value || ''}
+                            onChange={(event) =>
+                              field.onChange(Number(event.target.value))
+                            }
+                            className='border-input bg-background h-9 w-full rounded-md border px-3 text-sm'
+                          >
+                            <option value=''>{t('Select a category')}</option>
+                            {categories.map((category) => (
+                              <option key={category.id} value={category.id}>
+                                {category.name} · ¥
+                                {(category.price_cents / 100).toFixed(2)}
+                              </option>
+                            ))}
+                          </select>
+                        </FormControl>
+                      )}
+                      <FormDescription>
+                        {t(
+                          'The category name and RMB price are snapshotted when the code is created.'
+                        )}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>

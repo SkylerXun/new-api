@@ -33,6 +33,11 @@ export const redemptionSchema = z.object({
   redeemed_time: z.number(),
   expired_time: z.number(), // 0 for never expires
   used_user_id: z.number(),
+  category_id: z.number().optional(),
+  category_name: z.string().optional(),
+  category_price_cents: z.number().optional(),
+  category_priced_at: z.number().optional(),
+  category_priced_by: z.number().optional(),
 })
 
 export type Redemption = z.infer<typeof redemptionSchema>
@@ -77,6 +82,16 @@ export interface RedemptionFormData {
   expired_time: number
   count?: number // Only for create
   status?: number // Only for status update
+  category_id?: number // Required for create
+}
+
+export interface RedemptionCategory {
+  id: number
+  name: string
+  price_cents: number
+  enabled: boolean
+  created_at: number
+  updated_at: number
 }
 
 // ============================================================================
