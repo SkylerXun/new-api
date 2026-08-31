@@ -236,6 +236,22 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
       size: 180,
     },
     {
+      accessorKey: 'redeemed_time',
+      header: t('Redeemed at'),
+      meta: { mobileHidden: true },
+      cell: ({ row }) => {
+        const redeemedTime = row.getValue('redeemed_time') as number
+        return redeemedTime > 0 ? (
+          <div className='min-w-[160px] font-mono text-sm'>
+            {formatTimestampToDate(redeemedTime)}
+          </div>
+        ) : (
+          <span className='text-muted-foreground text-sm'>-</span>
+        )
+      },
+      size: 180,
+    },
+    {
       accessorKey: 'used_user_id',
       header: t('Redeemed By'),
       meta: { mobileHidden: true },

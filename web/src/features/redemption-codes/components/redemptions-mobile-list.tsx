@@ -31,7 +31,7 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatQuota } from '@/lib/format'
+import { formatQuota, formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 import { REDEMPTION_STATUS, REDEMPTION_STATUSES } from '../constants'
@@ -165,6 +165,14 @@ export function RedemptionsMobileList(props: RedemptionsMobileListProps) {
               <span className='text-muted-foreground'>{t('Quota')}</span>
               <span className='font-medium tabular-nums'>
                 {formatQuota(redemption.quota)}
+              </span>
+            </div>
+            <div className='flex items-center justify-between gap-2 text-xs'>
+              <span className='text-muted-foreground'>{t('Redeemed at')}</span>
+              <span className='font-mono'>
+                {redemption.redeemed_time > 0
+                  ? formatTimestampToDate(redemption.redeemed_time)
+                  : '-'}
               </span>
             </div>
           </div>

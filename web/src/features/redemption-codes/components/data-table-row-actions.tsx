@@ -72,7 +72,9 @@ export function DataTableRowActions<TData>({
     }
   }
 
-  const canEdit = isEnabled && !isExpired
+  // Used legacy codes remain editable until their category is backfilled.
+  const canEdit =
+    !isExpired && (isEnabled || (isUsed && !redemption.category_priced_at))
   const canToggle = !isUsed && !isExpired
 
   return (

@@ -170,6 +170,20 @@ func UpdateRedemption(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": msg})
 			return
 		}
+		// Legacy rows (including already used codes) may have no category
+		// snapshot. Allow admins to backfill it from the edit drawer; the
+		// category is immutable once it has been priced.
+		if redemption.CategoryID > 0 && cleanRedemption.CategoryID == 0 && cleanRedemption.CategoryPricedAt == 0 {
+			if _, err := model.AssignRedemptionCategory([]int{cleanRedemption.Id}, redemption.CategoryID, c.GetInt("id")); err != nil {
+				common.ApiError(c, err)
+				return
+			}
+			cleanRedemption, err = model.GetRedemptionById(redemption.Id)
+			if err != nil {
+				common.ApiError(c, err)
+				return
+			}
+		}
 		// If you add more fields, please also update redemption.Update()
 		cleanRedemption.Name = redemption.Name
 		cleanRedemption.Quota = redemption.Quota
