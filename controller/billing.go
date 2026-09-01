@@ -10,51 +10,25 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// GetWalletUsage exposes the API token's remaining balance in the shape
-// expected by CCSwitch. The request is authenticated by TokenAuthReadOnly,
-// which deliberately allows this read even when a token is exhausted or
-// expired. Reading the token (rather than the user's aggregate wallet) is
-// important when per-token quotas are enabled. In the normal account-level
-// quota mode, use the user's wallet quota (token RemainQuota is usually zero
-// by design).
+// GetWalletUsage exposes the authenticated user's wallet balance in the shape
+// expected by CCSwitch. The API key is used only to identify the user; this
+// endpoint must not report the key's own RemainQuota.
 func GetWalletUsage(c *gin.Context) {
-	var remaining float64
-	if common.DisplayTokenStatEnabled {
-		tokenKey := c.GetString("token_key")
-		token, err := model.GetTokenByKey(tokenKey, false)
-		if err != nil {
-			c.JSON(http.StatusOK, gin.H{
-				"remaining": 0,
-				"unit":      "USD",
-				"is_active": false,
-				"error": gin.H{
-					"message": err.Error(),
-					"type":    "new_api_error",
-				},
-			})
-			return
-		}
-		remaining = float64(token.RemainQuota) / common.QuotaPerUnit
-		if token.UnlimitedQuota {
-			// Match the established billing API convention for unlimited tokens.
-			remaining = 100000000
-		}
-	} else {
-		quota, err := model.GetUserQuota(c.GetInt("id"), false)
-		if err != nil {
-			c.JSON(http.StatusOK, gin.H{
-				"remaining": 0,
-				"unit":      "USD",
-				"is_active": false,
-				"error": gin.H{
-					"message": err.Error(),
-					"type":    "new_api_error",
-				},
-			})
-			return
-		}
-		remaining = float64(quota) / common.QuotaPerUnit
+	quota, err := model.GetUserQuota(c.GetInt("id"), false)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"remaining": 0,
+			"unit":      "USD",
+			"is_active": false,
+			"error": gin.H{
+				"message": err.Error(),
+				"type":    "new_api_error",
+			},
+		})
+		return
 	}
+
+	remaining := float64(quota) / common.QuotaPerUnit
 	c.JSON(http.StatusOK, gin.H{
 		"remaining": remaining,
 		"unit":      "USD",
