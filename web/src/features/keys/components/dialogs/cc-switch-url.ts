@@ -45,8 +45,9 @@ export function buildCCSwitchURL(
       headers: { "Authorization": "Bearer {{apiKey}}" }
     },
     extractor: function(response) {
-      // Keep this ES5-compatible: older CCSwitch builds do not parse `?.` or
-      // `??`, causing the extractor to fail before it can read the response.
+      // Keep this ES5-compatible: older CCSwitch builds do not parse optional
+      // chaining or nullish coalescing, causing the extractor to fail before
+      // it can read the response.
       response = response || {};
       const quota = response.quota || {};
       const data = response.data || {};
