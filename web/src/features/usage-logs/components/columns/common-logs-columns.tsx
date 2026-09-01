@@ -622,7 +622,9 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           <div className='flex w-fit flex-col gap-0.5'>
             <ModelBadge
               modelName={modelInfo.name}
-              actualModel={modelInfo.actualModel}
+              // Mapping details are an administrative diagnostic and should
+              // not be exposed in the user-facing usage log.
+              actualModel={isAdmin ? modelInfo.actualModel : undefined}
             />
           </div>
         )
