@@ -4,7 +4,7 @@ import { describe, test } from 'node:test'
 import { buildCCSwitchURL } from './cc-switch-url.ts'
 
 describe('CC Switch import link', () => {
-  test('normalizes a trailing slash before adding the Codex API path', () => {
+  test('normalizes a trailing slash and uses the correct Codex usage path', () => {
     const url = buildCCSwitchURL(
       'codex',
       'test',
@@ -20,7 +20,8 @@ describe('CC Switch import link', () => {
     assert.equal(params.get('apiKey'), 'sk-test')
     assert.equal(params.get('usageEnabled'), 'true')
     assert.equal(params.get('usageAutoInterval'), '30')
-    assert.match(atob(params.get('usageScript') || ''), /\{\{baseUrl\}\}\/v1\/usage/)
+    assert.match(atob(params.get('usageScript') || ''), /\{\{baseUrl\}\}\/usage/)
+    assert.doesNotMatch(atob(params.get('usageScript') || ''), /\?\.|\?\?|\?\?\./)
     assert.match(atob(params.get('usageScript') || ''), /Bearer \{\{apiKey\}\}/)
   })
 })

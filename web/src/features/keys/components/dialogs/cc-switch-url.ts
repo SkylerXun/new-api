@@ -34,17 +34,29 @@ export function buildCCSwitchURL(
   }
   params.set('homepage', normalizedServerAddress)
   params.set('enabled', 'true')
+  // The Codex provider endpoint already contains the OpenAI `/v1` prefix.
+  // CCSwitch substitutes `{{baseUrl}}` literally, so appending `/v1/usage`
+  // here would probe `/v1/v1/usage` and silently leave the balance blank.
+  const usagePath = app === 'codex' ? '/usage' : '/v1/usage'
   const usageScript = `({
     request: {
-      url: "{{baseUrl}}/v1/usage",
+      url: "{{baseUrl}}${usagePath}",
       method: "GET",
       headers: { "Authorization": "Bearer {{apiKey}}" }
     },
     extractor: function(response) {
-      const remaining = response?.remaining ?? response?.quota?.remaining ?? response?.balance;
-      const unit = response?.unit ?? response?.quota?.unit ?? "USD";
+      // Keep this ES5-compatible: older CCSwitch builds do not parse `?.` or
+      // `??`, causing the extractor to fail before it can read the response.
+      response = response || {};
+      const quota = response.quota || {};
+      const data = response.data || {};
+      const remaining = response.remaining != null ? response.remaining
+        : (quota.remaining != null ? quota.remaining
+          : (data.remaining != null ? data.remaining : response.balance));
+      const unit = response.unit || quota.unit || data.unit || "USD";
       return {
-        isValid: response?.is_active ?? response?.isValid ?? true,
+        isValid: response.is_active != null ? response.is_active
+          : (response.isValid != null ? response.isValid : true),
         remaining,
         unit
       };

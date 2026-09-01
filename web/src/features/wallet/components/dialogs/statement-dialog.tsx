@@ -76,17 +76,13 @@ function currentMonth() {
 function StatementPreview({
   statement,
   downloading,
-  loadingPrevious,
   onDownload,
   onBack,
-  onPrevious,
 }: {
   statement: ConsumptionStatement
   downloading: boolean
-  loadingPrevious: boolean
   onDownload: () => void
   onBack?: () => void
-  onPrevious?: () => void
 }) {
   const { t } = useTranslation()
   const { logo } = useSystemConfig()
@@ -102,21 +98,6 @@ function StatementPreview({
           <div />
         )}
         <div className='flex flex-wrap justify-end gap-2'>
-          {onPrevious && (
-            <Button
-              variant='outline'
-              onClick={onPrevious}
-              disabled={loadingPrevious}
-              className='gap-2'
-            >
-              {loadingPrevious ? (
-                <Loader2 className='h-4 w-4 animate-spin' />
-              ) : (
-                <History className='h-4 w-4' />
-              )}
-              {t('View previous month statement')}
-            </Button>
-          )}
           <Button onClick={onDownload} disabled={downloading} className='gap-2'>
             {downloading ? (
               <Loader2 className='h-4 w-4 animate-spin' />
@@ -213,14 +194,6 @@ function StatementPreview({
               </div>
             </div>
           </div>
-
-          {snapshot.recipient.user_supplied && (
-            <div className='rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900'>
-              {t(
-                'The reconciliation title and contact address are supplied by the user and are not invoice or tax information.'
-              )}
-            </div>
-          )}
 
           <div>
             <h4 className='mb-2 font-semibold'>{t('Model token summary')}</h4>
@@ -371,9 +344,14 @@ function StatementPreview({
           <div>
             <h4 className='mb-2 font-semibold'>{t('Compliance notice')}</h4>
             <ol className='list-decimal space-y-1 pl-5 text-xs leading-5 text-neutral-600'>
-              {snapshot.disclaimers.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
+              {snapshot.disclaimers
+                .filter(
+                  (item) =>
+                    !item.startsWith('钱包充值') && !item.startsWith('订阅购买')
+                )
+                .map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
             </ol>
           </div>
           <div className='border-t pt-2 font-mono text-[10px] break-all text-neutral-500'>
@@ -536,14 +514,8 @@ export function StatementDialog({ open, onOpenChange }: StatementDialogProps) {
         <StatementPreview
           statement={statement}
           downloading={downloading}
-          loadingPrevious={loadingPrevious}
           onDownload={downloadPdf}
           onBack={isAdmin ? () => setStatement(null) : undefined}
-          onPrevious={
-            !isAdmin && statement.source !== 'system_monthly'
-              ? viewPreviousStatement
-              : undefined
-          }
         />
       )}
       {!statement && isAdmin && (
@@ -744,11 +716,6 @@ export function StatementDialog({ open, onOpenChange }: StatementDialogProps) {
       )}
       {!statement && !isAdmin && (
         <div className='space-y-5'>
-          <div className='rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900'>
-            {t(
-              'Only the current Shanghai calendar month through the generation time can be exported. Each generation creates a separate immutable version.'
-            )}
-          </div>
           <div className='grid gap-4 sm:grid-cols-2'>
             <div className='space-y-2'>
               <Label htmlFor='statement-title'>
@@ -780,7 +747,20 @@ export function StatementDialog({ open, onOpenChange }: StatementDialogProps) {
               />
             </div>
           </div>
-          <div className='flex justify-end'>
+          <div className='flex justify-end gap-2'>
+            <Button
+              variant='outline'
+              onClick={viewPreviousStatement}
+              disabled={loadingPrevious}
+              className='gap-2'
+            >
+              {loadingPrevious ? (
+                <Loader2 className='h-4 w-4 animate-spin' />
+              ) : (
+                <History className='h-4 w-4' />
+              )}
+              {t('View previous month statement')}
+            </Button>
             <Button onClick={generateSelf} disabled={loading} className='gap-2'>
               {loading ? (
                 <Loader2 className='h-4 w-4 animate-spin' />

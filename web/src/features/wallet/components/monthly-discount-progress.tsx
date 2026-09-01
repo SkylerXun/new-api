@@ -122,7 +122,7 @@ export function MonthlyDiscountProgress(props: {
               </div>
 
               <div
-                className='absolute -top-[86px] z-30 rounded-md bg-[#2b1f1f] px-3 py-2 text-center text-white shadow-lg transition-[left] duration-700 ease-out'
+                className='absolute -top-[56px] z-30 rounded-md bg-[#2b1f1f] px-3 py-2 text-center text-white shadow-lg transition-[left] duration-700 ease-out'
                 style={{
                   left: `${progressPercent}%`,
                   transform: tooltipTransform,
