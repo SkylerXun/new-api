@@ -16,6 +16,7 @@ const (
 	ActivityKeyNewUserRedeemBonus = "new_user_redeem_bonus"
 
 	ActivityGrantSourceRedeem            = "redeem"
+	ActivityGrantSourceTopUp             = "topup"
 	ActivityGrantSourceAllUsersGrant     = "all_users_grant"
 	ActivityGrantSourceCampaignClaim     = "campaign_claim"
 	ActivityGrantSourceCampaignImmediate = "campaign_immediate"

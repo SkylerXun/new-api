@@ -133,6 +133,11 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		newAPIError = types.NewError(err, types.ErrorCodeGenRelayInfoFailed)
 		return
 	}
+	// Keep the channel's internal model mapping private.  The selected adapter
+	// continues to use UpstreamModelName for the provider request, while every
+	// downstream response path is normalized to the model originally requested
+	// by the client.
+	c.Writer = helper.NewModelHidingResponseWriter(c.Writer, relayInfo.OriginModelName)
 
 	needSensitiveCheck := setting.ShouldCheckPromptSensitive()
 	needCountToken := constant.CountToken
@@ -505,6 +510,7 @@ func RelayTaskFetch(c *gin.Context) {
 		})
 		return
 	}
+	c.Writer = helper.NewModelHidingResponseWriter(c.Writer, relayInfo.OriginModelName)
 	if taskErr := relay.RelayTaskFetch(c, relayInfo.RelayMode); taskErr != nil {
 		respondTaskError(c, taskErr)
 	}
@@ -525,6 +531,7 @@ func RelayTask(c *gin.Context) {
 		respondTaskError(c, taskErr)
 		return
 	}
+	c.Writer = helper.NewModelHidingResponseWriter(c.Writer, relayInfo.OriginModelName)
 
 	var result *relay.TaskSubmitResult
 	var taskErr *taskdto.TaskError

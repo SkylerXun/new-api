@@ -86,7 +86,7 @@ func GetUserActivities(c *gin.Context) {
 		Id:               model.ActivityKeyNewUserRedeemBonus,
 		Type:             "new_user_topup_bonus",
 		Title:            "新用户兑换加赠",
-		Description:      fmt.Sprintf("注册后 %d 天内每次兑换码充值，额外赠送 %g%% 额度。", windowDays, bonusPercent),
+		Description:      fmt.Sprintf("注册后 %d 天内每次钱包充值，额外赠送 %g%% 额度。", windowDays, bonusPercent),
 		Status:           "active",
 		StartsAt:         user.CreatedAt,
 		EndsAt:           endsAt,
@@ -105,7 +105,7 @@ func GetUserActivities(c *gin.Context) {
 	} else if now >= endsAt {
 		newUserActivity.Status = "expired"
 	} else {
-		newUserActivity.Action = &userActivityAction{To: "/wallet", Label: "立即充值", Type: "navigate"}
+		newUserActivity.Action = &userActivityAction{To: "/purchase", Label: "立即充值", Type: "navigate"}
 	}
 
 	activities := make([]userActivity, 0, 50)

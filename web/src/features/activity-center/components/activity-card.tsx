@@ -68,7 +68,7 @@ export function ActivityCard(props: ActivityCardProps) {
   const activityDescription =
     props.activity.type === 'new_user_topup_bonus'
       ? t(
-          'Redeem codes within {{days}} days of registration for an extra {{percent}}% credit each time.',
+          'Top up within {{days}} days of registration for an extra {{percent}}% credit each time.',
           {
             days: Math.max(
               0,
@@ -110,7 +110,7 @@ export function ActivityCard(props: ActivityCardProps) {
         {canShowCountdown && props.activity.action?.type === 'navigate' ? (
           <Button
             className='w-full shrink-0 sm:w-auto'
-            render={<Link to='/wallet' />}
+            render={<Link to='/purchase' />}
           >
             <WalletCards />
             {t('Recharge now')}

@@ -104,6 +104,7 @@
     "Recharge now": "立即充值",
     "Recipients": "受众",
     "Redeem codes within {{days}} days of registration for an extra {{percent}}% credit each time.": "注册后 {{days}} 天内每次兑换码充值，均可额外获得 {{percent}}% 额度。",
+    "Top up within {{days}} days of registration for an extra {{percent}}% credit each time.": "注册后 {{days}} 天内每次钱包充值，均可额外获得 {{percent}}% 额度。",
     "Required. Users cannot claim this activity after the deadline.": "必填。截止时间后用户无法领取此活动。",
     "Seconds": "秒",
     "Summer credit": "夏日赠送",

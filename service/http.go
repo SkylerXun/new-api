@@ -45,6 +45,7 @@ func IOCopyBytesGracefully(c *gin.Context, src *http.Response, data []byte) {
 	if c.Writer == nil {
 		return
 	}
+	data = common.SanitizeResponseModel(data, c.GetString("original_model"))
 
 	body := io.NopCloser(bytes.NewBuffer(data))
 

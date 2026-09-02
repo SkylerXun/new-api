@@ -67,6 +67,7 @@ func ClaudeData(c *gin.Context, resp dto.ClaudeResponse) error {
 	if err != nil {
 		common.SysError("error marshalling stream response: " + err.Error())
 	} else {
+		jsonData = common.SanitizeResponseModel(jsonData, c.GetString("original_model"))
 		c.Render(-1, common.CustomEvent{Data: fmt.Sprintf("event: %s\n", resp.Type)})
 		c.Render(-1, common.CustomEvent{Data: "data: " + string(jsonData)})
 	}
@@ -80,6 +81,7 @@ func ClaudeChunkData(c *gin.Context, resp dto.ClaudeResponse, data string) {
 	}
 
 	c.Render(-1, common.CustomEvent{Data: fmt.Sprintf("event: %s\n", resp.Type)})
+	data = string(common.SanitizeResponseModel([]byte(data), c.GetString("original_model")))
 	c.Render(-1, common.CustomEvent{Data: fmt.Sprintf("data: %s\n", data)})
 	_ = FlushWriter(c)
 }
@@ -90,6 +92,7 @@ func ResponseChunkData(c *gin.Context, resp dto.ResponsesStreamResponse, data st
 	}
 
 	c.Render(-1, common.CustomEvent{Data: fmt.Sprintf("event: %s\n", resp.Type)})
+	data = string(common.SanitizeResponseModel([]byte(data), c.GetString("original_model")))
 	c.Render(-1, common.CustomEvent{Data: fmt.Sprintf("data: %s", data)})
 	return FlushWriter(c)
 }
@@ -103,6 +106,7 @@ func StringData(c *gin.Context, str string) error {
 		return fmt.Errorf("request context done: %w", c.Request.Context().Err())
 	}
 
+	str = string(common.SanitizeResponseModel([]byte(str), c.GetString("original_model")))
 	c.Render(-1, common.CustomEvent{Data: "data: " + str})
 	return FlushWriter(c)
 }
@@ -143,7 +147,7 @@ func WssString(c *gin.Context, ws *websocket.Conn, str string) error {
 		return errors.New("websocket connection is nil")
 	}
 	//common.LogInfo(c, fmt.Sprintf("sending message: %s", str))
-	return ws.WriteMessage(1, []byte(str))
+	return ws.WriteMessage(1, common.SanitizeResponseModel([]byte(str), c.GetString("original_model")))
 }
 
 func WssObject(c *gin.Context, ws *websocket.Conn, object interface{}) error {
@@ -151,6 +155,7 @@ func WssObject(c *gin.Context, ws *websocket.Conn, object interface{}) error {
 	if err != nil {
 		return fmt.Errorf("error marshalling object: %w", err)
 	}
+	jsonData = common.SanitizeResponseModel(jsonData, c.GetString("original_model"))
 	if ws == nil {
 		logger.LogError(c, "websocket connection is nil")
 		return errors.New("websocket connection is nil")

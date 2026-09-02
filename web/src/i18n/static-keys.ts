@@ -23,6 +23,7 @@ export const STATIC_I18N_KEYS = [
   'Activity Center',
   'New user recharge bonus',
   'Redeem codes within {{days}} days of registration for an extra {{percent}}% credit each time.',
+  'Top up within {{days}} days of registration for an extra {{percent}}% credit each time.',
   'Days',
   'Hours',
   'Minutes',
