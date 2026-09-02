@@ -39,7 +39,11 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 
-import { LOG_TYPE_ALL_VALUE, LOG_TYPE_FILTERS } from '../constants'
+import {
+  LOG_TYPE_ALL_VALUE,
+  LOG_TYPE_ENUM,
+  LOG_TYPE_FILTERS,
+} from '../constants'
 import { buildSearchParams } from '../lib/filter'
 import { getDefaultTimeRange } from '../lib/utils'
 import type { CommonLogFilters } from '../types'
@@ -257,11 +261,13 @@ export function CommonLogsFilterBar<TData>(
   const sensitiveType = sensitiveVisible ? 'text' : 'password'
   const logTypeItems = useMemo(
     () =>
-      LOG_TYPE_FILTERS.map((type) => ({
+      LOG_TYPE_FILTERS.filter(
+        (type) => isAdmin || type.value !== String(LOG_TYPE_ENUM.ERROR)
+      ).map((type) => ({
         value: type.value,
         label: t(type.label),
       })),
-    [t]
+    [isAdmin, t]
   )
   const logTypeLabel =
     logTypeItems.find((type) => type.value === logType)?.label ?? t('All Types')
@@ -373,9 +379,9 @@ export function CommonLogsFilterBar<TData>(
         </SelectTrigger>
         <SelectContent alignItemWithTrigger={false}>
           <SelectGroup>
-            {LOG_TYPE_FILTERS.map((type) => (
+            {logTypeItems.map((type) => (
               <SelectItem key={type.value} value={type.value}>
-                {t(type.label)}
+                {type.label}
               </SelectItem>
             ))}
           </SelectGroup>
