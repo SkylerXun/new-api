@@ -212,7 +212,7 @@ func GrantActivityQuotaTx(tx *gorm.DB, userId int, activityKey string, sourceTyp
 		return false, result.Error
 	}
 
-	result = tx.Model(&User{}).Where("id = ? AND quota <= ?", userId, common.MaxQuota-quota).
+	result = tx.Model(&User{}).Where("id = ? AND quota <= ?", userId, common.MaxUserQuota-int64(quota)).
 		Update("quota", gorm.Expr("quota + ?", quota))
 	if result.Error != nil {
 		return false, result.Error

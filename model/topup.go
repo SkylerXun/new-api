@@ -134,7 +134,7 @@ func grantNewUserTopUpBonusTx(tx *gorm.DB, userId int, sourceRef string, baseQuo
 	}
 	// The promotional credit is optional; a wallet already at the quota ceiling
 	// should still keep its paid top-up and simply skip the bonus.
-	if bonus <= 0 || user.Quota > common.MaxQuota-bonus {
+	if bonus <= 0 || int64(user.Quota) > common.MaxUserQuota-int64(bonus) {
 		return 0, nil
 	}
 	granted, err := GrantActivityQuotaTx(tx, userId, ActivityKeyNewUserRedeemBonus, ActivityGrantSourceTopUp, "topup:"+sourceRef, bonus)

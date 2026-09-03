@@ -258,6 +258,12 @@ func InitLogDB() (err error) {
 func migrateDB() error {
 	// Migrate price_amount column from float/double to decimal for existing tables
 	migrateSubscriptionPlanPriceAmount()
+	// User wallet balances are stored in quota units. Widen these columns before
+	// AutoMigrate so existing installations can safely hold balances above the
+	// old INT32 ceiling without changing QuotaPerUnit or historical values.
+	if err := widenUserQuotaColumns(); err != nil {
+		return err
+	}
 	// Migrate model_limits column from varchar to text for existing tables
 	if err := migrateTokenModelLimitsToText(); err != nil {
 		return err
@@ -330,6 +336,36 @@ func migrateDB() error {
 	} else {
 		if err := DB.AutoMigrate(&SubscriptionPlan{}); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+// widenUserQuotaColumns is intentionally limited to the user wallet columns.
+// Other legacy INT fields (logs, redemption rows, etc.) retain their existing
+// schema and limits, minimizing migration risk.
+func widenUserQuotaColumns() error {
+	if DB == nil || common.UsingMainDatabase(common.DatabaseTypeSQLite) {
+		return nil
+	}
+	columns := []string{"quota", "used_quota", "aff_quota", "aff_history"}
+	for _, column := range columns {
+		var query string
+		switch {
+		case common.UsingMainDatabase(common.DatabaseTypePostgreSQL):
+			query = fmt.Sprintf("ALTER TABLE users ALTER COLUMN %s TYPE BIGINT", column)
+		default: // MySQL
+			query = fmt.Sprintf("ALTER TABLE users MODIFY COLUMN `%s` BIGINT NOT NULL DEFAULT 0", column)
+		}
+		if err := DB.Exec(query).Error; err != nil {
+			// A fresh database may not have the users table yet; AutoMigrate below
+			// will create it with BIGINT columns. Ignore only that case.
+			if strings.Contains(strings.ToLower(err.Error()), "doesn't exist") ||
+				strings.Contains(strings.ToLower(err.Error()), "does not exist") ||
+				strings.Contains(strings.ToLower(err.Error()), "undefined table") {
+				return nil
+			}
+			return fmt.Errorf("widen users.%s to BIGINT: %w", column, err)
 		}
 	}
 	return nil

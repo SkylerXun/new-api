@@ -194,7 +194,7 @@ func Redeem(key string, userId int) (quota int, err error) {
 		}
 
 		result = tx.Model(&User{}).
-			Where("id = ? AND quota <= ?", userId, common.MaxQuota-redemption.Quota).
+			Where("id = ? AND quota <= ?", userId, common.MaxUserQuota-int64(redemption.Quota)).
 			Update("quota", gorm.Expr("quota + ?", redemption.Quota))
 		if result.Error != nil {
 			return result.Error
@@ -287,15 +287,15 @@ func Redeem(key string, userId int) (quota int, err error) {
 			return err
 		}
 		if inviter.Id == user.Id ||
-			inviter.AffQuota > common.MaxQuota-calculatedRebate ||
-			inviter.AffHistoryQuota > common.MaxQuota-calculatedRebate {
+			int64(inviter.AffQuota) > common.MaxUserQuota-int64(calculatedRebate) ||
+			int64(inviter.AffHistoryQuota) > common.MaxUserQuota-int64(calculatedRebate) {
 			// Rebate balances are bounded by the same int32 quota ceiling as
 			// wallet balances. Reaching the ceiling skips this optional credit.
 			return nil
 		}
 
 		result = tx.Model(&User{}).
-			Where("id = ? AND aff_quota <= ? AND aff_history <= ?", user.InviterId, common.MaxQuota-calculatedRebate, common.MaxQuota-calculatedRebate).
+			Where("id = ? AND aff_quota <= ? AND aff_history <= ?", user.InviterId, common.MaxUserQuota-int64(calculatedRebate), common.MaxUserQuota-int64(calculatedRebate)).
 			Updates(map[string]interface{}{
 				"aff_quota":   gorm.Expr("aff_quota + ?", calculatedRebate),
 				"aff_history": gorm.Expr("aff_history + ?", calculatedRebate),
