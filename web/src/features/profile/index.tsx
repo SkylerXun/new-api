@@ -29,6 +29,7 @@ import { PasskeyCard } from './components/passkey-card'
 import { ProfileHeader } from './components/profile-header'
 import { ProfileSecurityCard } from './components/profile-security-card'
 import { ProfileSettingsCard } from './components/profile-settings-card'
+import { BillingProfileCard } from './components/billing-profile-card'
 import { SidebarModulesCard } from './components/sidebar-modules-card'
 import { TwoFACard } from './components/two-fa-card'
 import { useProfile } from './hooks'
@@ -55,6 +56,7 @@ export function Profile() {
                   loading={loading}
                   onProfileUpdate={refreshProfile}
                 />
+                <BillingProfileCard />
                 <LanguagePreferencesCard
                   profile={profile}
                   onProfileUpdate={refreshProfile}

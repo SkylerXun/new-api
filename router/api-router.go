@@ -101,6 +101,8 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.GET("/activities/attention", controller.GetUserActivityAttention)
 				selfRoute.POST("/activities/:key/claim", middleware.CriticalRateLimit(), controller.ClaimUserActivity)
 				selfRoute.GET("/self", controller.GetSelf)
+				selfRoute.GET("/billing-profile", controller.GetBillingProfile)
+				selfRoute.PUT("/billing-profile", middleware.CriticalRateLimit(), controller.UpdateBillingProfile)
 				selfRoute.GET("/monthly-billing", controller.GetMonthlyBillingProgress)
 				selfRoute.GET("/models", controller.GetUserModels)
 				selfRoute.PUT("/self", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.UpdateSelf)
@@ -313,6 +315,8 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			statementRoute.POST("/self/current", middleware.CriticalRateLimit(), controller.GenerateSelfCurrentStatement)
 			statementRoute.GET("/self/previous", controller.GetSelfPreviousStatement)
+			statementRoute.GET("/self/history", controller.ListSelfStatementHistory)
+			statementRoute.POST("/self/regenerate", middleware.CriticalRateLimit(), controller.RegenerateSelfStatement)
 			statementRoute.GET("/:id", controller.GetStatement)
 			statementRoute.GET("/:id/pdf", middleware.CriticalRateLimit(), controller.DownloadStatementPDF)
 		}
@@ -322,6 +326,7 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			statementAdminRoute.GET("/monthly", controller.AdminListStatementMonthly)
 			statementAdminRoute.POST("/generate", middleware.CriticalRateLimit(), controller.AdminGenerateStatement)
+			statementAdminRoute.POST("/regenerate", middleware.CriticalRateLimit(), controller.AdminRegenerateStatement)
 			statementAdminRoute.GET("/history", controller.AdminListStatementHistory)
 		}
 		logRoute := apiRouter.Group("/log")

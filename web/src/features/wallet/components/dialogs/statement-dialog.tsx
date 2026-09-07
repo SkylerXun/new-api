@@ -31,7 +31,12 @@ import { useSystemConfig } from '@/hooks/use-system-config'
 import {
   downloadStatementPdf,
   generateAdminStatement,
+  regenerateAdminStatement,
   generateCurrentStatement,
+  getBillingProfile,
+  getSelfStatementHistory,
+  regenerateSelfStatement,
+  updateBillingProfile,
   getAdminStatementHistory,
   getAdminStatementMonthly,
   getPreviousStatement,
@@ -124,6 +129,12 @@ function StatementPreview({
               />
               <div>
                 <div className='font-semibold'>{snapshot.issuer.name}</div>
+                {snapshot.recipient.billing_username && (
+                  <div className='text-sm'>{snapshot.recipient.billing_username}</div>
+                )}
+                {snapshot.recipient.billing_contact && (
+                  <div className='text-xs text-neutral-500'>{snapshot.recipient.billing_contact}</div>
+                )}
                 <div className='text-xs text-neutral-500'>
                   {snapshot.issuer.website}
                 </div>
@@ -155,6 +166,16 @@ function StatementPreview({
               <div>
                 {t('Username')}: {snapshot.recipient.username}
               </div>
+              {snapshot.recipient.billing_username && (
+                <div>
+                  {t('Billing username')}: {snapshot.recipient.billing_username}
+                </div>
+              )}
+              {snapshot.recipient.billing_contact && (
+                <div>
+                  {t('Personal contact')}: {snapshot.recipient.billing_contact}
+                </div>
+              )}
               <div>
                 {t('Email')}: {snapshot.recipient.email || '-'}
               </div>
@@ -369,6 +390,10 @@ export function StatementDialog({ open, onOpenChange }: StatementDialogProps) {
   const [statement, setStatement] = useState<ConsumptionStatement | null>(null)
   const [billingTitle, setBillingTitle] = useState('')
   const [billingAddress, setBillingAddress] = useState('')
+  const [billingUsername, setBillingUsername] = useState('')
+  const [billingContact, setBillingContact] = useState('')
+  const [selfHistory, setSelfHistory] = useState<ConsumptionStatement[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
   const [loading, setLoading] = useState(false)
   const [downloading, setDownloading] = useState(false)
   const [loadingPrevious, setLoadingPrevious] = useState(false)
@@ -421,19 +446,38 @@ export function StatementDialog({ open, onOpenChange }: StatementDialogProps) {
   }, [isAdmin, loadAdmin, open, statement])
 
   useEffect(() => {
+    if (open && !isAdmin) {
+      void getBillingProfile().then((response) => {
+        if (response.success && response.data) {
+          setBillingUsername(response.data.billing_username || response.data.effective_username || '')
+          setBillingContact(response.data.billing_contact || response.data.effective_contact || '')
+        }
+      })
+      setHistoryLoading(true)
+      void getSelfStatementHistory({ page: 1, pageSize: 20 }).then((response) => {
+        if (response.success) setSelfHistory(response.data?.items || [])
+      }).finally(() => setHistoryLoading(false))
+    }
     if (!open) {
       setStatement(null)
       setBillingTitle('')
       setBillingAddress('')
+      setBillingUsername('')
+      setBillingContact('')
+      setSelfHistory([])
     }
   }, [open])
 
   const generateSelf = async () => {
     setLoading(true)
     try {
+      const profileResponse = await updateBillingProfile({ billing_username: billingUsername.trim(), billing_contact: billingContact.trim() })
+      if (!profileResponse.success) throw new Error(profileResponse.message)
       const response = await generateCurrentStatement({
         billing_title: billingTitle.trim() || undefined,
         billing_address: billingAddress.trim() || undefined,
+        billing_username: billingUsername.trim() || undefined,
+        billing_contact: billingContact.trim() || undefined,
       })
       if (!response.success || !response.data) throw new Error(response.message)
       setStatement(response.data)
@@ -446,6 +490,17 @@ export function StatementDialog({ open, onOpenChange }: StatementDialogProps) {
     } finally {
       setLoading(false)
     }
+  }
+
+  const regenerateSelf = async (targetMonth: string) => {
+    setLoading(true)
+    try {
+      const response = await regenerateSelfStatement(targetMonth)
+      if (!response.success || !response.data) throw new Error(response.message)
+      setStatement(response.data)
+    } catch (error) {
+      toast.error(error instanceof Error && error.message ? error.message : t('Failed to regenerate statement'))
+    } finally { setLoading(false) }
   }
 
   const generateForUser = async (userId: number) => {
@@ -463,6 +518,17 @@ export function StatementDialog({ open, onOpenChange }: StatementDialogProps) {
     } finally {
       setLoading(false)
     }
+  }
+
+  const regenerateForUser = async (userId: number) => {
+    setLoading(true)
+    try {
+      const response = await regenerateAdminStatement(userId, month)
+      if (!response.success || !response.data) throw new Error(response.message)
+      setStatement(response.data)
+    } catch (error) {
+      toast.error(error instanceof Error && error.message ? error.message : t('Failed to regenerate statement'))
+    } finally { setLoading(false) }
   }
 
   const viewPreviousStatement = async () => {
@@ -624,14 +690,15 @@ export function StatementDialog({ open, onOpenChange }: StatementDialogProps) {
                           : ''}
                       </td>
                       <td className='p-3 text-right'>
-                        <Button
-                          size='sm'
-                          onClick={() => generateForUser(item.user_id)}
-                          className='gap-1'
-                        >
-                          <FileText className='h-4 w-4' />
-                          {t('Generate and preview')}
-                        </Button>
+                        <div className='flex justify-end gap-2'>
+                          <Button size='sm' onClick={() => generateForUser(item.user_id)} className='gap-1'>
+                            <FileText className='h-4 w-4' />
+                            {t('Generate and preview')}
+                          </Button>
+                          <Button size='sm' variant='outline' onClick={() => regenerateForUser(item.user_id)}>
+                            {t('Regenerate')}
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -657,6 +724,8 @@ export function StatementDialog({ open, onOpenChange }: StatementDialogProps) {
                   sourceLabel = t('System monthly final')
                 } else if (item.source === 'user_export') {
                   sourceLabel = t('User export')
+                } else if (item.source === 'regenerate') {
+                  sourceLabel = t('Regenerated version')
                 }
                 return (
                   <div
@@ -716,6 +785,10 @@ export function StatementDialog({ open, onOpenChange }: StatementDialogProps) {
       )}
       {!statement && !isAdmin && (
         <div className='space-y-5'>
+          <div className='space-y-2'>
+            <Label htmlFor='statement-month'>{t('Statement month')}</Label>
+            <Input id='statement-month' type='month' max={currentMonth()} value={month} onChange={(event) => setMonth(event.target.value)} />
+          </div>
           <div className='grid gap-4 sm:grid-cols-2'>
             <div className='space-y-2'>
               <Label htmlFor='statement-title'>
@@ -735,6 +808,14 @@ export function StatementDialog({ open, onOpenChange }: StatementDialogProps) {
               </p>
             </div>
             <div className='space-y-2'>
+              <Label htmlFor='statement-username'>{t('Billing username')}</Label>
+              <Input id='statement-username' maxLength={120} value={billingUsername} onChange={(event) => setBillingUsername(event.target.value)} placeholder={t('Defaults to your display name')} />
+            </div>
+            <div className='space-y-2'>
+              <Label htmlFor='statement-contact'>{t('Personal contact')}</Label>
+              <Input id='statement-contact' maxLength={300} value={billingContact} onChange={(event) => setBillingContact(event.target.value)} placeholder={t('Defaults to your email')} />
+            </div>
+            <div className='space-y-2'>
               <Label htmlFor='statement-address'>
                 {t('Contact address (optional)')}
               </Label>
@@ -746,6 +827,18 @@ export function StatementDialog({ open, onOpenChange }: StatementDialogProps) {
                 placeholder={t('For example: Guangdong Province, Shenzhen...')}
               />
             </div>
+          </div>
+          <div className='space-y-2'>
+            <div className='font-semibold'>{t('Generated statement history')}</div>
+            {historyLoading ? <Loader2 className='h-4 w-4 animate-spin' /> : selfHistory.map((item) => (
+              <div key={item.id} className='flex items-center justify-between rounded border p-2 text-sm'>
+                <span>{item.statement_no} · {formatTime(item.generated_at)}</span>
+                <div className='flex gap-2'>
+                  <Button size='sm' variant='outline' onClick={() => setStatement(item)}>{t('Preview')}</Button>
+                  <Button size='sm' variant='outline' onClick={() => regenerateSelf(new Date(item.month_start * 1000).toISOString().slice(0, 7))}>{t('Regenerate')}</Button>
+                </div>
+              </div>
+            ))}
           </div>
           <div className='flex justify-end gap-2'>
             <Button
@@ -768,6 +861,9 @@ export function StatementDialog({ open, onOpenChange }: StatementDialogProps) {
                 <FileText className='h-4 w-4' />
               )}
               {t('Generate and preview current month')}
+            </Button>
+            <Button variant='outline' onClick={() => regenerateSelf(month)} disabled={loading || !month}>
+              {t('Regenerate selected month')}
             </Button>
           </div>
         </div>

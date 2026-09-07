@@ -81,6 +81,8 @@ type User struct {
 	Password                  string                     `json:"password" gorm:"not null;" validate:"min=8,max=20"`
 	OriginalPassword          string                     `json:"original_password" gorm:"-:all"` // this field is only for Password change verification, don't save it to database!
 	DisplayName               string                     `json:"display_name" gorm:"index" validate:"max=20"`
+	BillingUsername           string                     `json:"billing_username" gorm:"type:varchar(120)" validate:"max=120"`
+	BillingContact            string                     `json:"billing_contact" gorm:"type:varchar(300)" validate:"max=300"`
 	Role                      int                        `json:"role" gorm:"type:int;default:1"`   // admin, common
 	Status                    int                        `json:"status" gorm:"type:int;default:1"` // enabled, disabled
 	Email                     string                     `json:"email" gorm:"index" validate:"max=50"`
@@ -93,7 +95,7 @@ type User struct {
 	AccessToken               *string                    `json:"-" gorm:"type:char(32);column:access_token;uniqueIndex"` // this token is for system management
 	Quota                     int                        `json:"quota" gorm:"type:bigint;default:0"`
 	UsedQuota                 int                        `json:"used_quota" gorm:"type:bigint;default:0;column:used_quota"` // used quota
-	RequestCount              int                        `json:"request_count" gorm:"type:int;default:0;"`               // request number
+	RequestCount              int                        `json:"request_count" gorm:"type:int;default:0;"`                  // request number
 	Group                     string                     `json:"group" gorm:"type:varchar(64);default:'default'"`
 	AffCode                   string                     `json:"aff_code" gorm:"type:varchar(32);column:aff_code;uniqueIndex"`
 	AffCount                  int                        `json:"aff_count" gorm:"type:int;default:0;column:aff_count"`
@@ -189,6 +191,23 @@ func UpdateUserSetting(userId int, setting dto.UserSetting) error {
 		return err
 	}
 	return updateUserSettingCache(userId, settingValue)
+}
+
+func UpdateUserBillingProfile(userID int, username, contact string) error {
+	if userID <= 0 {
+		return errors.New("id 为空！")
+	}
+	if err := DB.Model(&User{}).Where("id = ?", userID).Updates(map[string]any{
+		"billing_username": strings.TrimSpace(username),
+		"billing_contact":  strings.TrimSpace(contact),
+	}).Error; err != nil {
+		return err
+	}
+	user, err := GetUserById(userID, false)
+	if err != nil {
+		return err
+	}
+	return updateUserCache(*user)
 }
 
 // userBindColumns 允许通过 UpdateUserBindColumn 更新的第三方账号绑定列白名单。

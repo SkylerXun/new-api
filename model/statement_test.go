@@ -22,7 +22,7 @@ func setupStatementTestDB(t *testing.T) *gorm.DB {
 	common.SetDatabaseTypes(common.DatabaseTypeSQLite, common.DatabaseTypeSQLite)
 	require.NoError(t, db.AutoMigrate(
 		&User{}, &Option{}, &Log{}, &Redemption{}, &RedemptionCategory{}, &RedemptionPricingAudit{},
-		&TopUp{}, &StatementUsageMonthly{}, &ConsumptionStatement{},
+		&TopUp{}, &SubscriptionOrder{}, &StatementUsageMonthly{}, &ConsumptionStatement{},
 	))
 	t.Cleanup(func() {
 		DB, LOG_DB = previousDB, previousLogDB
@@ -33,6 +33,26 @@ func setupStatementTestDB(t *testing.T) *gorm.DB {
 		}
 	})
 	return db
+}
+
+func TestStatementBillingProfileDefaultsAndRegenerationAreImmutable(t *testing.T) {
+	db := setupStatementTestDB(t)
+	location := time.FixedZone("Asia/Shanghai", 8*60*60)
+	now := time.Date(2026, time.August, 20, 12, 0, 0, 0, location)
+	user := User{Username: "statement-user", DisplayName: "站内名字", Email: "user@example.com", Password: "unused"}
+	require.NoError(t, db.Create(&user).Error)
+	first, err := GenerateConsumptionStatement(StatementGenerateInput{UserID: user.Id, Month: "2026-08", Source: StatementSourceUserExport, GeneratedBy: user.Id, Now: now})
+	require.NoError(t, err)
+	assert.Equal(t, "站内名字", first.Snapshot.Recipient.BillingUsername)
+	assert.Equal(t, "user@example.com", first.Snapshot.Recipient.BillingContact)
+	require.NoError(t, UpdateUserBillingProfile(user.Id, "账单名字", "微信: abc"))
+	second, err := GenerateConsumptionStatement(StatementGenerateInput{UserID: user.Id, Month: "2026-08", Source: StatementSourceRegenerate, GeneratedBy: user.Id, Now: now.Add(time.Minute)})
+	require.NoError(t, err)
+	assert.NotEqual(t, first.ID, second.ID)
+	assert.Equal(t, "站内名字", first.Snapshot.Recipient.BillingUsername)
+	assert.Equal(t, "账单名字", second.Snapshot.Recipient.BillingUsername)
+	assert.Equal(t, "微信: abc", second.Snapshot.Recipient.BillingContact)
+	assert.True(t, CanAccessConsumptionStatement(second, user.Id, common.RoleCommonUser, now))
 }
 
 func TestStatementMonthBoundsUsesShanghaiAndRejectsFuture(t *testing.T) {
@@ -131,7 +151,7 @@ func TestGenerateConsumptionStatementFiltersAmountsAndFreezesSnapshot(t *testing
 	assert.True(t, CanAccessConsumptionStatement(statement, user.Id, common.RoleCommonUser, now))
 	assert.False(t, CanAccessConsumptionStatement(statement, user.Id+1, common.RoleCommonUser, now))
 	assert.True(t, CanAccessConsumptionStatement(statement, user.Id+1, common.RoleAdminUser, now))
-	assert.False(t, CanAccessConsumptionStatement(statement, user.Id, common.RoleCommonUser, time.Date(2026, time.September, 1, 0, 0, 0, 0, location)))
+	assert.True(t, CanAccessConsumptionStatement(statement, user.Id, common.RoleCommonUser, time.Date(2026, time.September, 1, 0, 0, 0, 0, location)))
 }
 
 func TestRedemptionCategorySnapshotAndLegacyAssignmentAreImmutable(t *testing.T) {

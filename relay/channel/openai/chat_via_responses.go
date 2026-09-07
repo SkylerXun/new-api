@@ -96,6 +96,7 @@ func OaiResponsesToChatBufferedStreamHandler(c *gin.Context, info *relaycommon.R
 		}
 		data := line[5:]
 		data = strings.TrimSpace(data)
+		data = sanitizeNewAPIStreamErrorData(c, info, data)
 		if data == "" || data == "[DONE]" {
 			if data == "[DONE]" {
 				break
@@ -268,6 +269,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 	}
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
+		data = sanitizeNewAPIStreamErrorData(c, info, data)
 		if streamErr != nil {
 			sr.Stop(streamErr)
 			return

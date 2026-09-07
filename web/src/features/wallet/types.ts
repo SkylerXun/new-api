@@ -47,8 +47,6 @@ export type PaymentStatusResponse = ApiResponse<{
   quota?: number
 }>
 export type StripePaymentResponse = ApiResponse<{ pay_link: string }>
-export type AffiliateCodeResponse = ApiResponse<string>
-export type AffiliateTransferResponse = ApiResponse
 export type CreemPaymentResponse = ApiResponse<{ checkout_url: string }>
 export type WaffoPaymentResponse = ApiResponse<
   { payment_url?: string } | string
@@ -235,14 +233,6 @@ export interface AmountRequest {
 }
 
 /**
- * Affiliate quota transfer request
- */
-export interface AffiliateTransferRequest {
-  /** Quota amount to transfer */
-  quota: number
-}
-
-/**
  * User wallet data
  */
 export interface UserWalletData {
@@ -331,9 +321,18 @@ export interface StatementRecipient {
   user_id: number
   username: string
   email: string
+  billing_username?: string
+  billing_contact?: string
   billing_title?: string
   billing_address?: string
   user_supplied: boolean
+}
+
+export interface BillingProfile {
+  billing_username: string
+  billing_contact: string
+  effective_username: string
+  effective_contact: string
 }
 
 export interface StatementTokenItem {
@@ -376,7 +375,7 @@ export interface StatementSnapshot {
   period_start: number
   period_end: number
   timezone: string
-  source: 'user_export' | 'admin' | 'system_monthly'
+  source: 'user_export' | 'regenerate' | 'admin' | 'system_monthly'
   is_final: boolean
   generated_at: number
   generated_by: number

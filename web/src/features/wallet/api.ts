@@ -22,7 +22,6 @@ import type {
   RedemptionRequest,
   PaymentRequest,
   AmountRequest,
-  AffiliateTransferRequest,
   ApiResponse,
   TopupInfoResponse,
   RedemptionResponse,
@@ -30,8 +29,6 @@ import type {
   PaymentResponse,
   PaymentStatusResponse,
   StripePaymentResponse,
-  AffiliateCodeResponse,
-  AffiliateTransferResponse,
   BillingHistoryResponse,
   CompleteOrderRequest,
   CreemPaymentRequest,
@@ -209,24 +206,6 @@ export async function requestWaffoPancakePayment(
 }
 
 /**
- * Get affiliate code
- */
-export async function getAffiliateCode(): Promise<AffiliateCodeResponse> {
-  const res = await api.get('/api/user/aff')
-  return res.data
-}
-
-/**
- * Transfer affiliate quota to balance
- */
-export async function transferAffiliateQuota(
-  request: AffiliateTransferRequest
-): Promise<AffiliateTransferResponse> {
-  const res = await api.post('/api/user/aff_transfer', request)
-  return res.data
-}
-
-/**
  * Get billing history for current user
  */
 export async function getUserBillingHistory(
@@ -277,8 +256,34 @@ export async function completeOrder(
 export async function generateCurrentStatement(input: {
   billing_title?: string
   billing_address?: string
+  billing_username?: string
+  billing_contact?: string
 }): Promise<ApiResponse<ConsumptionStatement>> {
   const res = await api.post('/api/statements/self/current', input)
+  return res.data
+}
+
+export async function getBillingProfile() {
+  const res = await api.get('/api/user/billing-profile')
+  return res.data
+}
+
+export async function updateBillingProfile(input: { billing_username: string; billing_contact: string }) {
+  const res = await api.put('/api/user/billing-profile', input)
+  return res.data
+}
+
+export async function getSelfStatementHistory(params: { month?: string; page?: number; pageSize?: number }) {
+  const query = new URLSearchParams()
+  if (params.month) query.set('month', params.month)
+  if (params.page) query.set('p', String(params.page))
+  if (params.pageSize) query.set('page_size', String(params.pageSize))
+  const res = await api.get(`/api/statements/self/history?${query}`)
+  return res.data
+}
+
+export async function regenerateSelfStatement(month: string) {
+  const res = await api.post('/api/statements/self/regenerate', { month })
   return res.data
 }
 
@@ -326,8 +331,15 @@ export async function generateAdminStatement(input: {
   month: string
   billing_title?: string
   billing_address?: string
+  billing_username?: string
+  billing_contact?: string
 }): Promise<ApiResponse<ConsumptionStatement>> {
   const res = await api.post('/api/statements/admin/generate', input)
+  return res.data
+}
+
+export async function regenerateAdminStatement(user_id: number, month: string) {
+  const res = await api.post('/api/statements/admin/regenerate', { user_id, month })
   return res.data
 }
 

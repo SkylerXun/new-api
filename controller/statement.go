@@ -16,10 +16,37 @@ import (
 )
 
 type statementGenerateRequest struct {
-	UserID         int    `json:"user_id"`
-	Month          string `json:"month"`
-	BillingTitle   string `json:"billing_title"`
-	BillingAddress string `json:"billing_address"`
+	UserID          int    `json:"user_id"`
+	Month           string `json:"month"`
+	BillingTitle    string `json:"billing_title"`
+	BillingAddress  string `json:"billing_address"`
+	BillingUsername string `json:"billing_username"`
+	BillingContact  string `json:"billing_contact"`
+}
+
+type statementRegenerateRequest struct {
+	UserID int    `json:"user_id"`
+	Month  string `json:"month"`
+}
+
+func GenerateStatementForUser(c *gin.Context, userID int, source string, generatedBy int, month string) {
+	var request statementGenerateRequest
+	if c.Request.ContentLength > 0 {
+		if err := c.ShouldBindJSON(&request); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
+	statement, err := model.GenerateConsumptionStatement(model.StatementGenerateInput{
+		UserID: userID, Month: month, Source: source, GeneratedBy: generatedBy,
+		BillingTitle: request.BillingTitle, BillingAddress: request.BillingAddress,
+		BillingUsername: request.BillingUsername, BillingContact: request.BillingContact, Now: time.Now(),
+	})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, statement)
 }
 
 func GenerateSelfCurrentStatement(c *gin.Context) {
@@ -33,12 +60,39 @@ func GenerateSelfCurrentStatement(c *gin.Context) {
 	statement, err := model.GenerateConsumptionStatement(model.StatementGenerateInput{
 		UserID: c.GetInt("id"), Source: model.StatementSourceUserExport, GeneratedBy: c.GetInt("id"),
 		BillingTitle: request.BillingTitle, BillingAddress: request.BillingAddress, Now: time.Now(),
+		BillingUsername: request.BillingUsername, BillingContact: request.BillingContact,
 	})
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 	common.ApiSuccess(c, statement)
+}
+
+func RegenerateSelfStatement(c *gin.Context) {
+	var request statementRegenerateRequest
+	if err := c.ShouldBindJSON(&request); err != nil || strings.TrimSpace(request.Month) == "" {
+		common.ApiErrorMsg(c, "月份不能为空")
+		return
+	}
+	statement, err := model.GenerateConsumptionStatement(model.StatementGenerateInput{UserID: c.GetInt("id"), Month: request.Month, Source: model.StatementSourceRegenerate, GeneratedBy: c.GetInt("id"), Now: time.Now()})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, statement)
+}
+
+func ListSelfStatementHistory(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c)
+	items, total, err := model.ListConsumptionStatements(model.StatementHistoryFilter{UserID: c.GetInt("id"), Month: c.Query("month"), Offset: pageInfo.GetStartIdx(), Limit: pageInfo.GetPageSize()})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(items)
+	common.ApiSuccess(c, pageInfo)
 }
 
 func GetSelfPreviousStatement(c *gin.Context) {
@@ -119,12 +173,28 @@ func AdminGenerateStatement(c *gin.Context) {
 		UserID: request.UserID, Month: request.Month, Source: model.StatementSourceAdmin,
 		GeneratedBy: c.GetInt("id"), BillingTitle: request.BillingTitle,
 		BillingAddress: request.BillingAddress, Now: time.Now(),
+		BillingUsername: request.BillingUsername, BillingContact: request.BillingContact,
 	})
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 	recordManageAudit(c, "statement.generate", map[string]any{"statement_id": statement.ID, "statement_no": statement.StatementNo, "user_id": statement.UserID, "month_start": statement.MonthStart})
+	common.ApiSuccess(c, statement)
+}
+
+func AdminRegenerateStatement(c *gin.Context) {
+	var request statementRegenerateRequest
+	if err := c.ShouldBindJSON(&request); err != nil || request.UserID <= 0 || strings.TrimSpace(request.Month) == "" {
+		common.ApiErrorMsg(c, "用户 ID 和月份不能为空")
+		return
+	}
+	statement, err := model.GenerateConsumptionStatement(model.StatementGenerateInput{UserID: request.UserID, Month: request.Month, Source: model.StatementSourceRegenerate, GeneratedBy: c.GetInt("id"), Now: time.Now()})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	recordManageAudit(c, "statement.regenerate", map[string]any{"statement_id": statement.ID, "statement_no": statement.StatementNo, "user_id": statement.UserID, "month_start": statement.MonthStart})
 	common.ApiSuccess(c, statement)
 }
 

@@ -52,6 +52,28 @@ test('disabled check-in feature omits the sidebar entry', () => {
   assert.equal(urls.includes('/checkin'), false)
 })
 
+test('referral program is a standalone entry immediately after purchase credits', () => {
+  const urls = personalUrls(getSidebarData(translate, false))
+
+  assert.equal(urls.indexOf('/referrals'), urls.indexOf('/purchase') + 1)
+  assert.equal(urls.indexOf('/referrals') > urls.indexOf('/wallet'), true)
+})
+
+test('referral visibility is independent from the wallet module', () => {
+  const data = getSidebarData(translate, false)
+  const filtered = filterSidebarNavGroups(
+    data.navGroups,
+    JSON.stringify({
+      personal: { enabled: true, topup: false, referral: true },
+    }),
+    null
+  )
+  const urls = personalUrls({ navGroups: filtered })
+
+  assert.equal(urls.includes('/wallet'), false)
+  assert.equal(urls.includes('/referrals'), true)
+})
+
 test('admin check-in setting hides the enabled sidebar entry', () => {
   const data = getSidebarData(translate, true)
   const filtered = filterSidebarNavGroups(

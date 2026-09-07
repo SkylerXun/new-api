@@ -16,11 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useNavigate } from '@tanstack/react-router'
 import { useEffect, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
-import { useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -29,7 +30,6 @@ import {
   FormLabel,
 } from '@/components/ui/form'
 import { Switch } from '@/components/ui/switch'
-import { Button } from '@/components/ui/button'
 
 import {
   SettingsControlChildren,
@@ -132,6 +132,12 @@ export function SidebarModulesSection({
       topup: {
         title: t('Wallet'),
         description: t('Top up balance and view billing history.'),
+      },
+      referral: {
+        title: t('Referral Program'),
+        description: t(
+          'Earn rewards when invited users redeem balance codes. Transfer accumulated rewards to your balance anytime.'
+        ),
       },
       personal: {
         title: t('Profile'),

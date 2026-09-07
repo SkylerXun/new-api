@@ -566,6 +566,48 @@ func GetSelf(c *gin.Context) {
 	return
 }
 
+func GetBillingProfile(c *gin.Context) {
+	user, err := model.GetUserById(c.GetInt("id"), false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	username := strings.TrimSpace(user.BillingUsername)
+	if username == "" {
+		username = strings.TrimSpace(user.DisplayName)
+	}
+	if username == "" {
+		username = user.Username
+	}
+	contact := strings.TrimSpace(user.BillingContact)
+	if contact == "" {
+		contact = user.Email
+	}
+	common.ApiSuccess(c, gin.H{"billing_username": user.BillingUsername, "billing_contact": user.BillingContact, "effective_username": username, "effective_contact": contact})
+}
+
+func UpdateBillingProfile(c *gin.Context) {
+	var request struct {
+		BillingUsername string `json:"billing_username"`
+		BillingContact  string `json:"billing_contact"`
+	}
+	if err := common.DecodeJson(c.Request.Body, &request); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	request.BillingUsername = strings.TrimSpace(request.BillingUsername)
+	request.BillingContact = strings.TrimSpace(request.BillingContact)
+	if len([]rune(request.BillingUsername)) > 120 || len([]rune(request.BillingContact)) > 300 {
+		common.ApiErrorMsg(c, "账单用户名最多 120 个字符，个人联系方式最多 300 个字符")
+		return
+	}
+	if err := model.UpdateUserBillingProfile(c.GetInt("id"), request.BillingUsername, request.BillingContact); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	GetBillingProfile(c)
+}
+
 // buildSelfUserData is the single safe dashboard-user DTO used by GetSelf,
 // login and refresh. It intentionally excludes password, management PAT and
 // administrator-only remarks.

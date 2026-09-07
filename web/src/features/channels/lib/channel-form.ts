@@ -161,6 +161,7 @@ function isOptionalErrorMessageMapping(value: string | undefined): boolean {
     return Object.entries(parsed).every(([status, message]) => {
       const validStatus =
         status === 'default' ||
+        status === 'stream_disconnected' ||
         (/^[1-5]\d{2}$/.test(status) &&
           Number(status) >= 100 &&
           Number(status) <= 599)
@@ -247,7 +248,7 @@ export const channelFormSchema = z
       .optional()
       .refine(
         isOptionalErrorMessageMapping,
-        'Error message mapping must use HTTP status codes or default with non-empty messages'
+        'Error message mapping must use HTTP status codes, stream_disconnected, or default with non-empty messages'
       ),
     tag: z.string().optional(),
     remark: z

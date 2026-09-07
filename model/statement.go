@@ -16,6 +16,7 @@ import (
 
 const (
 	StatementSourceUserExport    = "user_export"
+	StatementSourceRegenerate    = "regenerate"
 	StatementSourceAdmin         = "admin"
 	StatementSourceSystemMonthly = "system_monthly"
 	StatementComplianceVersion   = "cn-consumption-statement-v2"
@@ -71,12 +72,14 @@ type StatementIssuer struct {
 }
 
 type StatementRecipient struct {
-	UserID         int    `json:"user_id"`
-	Username       string `json:"username"`
-	Email          string `json:"email"`
-	BillingTitle   string `json:"billing_title,omitempty"`
-	BillingAddress string `json:"billing_address,omitempty"`
-	UserSupplied   bool   `json:"user_supplied"`
+	UserID          int    `json:"user_id"`
+	Username        string `json:"username"`
+	Email           string `json:"email"`
+	BillingUsername string `json:"billing_username,omitempty"`
+	BillingContact  string `json:"billing_contact,omitempty"`
+	BillingTitle    string `json:"billing_title,omitempty"`
+	BillingAddress  string `json:"billing_address,omitempty"`
+	UserSupplied    bool   `json:"user_supplied"`
 }
 
 type StatementTokenItem struct {
@@ -113,37 +116,39 @@ type StatementWarnings struct {
 }
 
 type StatementSnapshot struct {
-	StatementNo          string                    `json:"statement_no"`
-	Issuer               StatementIssuer           `json:"issuer"`
-	Recipient            StatementRecipient        `json:"recipient"`
-	PeriodStart          int64                     `json:"period_start"`
-	PeriodEnd            int64                     `json:"period_end"`
-	Timezone             string                    `json:"timezone"`
-	Source               string                    `json:"source"`
-	IsFinal              bool                      `json:"is_final"`
-	GeneratedAt          int64                     `json:"generated_at"`
-	GeneratedBy          int                       `json:"generated_by"`
-	Tokens               []StatementTokenItem      `json:"tokens"`
-	Redemptions          []StatementRedemptionItem `json:"redemptions"`
-	TopUps               []StatementTopUpItem      `json:"topups"`
-	Subscriptions       []StatementSubscriptionItem `json:"subscriptions"`
-	RedemptionTotalCents int64                     `json:"redemption_total_cents"`
-	TopUpTotalCents      int64                     `json:"topup_total_cents"`
-	SubscriptionTotalCents int64                  `json:"subscription_total_cents"`
-	TotalCents           int64                     `json:"total_cents"`
-	Warnings             StatementWarnings         `json:"warnings"`
-	Disclaimers          []string                  `json:"disclaimers"`
-	ComplianceVersion    string                    `json:"compliance_version"`
+	StatementNo            string                      `json:"statement_no"`
+	Issuer                 StatementIssuer             `json:"issuer"`
+	Recipient              StatementRecipient          `json:"recipient"`
+	PeriodStart            int64                       `json:"period_start"`
+	PeriodEnd              int64                       `json:"period_end"`
+	Timezone               string                      `json:"timezone"`
+	Source                 string                      `json:"source"`
+	IsFinal                bool                        `json:"is_final"`
+	GeneratedAt            int64                       `json:"generated_at"`
+	GeneratedBy            int                         `json:"generated_by"`
+	Tokens                 []StatementTokenItem        `json:"tokens"`
+	Redemptions            []StatementRedemptionItem   `json:"redemptions"`
+	TopUps                 []StatementTopUpItem        `json:"topups"`
+	Subscriptions          []StatementSubscriptionItem `json:"subscriptions"`
+	RedemptionTotalCents   int64                       `json:"redemption_total_cents"`
+	TopUpTotalCents        int64                       `json:"topup_total_cents"`
+	SubscriptionTotalCents int64                       `json:"subscription_total_cents"`
+	TotalCents             int64                       `json:"total_cents"`
+	Warnings               StatementWarnings           `json:"warnings"`
+	Disclaimers            []string                    `json:"disclaimers"`
+	ComplianceVersion      string                      `json:"compliance_version"`
 }
 
 type StatementGenerateInput struct {
-	UserID         int
-	Month          string
-	Source         string
-	GeneratedBy    int
-	BillingTitle   string
-	BillingAddress string
-	Now            time.Time
+	UserID          int
+	Month           string
+	Source          string
+	GeneratedBy     int
+	BillingTitle    string
+	BillingAddress  string
+	BillingUsername string
+	BillingContact  string
+	Now             time.Time
 }
 
 func shanghaiLocation() *time.Location {
@@ -348,6 +353,29 @@ func buildStatementSnapshot(user *User, statementNo string, start, end time.Time
 	if err != nil {
 		return StatementSnapshot{}, err
 	}
+	billingUsername := strings.TrimSpace(input.BillingUsername)
+	if billingUsername == "" {
+		billingUsername = strings.TrimSpace(user.BillingUsername)
+	}
+	if billingUsername == "" {
+		billingUsername = strings.TrimSpace(user.DisplayName)
+	}
+	if billingUsername == "" {
+		billingUsername = strings.TrimSpace(user.Username)
+	}
+	billingContact := strings.TrimSpace(input.BillingContact)
+	if billingContact == "" {
+		billingContact = strings.TrimSpace(user.BillingContact)
+	}
+	if billingContact == "" {
+		billingContact = strings.TrimSpace(user.Email)
+	}
+	if len([]rune(billingUsername)) > 120 {
+		return StatementSnapshot{}, errors.New("账单用户名最多 120 个字符")
+	}
+	if len([]rune(billingContact)) > 300 {
+		return StatementSnapshot{}, errors.New("个人联系方式最多 300 个字符")
+	}
 	if err := ReconcileStatementUsage(user.Id, start, end); err != nil {
 		return StatementSnapshot{}, err
 	}
@@ -424,7 +452,7 @@ func buildStatementSnapshot(user *User, statementNo string, start, end time.Time
 		// site. Contact details remain separately configurable for accounting
 		// enquiries, but the PDF title must not drift from the deployed site name.
 		Issuer:      StatementIssuer{Name: common.SystemName, ContactEmail: settings.ContactEmail, Address: settings.IssuerAddress, Website: website},
-		Recipient:   StatementRecipient{UserID: user.Id, Username: user.Username, Email: user.Email, BillingTitle: title, BillingAddress: address, UserSupplied: title != "" || address != ""},
+		Recipient:   StatementRecipient{UserID: user.Id, Username: user.Username, Email: user.Email, BillingUsername: billingUsername, BillingContact: billingContact, BillingTitle: title, BillingAddress: address, UserSupplied: title != "" || address != "" || billingUsername != "" || billingContact != ""},
 		PeriodStart: start.Unix(), PeriodEnd: end.Unix(), Timezone: "Asia/Shanghai", Source: input.Source,
 		IsFinal: input.Source == StatementSourceSystemMonthly, GeneratedAt: generatedAt.Unix(), GeneratedBy: input.GeneratedBy,
 		Tokens: tokens, Redemptions: redemptionItems, TopUps: topUpItems, Subscriptions: subscriptionItems,
@@ -438,7 +466,7 @@ func GenerateConsumptionStatement(input StatementGenerateInput) (*ConsumptionSta
 	if input.UserID <= 0 {
 		return nil, errors.New("用户 ID 无效")
 	}
-	if input.Source != StatementSourceUserExport && input.Source != StatementSourceAdmin && input.Source != StatementSourceSystemMonthly {
+	if input.Source != StatementSourceUserExport && input.Source != StatementSourceRegenerate && input.Source != StatementSourceAdmin && input.Source != StatementSourceSystemMonthly {
 		return nil, errors.New("账单来源无效")
 	}
 	start, end, _, err := StatementMonthBounds(input.Month, input.Now)
@@ -449,7 +477,7 @@ func GenerateConsumptionStatement(input StatementGenerateInput) (*ConsumptionSta
 		return nil, errors.New("系统月结只能生成已结束月份")
 	}
 	var user User
-	if err := DB.Select("id", "username", "email").Where("id = ?", input.UserID).First(&user).Error; err != nil {
+	if err := DB.Select("id", "username", "display_name", "email", "billing_username", "billing_contact").Where("id = ?", input.UserID).First(&user).Error; err != nil {
 		return nil, err
 	}
 	if input.Now.IsZero() {
@@ -539,19 +567,11 @@ func CanAccessConsumptionStatement(statement *ConsumptionStatement, requesterID,
 	if statement.UserID != requesterID {
 		return false
 	}
-	currentStart, _, _, err := StatementMonthBounds("", now)
-	if err != nil {
-		return false
-	}
-	if statement.MonthStart == currentStart.Unix() {
-		return true
-	}
-	previousStart := currentStart.AddDate(0, -1, 0)
-	return statement.MonthStart == previousStart.Unix() &&
-		statement.Source == StatementSourceSystemMonthly && statement.IsFinal
+	return true
 }
 
 type StatementHistoryFilter struct {
+	UserID  int
 	Month   string
 	Keyword string
 	Source  string
@@ -561,6 +581,9 @@ type StatementHistoryFilter struct {
 
 func ListConsumptionStatements(filter StatementHistoryFilter) ([]ConsumptionStatement, int64, error) {
 	query := DB.Model(&ConsumptionStatement{})
+	if filter.UserID > 0 {
+		query = query.Where("user_id = ?", filter.UserID)
+	}
 	if strings.TrimSpace(filter.Month) != "" {
 		start, _, _, err := StatementMonthBounds(filter.Month, time.Now())
 		if err != nil {
@@ -599,20 +622,20 @@ func ListConsumptionStatements(filter StatementHistoryFilter) ([]ConsumptionStat
 }
 
 type StatementMonthlySummary struct {
-	UserID               int               `json:"user_id"`
-	Username             string            `json:"username"`
-	Email                string            `json:"email"`
-	TokenModelCount      int               `json:"token_model_count"`
-	InputTokens          int64             `json:"input_tokens"`
-	OutputTokens         int64             `json:"output_tokens"`
-	BillingCount         int64             `json:"billing_count"`
-	RedemptionTotalCents int64             `json:"redemption_total_cents"`
-	TopUpTotalCents      int64             `json:"topup_total_cents"`
-	SubscriptionTotalCents int64           `json:"subscription_total_cents"`
-	TotalCents           int64             `json:"total_cents"`
-	Warnings             StatementWarnings `json:"warnings"`
-	VersionCount         int64             `json:"version_count"`
-	HasSystemFinal       bool              `json:"has_system_final"`
+	UserID                 int               `json:"user_id"`
+	Username               string            `json:"username"`
+	Email                  string            `json:"email"`
+	TokenModelCount        int               `json:"token_model_count"`
+	InputTokens            int64             `json:"input_tokens"`
+	OutputTokens           int64             `json:"output_tokens"`
+	BillingCount           int64             `json:"billing_count"`
+	RedemptionTotalCents   int64             `json:"redemption_total_cents"`
+	TopUpTotalCents        int64             `json:"topup_total_cents"`
+	SubscriptionTotalCents int64             `json:"subscription_total_cents"`
+	TotalCents             int64             `json:"total_cents"`
+	Warnings               StatementWarnings `json:"warnings"`
+	VersionCount           int64             `json:"version_count"`
+	HasSystemFinal         bool              `json:"has_system_final"`
 }
 
 func ListStatementMonthlySummaries(month, keyword string, offset, limit int) ([]StatementMonthlySummary, int64, error) {

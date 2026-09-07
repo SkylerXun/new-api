@@ -163,15 +163,29 @@ func ResetStatusCode(newApiErr *types.NewAPIError, statusCodeMappingStr string) 
 }
 
 // ResolveErrorMessageMapping resolves a channel's client-facing error message
-// without mutating the raw upstream error. Exact HTTP status entries take
-// precedence over the optional default entry.
+// without mutating the raw upstream error. It preserves the legacy status-code
+// and default behavior; stream-specific matching is available through
+// ResolveErrorMessageMappingWithMessage.
 func ResolveErrorMessageMapping(statusCode int, errorMessageMappingStr string) (string, bool) {
+	return ResolveErrorMessageMappingWithMessage(statusCode, "", errorMessageMappingStr)
+}
+
+// ResolveErrorMessageMappingWithMessage resolves a channel's client-facing
+// error message. In addition to HTTP status keys, New API channels may use the
+// special `stream_disconnected` key for upstream stream failures whose status
+// code is otherwise shared with other gateway errors.
+func ResolveErrorMessageMappingWithMessage(statusCode int, rawMessage string, errorMessageMappingStr string) (string, bool) {
 	if strings.TrimSpace(errorMessageMappingStr) == "" {
 		return "", false
 	}
 	mapping := make(map[string]string)
 	if err := common.Unmarshal([]byte(errorMessageMappingStr), &mapping); err != nil {
 		return "", false
+	}
+	if isStreamDisconnectedMessage(rawMessage) {
+		if message := strings.TrimSpace(mapping["stream_disconnected"]); message != "" {
+			return message, true
+		}
 	}
 	if message := strings.TrimSpace(mapping[strconv.Itoa(statusCode)]); message != "" {
 		return message, true
@@ -180,6 +194,10 @@ func ResolveErrorMessageMapping(statusCode int, errorMessageMappingStr string) (
 		return message, true
 	}
 	return "", false
+}
+
+func isStreamDisconnectedMessage(message string) bool {
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(message)), "stream disconnected before completion")
 }
 
 func ValidateErrorMessageMapping(errorMessageMappingStr string) error {
@@ -197,11 +215,11 @@ func ValidateErrorMessageMapping(errorMessageMappingStr string) error {
 		if strings.TrimSpace(message) == "" {
 			return fmt.Errorf("error message mapping value for %q cannot be empty", key)
 		}
-		if key == "default" {
+		if key == "default" || key == "stream_disconnected" {
 			continue
 		}
 		if len(key) != 3 || key[0] < '1' || key[0] > '5' || key[1] < '0' || key[1] > '9' || key[2] < '0' || key[2] > '9' {
-			return fmt.Errorf("error message mapping key %q must be an HTTP status code from 100 to 599 or default", key)
+			return fmt.Errorf("error message mapping key %q must be an HTTP status code from 100 to 599, stream_disconnected, or default", key)
 		}
 	}
 	return nil

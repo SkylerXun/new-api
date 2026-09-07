@@ -87,6 +87,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	imageCommitted := false
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
+		data = sanitizeNewAPIStreamErrorData(c, info, data)
 
 		// 检查当前数据是否包含 completed 状态和 usage 信息
 		var streamResponse dto.ResponsesStreamResponse

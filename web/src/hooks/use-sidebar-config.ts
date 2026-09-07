@@ -54,6 +54,7 @@ const DEFAULT_SIDEBAR_MODULES: SidebarModulesAdminConfig = {
   personal: {
     enabled: true,
     topup: true,
+    referral: true,
     personal: true,
     checkin: true,
   },
@@ -109,6 +110,7 @@ const URL_TO_CONFIG_MAP: Record<string, { section: string; module: string }> = {
   '/usage-logs/drawing': { section: 'console', module: 'midjourney' },
   '/usage-logs/task': { section: 'console', module: 'task' },
   '/wallet': { section: 'personal', module: 'topup' },
+  '/referrals': { section: 'personal', module: 'referral' },
   '/profile': { section: 'personal', module: 'personal' },
   '/checkin': { section: 'personal', module: 'checkin' },
   '/channels': { section: 'admin', module: 'channel' },

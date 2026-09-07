@@ -1,4 +1,3 @@
-import { useQuery } from '@tanstack/react-query'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -17,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useQuery } from '@tanstack/react-query'
 import {
   Activity,
   Box,
@@ -32,6 +32,7 @@ import {
   MessageSquare,
   Radio,
   ServerCog,
+  Share2,
   ShoppingBag,
   Settings,
   Tags,
@@ -165,6 +166,11 @@ export function getSidebarData(
             title: t('Lucky Quota'),
             url: '/purchase',
             icon: ShoppingBag,
+          },
+          {
+            title: t('Referral Program'),
+            url: '/referrals',
+            icon: Share2,
           },
         ],
       },

@@ -1,10 +1,13 @@
 package openai
 
 import (
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -22,6 +25,7 @@ import (
 // 辅助函数
 func HandleStreamFormat(c *gin.Context, info *relaycommon.RelayInfo, data string, forceFormat bool, thinkToContent bool) error {
 	info.SendResponseCount++
+	data = sanitizeNewAPIStreamErrorData(c, info, data)
 
 	switch info.RelayFormat {
 	case types.RelayFormatOpenAI:
@@ -32,6 +36,82 @@ func HandleStreamFormat(c *gin.Context, info *relaycommon.RelayInfo, data string
 		return handleGeminiFormat(c, data, info)
 	}
 	return nil
+}
+
+const newAPIStreamDisconnectPrefix = "stream disconnected before completion:"
+
+// sanitizeNewAPIStreamErrorData prevents the New API upstream's internal
+// stream-disconnect wrapper (and the upstream text appended to it) from being
+// exposed to clients. The existing per-channel status/message mappings are
+// applied to a synthetic 502, which is the status used by the upstream gateway
+// for this failover condition. Other channel types and ordinary stream chunks
+// are left untouched.
+func sanitizeNewAPIStreamErrorData(c *gin.Context, info *relaycommon.RelayInfo, data string) string {
+	if info == nil || info.ChannelType != constant.ChannelTypeNewAPI || strings.TrimSpace(data) == "" {
+		return data
+	}
+	if !strings.Contains(strings.ToLower(data), "stream disconnected before completion") {
+		return data
+	}
+
+	var payload any
+	if err := json.Unmarshal([]byte(data), &payload); err != nil {
+		return data
+	}
+	matched := false
+	var rewrite func(any)
+	rewrite = func(value any) {
+		switch node := value.(type) {
+		case map[string]any:
+			for key, child := range node {
+				if (key == "message" || key == "error") {
+					if text, ok := child.(string); ok && isNewAPIStreamDisconnectMessage(text) {
+						node[key] = newAPIStreamDisconnectClientMessage(c)
+						matched = true
+						continue
+					}
+				}
+				rewrite(child)
+			}
+		case []any:
+			for _, child := range node {
+				rewrite(child)
+			}
+		}
+	}
+	rewrite(payload)
+	if !matched {
+		return data
+	}
+	updated, err := json.Marshal(payload)
+	if err != nil {
+		return data
+	}
+	return string(updated)
+}
+
+func isNewAPIStreamDisconnectMessage(message string) bool {
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(message)), newAPIStreamDisconnectPrefix)
+}
+
+func newAPIStreamDisconnectClientMessage(c *gin.Context) string {
+	// Keep the same mapping semantics as the non-streaming relay path: status
+	// code mapping first, then error-message mapping. A generic fallback avoids
+	// leaking the upstream's explanatory text when no message mapping is set.
+	statusCode := http.StatusBadGateway
+	if c != nil {
+		mappedStatus := types.NewError(nil, types.ErrorCodeBadResponseStatusCode, types.ErrOptionWithStatusCode(statusCode))
+		service.ResetStatusCode(mappedStatus, common.GetContextKeyString(c, constant.ContextKeyChannelStatusCodeMapping))
+		statusCode = mappedStatus.StatusCode
+		if message, ok := service.ResolveErrorMessageMappingWithMessage(
+			statusCode,
+			newAPIStreamDisconnectPrefix,
+			common.GetContextKeyString(c, constant.ContextKeyChannelErrorMessageMapping),
+		); ok {
+			return message
+		}
+	}
+	return "上游模型服务暂时不可用，请稍后重试"
 }
 
 func handleClaudeFormat(c *gin.Context, data string, info *relaycommon.RelayInfo) error {

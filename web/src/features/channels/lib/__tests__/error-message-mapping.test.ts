@@ -30,6 +30,7 @@ import {
 
 const validMapping = JSON.stringify({
   '503': '服务繁忙，请稍后重试',
+  stream_disconnected: '上游流连接中断，请稍后重试',
   default: '服务暂时不可用',
 })
 
@@ -44,7 +45,7 @@ function formWithMapping(errorMessageMapping: string) {
 }
 
 describe('channel error message mapping', () => {
-  test('accepts HTTP status keys and default with non-empty messages', () => {
+  test('accepts HTTP status, stream, and default keys with non-empty messages', () => {
     assert.equal(
       channelFormSchema.safeParse(formWithMapping(validMapping)).success,
       true

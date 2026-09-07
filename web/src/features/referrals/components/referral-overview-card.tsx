@@ -27,24 +27,25 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatQuota } from '@/lib/format'
 
-import type { UserWalletData } from '../types'
+import type { ReferralUserData } from '../types'
 
-interface AffiliateRewardsCardProps {
-  user: UserWalletData | null
-  affiliateLink: string
+interface ReferralOverviewCardProps {
+  user: ReferralUserData | null
+  referralLink: string
   onTransfer: () => void
-  complianceConfirmed?: boolean
-  loading?: boolean
+  complianceConfirmed: boolean
+  loading: boolean
 }
 
-export function AffiliateRewardsCard({
+export function ReferralOverviewCard({
   user,
-  affiliateLink,
+  referralLink,
   onTransfer,
-  complianceConfirmed = true,
+  complianceConfirmed,
   loading,
-}: AffiliateRewardsCardProps) {
+}: ReferralOverviewCardProps) {
   const { t } = useTranslation()
+
   if (loading) {
     return (
       <Card data-card-hover='false' className='bg-muted/20 py-0'>
@@ -100,12 +101,12 @@ export function AffiliateRewardsCard({
 
         <div className='flex items-center gap-2'>
           <Input
-            value={affiliateLink}
+            value={referralLink}
             readOnly
             className='border-muted bg-background/70 h-9 min-w-0 flex-1 font-mono text-xs'
           />
           <CopyButton
-            value={affiliateLink}
+            value={referralLink}
             variant='outline'
             className='bg-background size-9 shrink-0'
             iconClassName='size-4'
@@ -123,6 +124,7 @@ export function AffiliateRewardsCard({
             </Button>
           )}
         </div>
+
         {!complianceConfirmed ? (
           <p className='text-muted-foreground text-xs lg:col-span-3'>
             {t(

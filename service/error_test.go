@@ -91,6 +91,14 @@ func TestResolveErrorMessageMapping(t *testing.T) {
 			require.Equal(t, test.want, got)
 		})
 	}
+
+	got, ok := ResolveErrorMessageMappingWithMessage(
+		http.StatusBadGateway,
+		"stream disconnected before completion: upstream text",
+		`{"stream_disconnected":"上游繁忙，请稍后重试"}`,
+	)
+	require.True(t, ok)
+	require.Equal(t, "上游繁忙，请稍后重试", got)
 }
 
 func TestValidateErrorMessageMapping(t *testing.T) {
@@ -103,6 +111,7 @@ func TestValidateErrorMessageMapping(t *testing.T) {
 	}{
 		{name: "empty"},
 		{name: "valid statuses and default", mapping: `{"100":"Continue","503":"Busy","599":"Gateway failure","default":"Request failed"}`},
+		{name: "valid stream disconnected key", mapping: `{"stream_disconnected":"Upstream stream ended"}`},
 		{name: "not an object", mapping: `[]`, wantErr: "JSON object"},
 		{name: "null", mapping: `null`, wantErr: "JSON object"},
 		{name: "non-string value", mapping: `{"503":true}`, wantErr: "string values"},

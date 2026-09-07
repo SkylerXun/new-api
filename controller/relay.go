@@ -94,11 +94,26 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		if newAPIError != nil {
 			logger.LogError(c, fmt.Sprintf("relay error: %s", common.LocalLogPreview(newAPIError.Error())))
 			publicMessage := newAPIError.Error()
-			if mappedMessage, ok := service.ResolveErrorMessageMapping(
-				newAPIError.StatusCode,
-				clientErrorMessageMapping,
-			); ok {
+			channelType := common.GetContextKeyInt(c, constant.ContextKeyChannelType)
+			var mappedMessage string
+			var mapped bool
+			if channelType == constant.ChannelTypeNewAPI {
+				mappedMessage, mapped = service.ResolveErrorMessageMappingWithMessage(
+					newAPIError.StatusCode,
+					newAPIError.Error(),
+					clientErrorMessageMapping,
+				)
+			} else {
+				mappedMessage, mapped = service.ResolveErrorMessageMapping(
+					newAPIError.StatusCode,
+					clientErrorMessageMapping,
+				)
+			}
+			if mapped {
 				publicMessage = mappedMessage
+			} else if channelType == constant.ChannelTypeNewAPI &&
+				strings.HasPrefix(strings.ToLower(strings.TrimSpace(publicMessage)), "stream disconnected before completion") {
+				publicMessage = "上游模型服务暂时不可用，请稍后重试"
 			}
 			newAPIError = newAPIError.CloneWithMessage(common.MessageWithRequestId(publicMessage, requestId))
 			switch relayFormat {

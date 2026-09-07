@@ -116,6 +116,13 @@ export function SidebarModulesCard() {
           description: t('Balance and top-up management'),
         },
         {
+          key: 'referral',
+          title: t('Referral Program'),
+          description: t(
+            'Earn rewards when invited users redeem balance codes. Transfer accumulated rewards to your balance anytime.'
+          ),
+        },
+        {
           key: 'personal',
           title: t('Personal Settings'),
           description: t('Personal info settings'),
