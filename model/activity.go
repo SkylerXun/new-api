@@ -189,8 +189,11 @@ func GrantActivityQuotaTx(tx *gorm.DB, userId int, activityKey string, sourceTyp
 	// relying on dialect-specific conflict RowsAffected behavior, notably MySQL
 	// with CLIENT_FOUND_ROWS enabled.
 	var user User
-	if err := lockForUpdate(tx).Select("id").Where("id = ?", userId).First(&user).Error; err != nil {
+	if err := lockForUpdate(tx).Select("id", "status").Where("id = ?", userId).First(&user).Error; err != nil {
 		return false, err
+	}
+	if user.Status != common.UserStatusEnabled {
+		return false, errors.New("linked subaccount cannot receive activity rewards")
 	}
 	existing, lookupErr := getActivityGrantForUserSource(tx, userId, activityKey, sourceRef)
 	if lookupErr != nil {

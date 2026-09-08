@@ -146,5 +146,20 @@ api.interceptors.request.use((config) => {
   if (accessToken) {
     config.headers.Authorization = `Bearer ${accessToken}`
   }
+  if (typeof window !== 'undefined') {
+    try {
+      const key = 'new-api-risk-device-id'
+      let deviceID = window.localStorage.getItem(key)
+      if (!deviceID) {
+        deviceID = typeof crypto?.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+        window.localStorage.setItem(key, deviceID)
+      }
+      config.headers['X-Device-Id'] = deviceID
+    } catch {
+      // Storage can be disabled by privacy mode; server-side signals remain.
+    }
+  }
   return config
 })

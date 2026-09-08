@@ -618,8 +618,11 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		// 锁定用户行：并发完成同一用户的不同订单（包括多实例部署下）时，
 		// 使 CreateUserSubscriptionFromPlanTx 的 MaxPurchasePerUser 检查按用户串行。
 		var userRow User
-		if err := lockForUpdate(tx).Select("id").Where("id = ?", order.UserId).First(&userRow).Error; err != nil {
+		if err := lockForUpdate(tx).Select("id", "status", "role").Where("id = ?", order.UserId).First(&userRow).Error; err != nil {
 			return err
+		}
+		if userRow.Role < common.RoleAdminUser && userRow.Status != common.UserStatusEnabled {
+			return errors.New("disabled account cannot complete subscription payment")
 		}
 		subscription, err := CreateUserSubscriptionFromPlanTx(tx, order.UserId, plan, "order")
 		if err != nil {
@@ -802,6 +805,9 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 		var user User
 		if err := lockForUpdate(tx).Where("id = ?", userId).First(&user).Error; err != nil {
 			return err
+		}
+		if user.Role < common.RoleAdminUser && user.Status != common.UserStatusEnabled {
+			return errors.New("disabled account cannot purchase subscription")
 		}
 		if requiredQuota > 0 && user.Quota < requiredQuota {
 			return errors.New("余额不足")

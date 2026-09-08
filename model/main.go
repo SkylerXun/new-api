@@ -313,6 +313,13 @@ func migrateDB() error {
 		&SystemTaskLock{},
 		&CasbinRule{},
 		&AuthzRole{},
+		&RiskExemption{},
+		&RiskAccountLink{},
+		&RiskAccountObservation{},
+		&RiskAccountReview{},
+		&RiskAccountAction{},
+		&RiskRewardHold{},
+		&RiskAccountBackfillRun{},
 	)
 	if err != nil {
 		return err
@@ -420,6 +427,13 @@ func migrateDBFast() error {
 		{&ActivityCampaignRecipient{}, "ActivityCampaignRecipient"},
 		{&SystemTask{}, "SystemTask"},
 		{&SystemTaskLock{}, "SystemTaskLock"},
+		{&RiskExemption{}, "RiskExemption"},
+		{&RiskAccountLink{}, "RiskAccountLink"},
+		{&RiskAccountObservation{}, "RiskAccountObservation"},
+		{&RiskAccountReview{}, "RiskAccountReview"},
+		{&RiskAccountAction{}, "RiskAccountAction"},
+		{&RiskRewardHold{}, "RiskRewardHold"},
+		{&RiskAccountBackfillRun{}, "RiskAccountBackfillRun"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
 	errChan := make(chan error, len(migrations))

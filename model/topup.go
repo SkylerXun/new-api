@@ -109,6 +109,9 @@ func grantNewUserTopUpBonusTx(tx *gorm.DB, userId int, sourceRef string, baseQuo
 	if tx == nil || userId <= 0 || baseQuota <= 0 || strings.TrimSpace(sourceRef) == "" {
 		return 0, nil
 	}
+	if err := ensureUserCanReceiveTopUpTx(tx, userId); err != nil {
+		return 0, err
+	}
 	setting := operation_setting.GetActivitySetting()
 	bonusPercent := setting.NewUserRedeemBonusPercent
 	windowDays := setting.NewUserRedeemBonusWindowDays
@@ -122,6 +125,10 @@ func grantNewUserTopUpBonusTx(tx *gorm.DB, userId int, sourceRef string, baseQuo
 	var user User
 	if err := lockForUpdate(tx).Select("id", "quota", "created_at").Where("id = ?", userId).First(&user).Error; err != nil {
 		return 0, err
+	}
+	var linked RiskAccountLink
+	if err := tx.Where("user_id = ? AND relation = ?", userId, "subaccount").First(&linked).Error; err == nil {
+		return 0, nil
 	}
 	if user.CreatedAt <= 0 || now >= user.CreatedAt+int64(windowDays)*24*60*60 {
 		return 0, nil
@@ -142,6 +149,24 @@ func grantNewUserTopUpBonusTx(tx *gorm.DB, userId int, sourceRef string, baseQuo
 		return 0, err
 	}
 	return bonus, nil
+}
+
+// ensureUserCanReceiveTopUpTx is checked from inside payment completion
+// transactions, not only from the authenticated order-creation routes. This
+// closes the window where an order created before risk enforcement could be
+// credited later by a gateway callback.
+func ensureUserCanReceiveTopUpTx(tx *gorm.DB, userID int) error {
+	if tx == nil || userID <= 0 {
+		return errors.New("invalid topup recipient")
+	}
+	var user User
+	if err := lockForUpdate(tx).Select("id", "status", "role").Where("id = ?", userID).First(&user).Error; err != nil {
+		return err
+	}
+	if user.Role < common.RoleAdminUser && user.Status != common.UserStatusEnabled {
+		return errors.New("disabled account cannot receive topup")
+	}
+	return nil
 }
 
 // RechargeHupijiao atomically credits the quota snapshotted on a Hupijiao order.
@@ -169,6 +194,9 @@ func RechargeHupijiao(tradeNo string, actualPaymentMethod string, callerIp strin
 		}
 		if topUp.Status != common.TopUpStatusPending {
 			return ErrTopUpStatusInvalid
+		}
+		if err := ensureUserCanReceiveTopUpTx(tx, topUp.UserId); err != nil {
+			return err
 		}
 		if topUp.Amount <= 0 {
 			return errors.New("无效的充值额度")
@@ -290,6 +318,9 @@ func RechargeEpay(tradeNo string, actualPaymentMethod string, callerIp string) (
 		if topUp.Status != common.TopUpStatusPending {
 			return ErrTopUpStatusInvalid
 		}
+		if err := ensureUserCanReceiveTopUpTx(tx, topUp.UserId); err != nil {
+			return err
+		}
 		if actualPaymentMethod != "" && topUp.PaymentMethod != actualPaymentMethod {
 			topUp.PaymentMethod = actualPaymentMethod
 		}
@@ -360,6 +391,9 @@ func Recharge(referenceId string, customerId string, callerIp string, paidCurren
 
 		if topUp.Status != common.TopUpStatusPending {
 			return errors.New("充值订单状态错误")
+		}
+		if err := ensureUserCanReceiveTopUpTx(tx, topUp.UserId); err != nil {
+			return err
 		}
 
 		topUp.CompleteTime = common.GetTimestamp()
@@ -666,6 +700,9 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 		if topUp.Status != common.TopUpStatusPending {
 			return errors.New("充值订单状态错误")
 		}
+		if err := ensureUserCanReceiveTopUpTx(tx, topUp.UserId); err != nil {
+			return err
+		}
 
 		topUp.CompleteTime = common.GetTimestamp()
 		topUp.Status = common.TopUpStatusSuccess
@@ -757,6 +794,9 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 		if topUp.Status != common.TopUpStatusPending {
 			return errors.New("充值订单状态错误")
 		}
+		if err := ensureUserCanReceiveTopUpTx(tx, topUp.UserId); err != nil {
+			return err
+		}
 
 		quotaToAdd, err = common.QuotaFromDecimalStrict(
 			decimal.NewFromInt(topUp.Amount).Mul(decimal.NewFromFloat(common.QuotaPerUnit)),
@@ -824,6 +864,9 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 
 		if topUp.Status != common.TopUpStatusPending {
 			return errors.New("充值订单状态错误")
+		}
+		if err := ensureUserCanReceiveTopUpTx(tx, topUp.UserId); err != nil {
+			return err
 		}
 
 		quotaToAdd, err = common.QuotaFromDecimalStrict(

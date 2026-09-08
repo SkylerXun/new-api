@@ -23,6 +23,7 @@ const (
 	SystemTaskTypeAsyncTaskPoll  = "async_task_poll"
 	SystemTaskTypeQuotaGrantAll  = "quota_grant_all"
 	SystemTaskTypeStatementMonth = "statement_monthly_close"
+	SystemTaskTypeRiskBackfill   = "risk_account_backfill"
 )
 
 var ErrSystemTaskLockLost = errors.New("system task lock lost")

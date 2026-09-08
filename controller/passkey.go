@@ -423,7 +423,9 @@ func PasskeyLoginFinish(c *gin.Context) {
 	}
 
 	if modelUser.Status != common.UserStatusEnabled {
-		common.ApiErrorMsg(c, "该用户已被禁用")
+		// Keep the disabled-subaccount guidance consistent with password and
+		// OAuth login while still revealing it only after a valid passkey proof.
+		writeAccountBannedError(c, modelUser)
 		return
 	}
 

@@ -173,8 +173,11 @@ func Redeem(key string, userId int) (quota int, err error) {
 		}
 
 		var user User
-		if err := lockForUpdate(tx).Select("id", "quota", "created_at", "inviter_id").Where("id = ?", userId).First(&user).Error; err != nil {
+		if err := lockForUpdate(tx).Select("id", "quota", "created_at", "inviter_id", "status").Where("id = ?", userId).First(&user).Error; err != nil {
 			return err
+		}
+		if user.Status != common.UserStatusEnabled {
+			return errors.New("关联小号不可使用兑换码，请使用主号")
 		}
 		// Compare-and-swap on status: only the transaction that flips
 		// enabled -> used may credit quota, so a concurrent redeem of the

@@ -212,13 +212,24 @@ func HandleOAuth(c *gin.Context) {
 		return
 	}
 
-	// 8. Check user status
+	// 8. Evaluate account linkage before issuing a session. Reload the user so
+	// a newly linked subaccount is denied immediately.
+	if user.Status == common.UserStatusEnabled {
+		if err := model.EvaluateAndEnforceAccountLinkage(user.Id, c.ClientIP(), c.Request.UserAgent(), c.GetHeader("X-Device-Id")); err != nil {
+			common.SysLog(fmt.Sprintf("risk account linkage evaluation failed for OAuth user %d: %v", user.Id, err))
+		}
+	}
+	if refreshed, refreshErr := model.GetUserById(user.Id, false); refreshErr == nil {
+		user = refreshed
+	}
+
+	// 9. Check user status
 	if user.Status != common.UserStatusEnabled {
-		common.ApiErrorI18n(c, i18n.MsgOAuthUserBanned)
+		writeAccountBannedError(c, user)
 		return
 	}
 
-	// 9. Setup login
+	// 10. Setup login
 	setupLogin(user, c)
 }
 

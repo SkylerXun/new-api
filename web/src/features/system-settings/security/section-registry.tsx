@@ -22,6 +22,7 @@ import { SSRFSection } from '../request-limits/ssrf-section'
 import { TokenLimitSection } from '../request-limits/token-limit-section'
 import type { SecuritySettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
+import { RiskAccountSection } from './risk-account-section'
 
 const SECURITY_SECTIONS = [
   {
@@ -89,6 +90,11 @@ const SECURITY_SECTIONS = [
         }}
       />
     ),
+  },
+  {
+    id: 'account-risk',
+    titleKey: 'Account Risk Control',
+    build: (settings: SecuritySettings) => <RiskAccountSection defaultValues={settings} />,
   },
 ] as const
 

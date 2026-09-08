@@ -68,6 +68,13 @@ func Login(c *gin.Context) {
 		case errors.Is(err, model.ErrUserEmptyCredentials):
 			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		default:
+			// ValidateAndFill deliberately returns a generic credential error for
+			// disabled users. If the password itself was correct, reveal the
+			// linked-main guidance without exposing account existence to attackers.
+			if user.Id > 0 && user.Status == common.UserStatusDisabled && common.ValidatePasswordAndHash(password, user.Password) {
+				writeAccountBannedError(c, &user)
+				return
+			}
 			common.ApiErrorI18n(c, i18n.MsgUserUsernameOrPasswordError)
 		}
 		return
@@ -156,16 +163,36 @@ func setupLogin(user *model.User, c *gin.Context) {
 	setupLoginAtAuthVersion(user, 0, c)
 }
 
+func writeAccountBannedError(c *gin.Context, user *model.User) {
+	if user != nil && user.Id > 0 {
+		if linkage, err := model.GetAccountLinkage(user.Id); err == nil && linkage.Relation == "subaccount" && linkage.MainAccount != nil {
+			common.ApiErrorI18n(c, i18n.MsgAuthLinkedSubaccountBanned, map[string]any{"MainUsername": linkage.MainAccount.Username})
+			return
+		}
+	}
+	common.ApiErrorI18n(c, i18n.MsgAuthUserBanned)
+}
+
 func setupLoginAtAuthVersion(user *model.User, expectedAuthVersion int64, c *gin.Context) {
-	if user == nil || user.Id <= 0 || user.Status != common.UserStatusEnabled {
-		common.ApiErrorI18n(c, i18n.MsgAuthUserBanned)
+	if user == nil || user.Id <= 0 {
+		writeAccountBannedError(c, user)
 		return
+	}
+	if user.Status == common.UserStatusEnabled {
+		if err := model.EvaluateAndEnforceAccountLinkage(user.Id, c.ClientIP(), c.Request.UserAgent(), c.GetHeader("X-Device-Id")); err != nil {
+			common.SysLog(fmt.Sprintf("risk account linkage evaluation failed for user %d: %v", user.Id, err))
+		}
 	}
 	currentUser, err := model.GetUserById(user.Id, false)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
+	if currentUser.Status != common.UserStatusEnabled {
+		writeAccountBannedError(c, currentUser)
+		return
+	}
+	user = currentUser
 	var bundle *service.AuthBundle
 	if expectedAuthVersion > 0 {
 		bundle, err = service.CreateLoginSessionAtAuthVersion(
@@ -288,8 +315,14 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserRegisterFailed)
 		return
 	}
+	if err := model.EvaluateAndEnforceAccountLinkage(insertedUser.Id, c.ClientIP(), c.Request.UserAgent(), c.GetHeader("X-Device-Id")); err != nil {
+		common.SysLog(fmt.Sprintf("risk account linkage evaluation failed for newly registered user %d: %v", insertedUser.Id, err))
+	}
+	if currentUser, err := model.GetUserById(insertedUser.Id, false); err == nil {
+		insertedUser = *currentUser
+	}
 	// 生成默认令牌
-	if constant.GenerateDefaultToken {
+	if constant.GenerateDefaultToken && insertedUser.Status == common.UserStatusEnabled {
 		key, err := common.GenerateKey()
 		if err != nil {
 			common.ApiErrorI18n(c, i18n.MsgUserDefaultTokenFailed)
@@ -557,6 +590,9 @@ func GetSelf(c *gin.Context) {
 	permissions := calculateUserPermissions(userRole)
 	permissions["admin_permissions"] = authz.Capabilities(id, userRole)
 	responseData["permissions"] = permissions
+	if linkage, linkageErr := model.GetAccountLinkage(id); linkageErr == nil {
+		responseData["account_linkage"] = linkage
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -583,7 +619,11 @@ func GetBillingProfile(c *gin.Context) {
 	if contact == "" {
 		contact = user.Email
 	}
-	common.ApiSuccess(c, gin.H{"billing_username": user.BillingUsername, "billing_contact": user.BillingContact, "effective_username": username, "effective_contact": contact})
+	data := gin.H{"billing_username": user.BillingUsername, "billing_contact": user.BillingContact, "effective_username": username, "effective_contact": contact}
+	if linkage, linkageErr := model.GetAccountLinkage(user.Id); linkageErr == nil {
+		data["account_linkage"] = linkage
+	}
+	common.ApiSuccess(c, data)
 }
 
 func UpdateBillingProfile(c *gin.Context) {
@@ -1294,6 +1334,7 @@ func ManageUser(c *gin.Context) {
 			return
 		}
 		user.Role = common.RoleAdminUser
+		user.Status = common.UserStatusEnabled
 	case "demote":
 		if user.Role == common.RoleRootUser {
 			common.ApiErrorI18n(c, i18n.MsgUserCannotDemoteRootUser)
@@ -1378,6 +1419,12 @@ func ManageUser(c *gin.Context) {
 		}
 	} else {
 		if err := user.Update(false); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
+	if req.Action == "promote" {
+		if _, err := model.DetachRiskAccount(user.Id, true, c.GetInt("id"), "account promoted to administrator"); err != nil {
 			common.ApiError(c, err)
 			return
 		}

@@ -81,6 +81,23 @@ export interface UserProfile {
   telegram_id?: string
   /** LinuxDO ID (OAuth) */
   linux_do_id?: string
+  account_linkage?: AccountLinkage
+}
+
+export interface LinkedAccount {
+  id: number
+  username: string
+  display_name: string
+  status: 'enabled' | 'disabled'
+  created_at: number
+  relation: 'main' | 'subaccount'
+}
+
+export interface AccountLinkage {
+  relation: 'none' | 'main' | 'subaccount'
+  main_account?: LinkedAccount
+  linked_accounts: LinkedAccount[]
+  total: number
 }
 
 /**
