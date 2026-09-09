@@ -161,6 +161,7 @@ function isOptionalErrorMessageMapping(value: string | undefined): boolean {
     return Object.entries(parsed).every(([status, message]) => {
       const validStatus =
         status === 'default' ||
+        status === 'stream_disconnect' ||
         status === 'stream_disconnected' ||
         (/^[1-5]\d{2}$/.test(status) &&
           Number(status) >= 100 &&

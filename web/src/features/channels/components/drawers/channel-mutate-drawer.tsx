@@ -3868,7 +3868,7 @@ export function ChannelMutateDrawer({
                                         value={field.value || ''}
                                         onChange={field.onChange}
                                         disabled={isSubmitting}
-                                        keyPlaceholder='503 or stream_disconnected'
+                                        keyPlaceholder='503 or stream_disconnect'
                                         valuePlaceholder={t(
                                           'Service is busy. Please try again later.'
                                         )}
@@ -3879,7 +3879,7 @@ export function ChannelMutateDrawer({
                                         )}
                                         template={{
                                           '503': '服务繁忙，请稍后重试',
-                                          stream_disconnected:
+                                          stream_disconnect:
                                             '上游流连接中断，请稍后重试',
                                           default: '服务暂时不可用',
                                         }}

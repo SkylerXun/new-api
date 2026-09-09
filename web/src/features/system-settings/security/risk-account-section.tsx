@@ -8,7 +8,7 @@ import {
   ShieldCheck,
   X,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useDeferredValue, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -32,6 +32,7 @@ import {
   approveRiskAccountReview,
   detachRiskAccount,
   getRiskAccountBackfill,
+  getRiskAccountActions,
   getRiskAccountReviews,
   getRiskExemptions,
   pauseRiskAccountBackfill,
@@ -56,6 +57,54 @@ function optionalTimestamp(value: string) {
   return Number.isFinite(timestamp) ? Math.floor(timestamp / 1000) : undefined
 }
 
+function scanStatusLabel(status: string, t: (key: string) => string) {
+  const labels: Record<string, string> = {
+    pending: t('Pending'),
+    running: t('Running'),
+    pause_requested: t('Pause requested'),
+    paused: t('Paused'),
+    succeeded: t('Completed'),
+    failed: t('Failed'),
+  }
+  return labels[status] || status
+}
+
+function reviewStatusLabel(status: string, t: (key: string) => string) {
+  const labels: Record<string, string> = {
+    pending: t('Pending review'),
+    approved: t('Approved'),
+    rejected: t('Rejected'),
+    failed: t('Failed'),
+  }
+  return labels[status] || status
+}
+
+function actionLabel(action: string, t: (key: string) => string) {
+  const labels: Record<string, string> = {
+    disable_subaccount: t('Automatic subaccount ban'),
+    unlink_restore: t('Manual relationship restore'),
+  }
+  return labels[action] || t('Other risk action')
+}
+
+function evidenceLabel(evidence: string, t: (key: string) => string) {
+  const labels: Record<string, string> = {
+    exact_identity: t('Matching account identity'),
+    exact_oauth_identity: t('Matching OAuth identity'),
+    same_ip_user_agent_24h: t('Same IP and browser within 24 hours'),
+    inviter_reward_burst: t('Invitation reward burst'),
+    strong_identity_or_device: t('Strong identity or device match'),
+    'historical approval would demote existing main account': t('Existing main account requires merge review'),
+  }
+  return labels[evidence] || evidence || t('Strong association')
+}
+
+function reviewKindLabel(kind: string, t: (key: string) => string) {
+  return kind === 'cluster_merge'
+    ? t('Cluster merge review')
+    : t('Historical account review')
+}
+
 export function RiskAccountSection(_props: RiskAccountSectionProps) {
   const { t } = useTranslation()
   const [keyword, setKeyword] = useState('')
@@ -67,8 +116,12 @@ export function RiskAccountSection(_props: RiskAccountSectionProps) {
   const [createdFrom, setCreatedFrom] = useState('')
   const [createdTo, setCreatedTo] = useState('')
   const [detachUserId, setDetachUserId] = useState('')
+  const [detachKeyword, setDetachKeyword] = useState('')
   const [detachReason, setDetachReason] = useState('')
+  const [reviewStatus, setReviewStatus] = useState('pending')
+  const [actionPage, setActionPage] = useState(1)
   const [busy, setBusy] = useState(false)
+  const deferredDetachKeyword = useDeferredValue(detachKeyword)
 
   const usersQuery = useQuery({
     queryKey: ['risk-exemption-users', keyword],
@@ -93,8 +146,25 @@ export function RiskAccountSection(_props: RiskAccountSectionProps) {
     refetchInterval: 2500,
   })
   const reviewsQuery = useQuery({
-    queryKey: ['risk-account-reviews', 'pending'],
-    queryFn: () => getRiskAccountReviews('pending'),
+    queryKey: ['risk-account-reviews', reviewStatus],
+    queryFn: () => getRiskAccountReviews(reviewStatus),
+    refetchInterval: 5000,
+  })
+  const detachUsersQuery = useQuery({
+    queryKey: ['risk-restore-users', deferredDetachKeyword],
+    queryFn: () =>
+      searchUsers({
+        keyword: deferredDetachKeyword,
+        p: 1,
+        page_size: 50,
+        sort_by: 'username',
+        sort_order: 'asc',
+      }),
+    staleTime: 15 * 1000,
+  })
+  const actionsQuery = useQuery({
+    queryKey: ['risk-account-actions', actionPage],
+    queryFn: () => getRiskAccountActions({ page: actionPage, page_size: 20 }),
     refetchInterval: 5000,
   })
 
@@ -105,6 +175,11 @@ export function RiskAccountSection(_props: RiskAccountSectionProps) {
   const users = usersQuery.data?.data?.items ?? []
   const run = backfillQuery.data?.data
   const reviews = reviewsQuery.data?.data?.items ?? []
+  const restoreUsers = [...(detachUsersQuery.data?.data?.items ?? [])].sort(
+    (a, b) => Number(b.status === 2) - Number(a.status === 2) || a.username.localeCompare(b.username)
+  )
+  const actions = actionsQuery.data?.data?.items ?? []
+  const actionTotal = actionsQuery.data?.data?.total ?? 0
   const selected = users.find((user) => String(user.id) === selectedUser)
   const scanActive =
     run?.status === 'pending' ||
@@ -271,8 +346,10 @@ export function RiskAccountSection(_props: RiskAccountSectionProps) {
       }
       toast.success(t('Account relationship removed and account restored'))
       setDetachUserId('')
+      setDetachKeyword('')
       setDetachReason('')
       void reviewsQuery.refetch()
+      void actionsQuery.refetch()
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : t('Failed to restore account')
@@ -405,32 +482,25 @@ export function RiskAccountSection(_props: RiskAccountSectionProps) {
             </div>
           </div>
           <div className='grid gap-2 sm:grid-cols-2 lg:grid-cols-4'>
-            <Input
-              type='number'
-              min={0}
-              value={minUserId}
-              onChange={(event) => setMinUserId(event.target.value)}
-              placeholder={t('Minimum user ID')}
-            />
-            <Input
-              type='number'
-              min={0}
-              value={maxUserId}
-              onChange={(event) => setMaxUserId(event.target.value)}
-              placeholder={t('Maximum user ID')}
-            />
-            <Input
-              type='datetime-local'
-              value={createdFrom}
-              onChange={(event) => setCreatedFrom(event.target.value)}
-              aria-label={t('Registered after')}
-            />
-            <Input
-              type='datetime-local'
-              value={createdTo}
-              onChange={(event) => setCreatedTo(event.target.value)}
-              aria-label={t('Registered before')}
-            />
+            <div className='space-y-1'>
+              <div className='text-muted-foreground text-xs'>{t('Minimum user ID')}</div>
+              <Input type='number' min={0} value={minUserId} onChange={(event) => setMinUserId(event.target.value)} />
+            </div>
+            <div className='space-y-1'>
+              <div className='text-muted-foreground text-xs'>{t('Maximum user ID')}</div>
+              <Input type='number' min={0} value={maxUserId} onChange={(event) => setMaxUserId(event.target.value)} />
+            </div>
+            <div className='space-y-1'>
+              <div className='text-muted-foreground text-xs'>{t('Registration start time')}</div>
+              <Input type='datetime-local' value={createdFrom} onChange={(event) => setCreatedFrom(event.target.value)} />
+            </div>
+            <div className='space-y-1'>
+              <div className='text-muted-foreground text-xs'>{t('Registration end time')}</div>
+              <Input type='datetime-local' value={createdTo} onChange={(event) => setCreatedTo(event.target.value)} />
+            </div>
+          </div>
+          <div className='text-muted-foreground text-xs'>
+            {t('Registration date range limits the historical scan; leave blank for no limit.')}
           </div>
           <div className='flex flex-wrap items-center gap-2'>
             <Button
@@ -466,7 +536,7 @@ export function RiskAccountSection(_props: RiskAccountSectionProps) {
             )}
             {run && (
               <Badge variant={run.status === 'failed' ? 'destructive' : 'secondary'}>
-                {t('Scan status')}: {run.status}
+                {t('Scan status')}: {scanStatusLabel(run.status, t)}
               </Badge>
             )}
           </div>
@@ -492,42 +562,60 @@ export function RiskAccountSection(_props: RiskAccountSectionProps) {
         </section>
 
         <section className='space-y-3 border-t pt-6'>
-          <div>
-            <div className='text-sm font-medium'>{t('Pending risk reviews')}</div>
+          <div className='flex flex-wrap items-start justify-between gap-2'>
+            <div>
+              <div className='text-sm font-medium'>{t('Risk review reports')}</div>
             <div className='text-muted-foreground text-xs'>
               {t(
                 'Approving keeps the earliest eligible account and disables the remaining accounts.'
               )}
             </div>
+            </div>
+            <Select value={reviewStatus} onValueChange={(value) => value && setReviewStatus(value)}>
+              <SelectTrigger className='w-40'>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value='pending'>{t('Pending review')}</SelectItem>
+                <SelectItem value='approved'>{t('Approved')}</SelectItem>
+                <SelectItem value='rejected'>{t('Rejected')}</SelectItem>
+                <SelectItem value='failed'>{t('Failed')}</SelectItem>
+                <SelectItem value='all'>{t('All reports')}</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className='space-y-2'>
             {reviews.map((review) => (
               <div key={review.id} className='space-y-2 rounded-md border p-3'>
                 <div className='flex flex-wrap items-center justify-between gap-2'>
                   <div className='text-sm font-medium'>
-                    #{review.id} · {review.evidence || t('Strong association')}
+                    #{review.id} · {reviewKindLabel(review.kind, t)} ·{' '}
+                    {reviewStatusLabel(review.status, t)} ·{' '}
+                    {evidenceLabel(review.evidence, t)}
                   </div>
-                  <div className='flex gap-2'>
-                    <Button
-                      type='button'
-                      size='sm'
-                      disabled={busy}
-                      onClick={() => resolveReview(review.id, true)}
-                    >
-                      <Check className='mr-1 h-4 w-4' />
-                      {t('Approve and enforce')}
-                    </Button>
-                    <Button
-                      type='button'
-                      size='sm'
-                      variant='outline'
-                      disabled={busy}
-                      onClick={() => resolveReview(review.id, false)}
-                    >
-                      <X className='mr-1 h-4 w-4' />
-                      {t('Reject')}
-                    </Button>
-                  </div>
+                  {review.status === 'pending' && (
+                    <div className='flex gap-2'>
+                      <Button
+                        type='button'
+                        size='sm'
+                        disabled={busy}
+                        onClick={() => resolveReview(review.id, true)}
+                      >
+                        <Check className='mr-1 h-4 w-4' />
+                        {t('Approve and enforce')}
+                      </Button>
+                      <Button
+                        type='button'
+                        size='sm'
+                        variant='outline'
+                        disabled={busy}
+                        onClick={() => resolveReview(review.id, false)}
+                      >
+                        <X className='mr-1 h-4 w-4' />
+                        {t('Reject')}
+                      </Button>
+                    </div>
+                  )}
                 </div>
                 <div className='flex flex-wrap gap-2'>
                   {review.members.map((member) => (
@@ -539,11 +627,54 @@ export function RiskAccountSection(_props: RiskAccountSectionProps) {
                     </Badge>
                   ))}
                 </div>
+                {review.status !== 'pending' && (
+                  <div className='text-muted-foreground text-xs'>
+                    {review.resolved_by_username || (review.resolved_by > 0 ? `${t('User ID')} ${review.resolved_by}` : t('System automatic'))} ·{' '}
+                    {review.resolved_at > 0 ? new Date(review.resolved_at * 1000).toLocaleString() : ''} ·{' '}
+                    {review.resolution || t('No resolution note')}
+                  </div>
+                )}
               </div>
             ))}
             {reviews.length === 0 && (
               <div className='text-muted-foreground text-sm'>
-                {t('No pending risk reviews')}
+                {reviewStatus === 'pending'
+                  ? t('No pending risk reviews')
+                  : t('No processed risk reports')}
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className='space-y-3 border-t pt-6'>
+          <div>
+            <div className='text-sm font-medium'>{t('Automatic enforcement records')}</div>
+            <div className='text-muted-foreground text-xs'>
+              {t('These records show actions already taken by the system or an administrator.')}
+            </div>
+          </div>
+          <div className='space-y-2'>
+            {actions.map((item) => (
+              <div key={item.id} className='space-y-1 rounded-md border p-3 text-sm'>
+                <div className='flex flex-wrap items-center justify-between gap-2'>
+                  <div className='font-medium'>{actionLabel(item.action, t)} · {item.username || `${t('User ID')} ${item.user_id}`}</div>
+                  <Badge variant={item.source === 'system' ? 'destructive' : 'secondary'}>
+                    {item.source === 'system' ? t('System automatic') : t('Administrator action')}
+                  </Badge>
+                </div>
+                <div className='text-muted-foreground text-xs'>
+                  {t('Main account')}: {item.main_username || `${t('User ID')} ${item.main_user_id}`} · {t('Rule')}: {evidenceLabel(item.rule, t)} · {new Date(item.created_at * 1000).toLocaleString()}
+                </div>
+              </div>
+            ))}
+            {actions.length === 0 && <div className='text-muted-foreground text-sm'>{t('No automatic enforcement records')}</div>}
+            {actionTotal > 20 && (
+              <div className='flex items-center justify-between pt-2 text-xs'>
+                <span className='text-muted-foreground'>{t('{{count}} total records', { count: actionTotal })}</span>
+                <div className='flex gap-2'>
+                  <Button type='button' size='sm' variant='outline' disabled={actionPage <= 1} onClick={() => setActionPage((page) => page - 1)}>{t('Previous page')}</Button>
+                  <Button type='button' size='sm' variant='outline' disabled={actionPage * 20 >= actionTotal} onClick={() => setActionPage((page) => page + 1)}>{t('Next page')}</Button>
+                </div>
               </div>
             )}
           </div>
@@ -560,14 +691,32 @@ export function RiskAccountSection(_props: RiskAccountSectionProps) {
               )}
             </div>
           </div>
-          <div className='grid gap-2 sm:grid-cols-[180px_1fr_auto]'>
-            <Input
-              type='number'
-              min={1}
-              value={detachUserId}
-              onChange={(event) => setDetachUserId(event.target.value)}
-              placeholder={t('User ID')}
-            />
+          <div className='grid gap-2 sm:grid-cols-[1fr_1fr_auto]'>
+            <div className='space-y-1'>
+              <Input
+                value={detachKeyword}
+                onChange={(event) => setDetachKeyword(event.target.value)}
+                placeholder={t('Search accounts to restore')}
+              />
+              <Select
+                value={detachUserId}
+                onValueChange={(value) => value && setDetachUserId(value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={t('Select an account to restore')} />
+                </SelectTrigger>
+                <SelectContent alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    {restoreUsers.map((user) => (
+                      <SelectItem key={user.id} value={String(user.id)}>
+                        {user.username} ({user.id}) ·{' '}
+                        {user.status === 2 ? t('Disabled') : t('Enabled')}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
             <Input
               value={detachReason}
               onChange={(event) => setDetachReason(event.target.value)}
@@ -585,6 +734,7 @@ export function RiskAccountSection(_props: RiskAccountSectionProps) {
             </Button>
           </div>
         </section>
+
       </CardContent>
     </Card>
   )

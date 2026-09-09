@@ -112,7 +112,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			if mapped {
 				publicMessage = mappedMessage
 			} else if channelType == constant.ChannelTypeNewAPI &&
-				strings.HasPrefix(strings.ToLower(strings.TrimSpace(publicMessage)), "stream disconnected before completion") {
+				strings.Contains(strings.ToLower(publicMessage), "stream disconnected before completion") {
 				publicMessage = "上游模型服务暂时不可用，请稍后重试"
 			}
 			newAPIError = newAPIError.CloneWithMessage(common.MessageWithRequestId(publicMessage, requestId))

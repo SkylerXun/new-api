@@ -183,8 +183,12 @@ func ResolveErrorMessageMappingWithMessage(statusCode int, rawMessage string, er
 		return "", false
 	}
 	if isStreamDisconnectedMessage(rawMessage) {
-		if message := strings.TrimSpace(mapping["stream_disconnected"]); message != "" {
-			return message, true
+		// Accept both spellings. `stream_disconnect` was documented in the
+		// channel UI before the longer internal name was introduced.
+		for _, key := range []string{"stream_disconnect", "stream_disconnected"} {
+			if message := strings.TrimSpace(mapping[key]); message != "" {
+				return message, true
+			}
 		}
 	}
 	if message := strings.TrimSpace(mapping[strconv.Itoa(statusCode)]); message != "" {
@@ -215,7 +219,7 @@ func ValidateErrorMessageMapping(errorMessageMappingStr string) error {
 		if strings.TrimSpace(message) == "" {
 			return fmt.Errorf("error message mapping value for %q cannot be empty", key)
 		}
-		if key == "default" || key == "stream_disconnected" {
+		if key == "default" || key == "stream_disconnect" || key == "stream_disconnected" {
 			continue
 		}
 		if len(key) != 3 || key[0] < '1' || key[0] > '5' || key[1] < '0' || key[1] > '9' || key[2] < '0' || key[2] > '9' {

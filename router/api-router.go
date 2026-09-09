@@ -163,6 +163,7 @@ func SetApiRouter(router *gin.Engine) {
 				adminRoute.POST("/risk/backfill/:run_id/pause", controller.PauseRiskAccountBackfill)
 				adminRoute.POST("/risk/backfill/:run_id/resume", controller.ResumeRiskAccountBackfill)
 				adminRoute.GET("/risk/reviews", controller.ListRiskAccountReviews)
+				adminRoute.GET("/risk/actions", controller.ListRiskAccountActions)
 				adminRoute.POST("/risk/reviews/:review_id/approve", controller.ApproveRiskAccountReview)
 				adminRoute.POST("/risk/reviews/:review_id/reject", controller.RejectRiskAccountReview)
 				adminRoute.POST("/risk/accounts/:id/detach", controller.DetachRiskAccount)

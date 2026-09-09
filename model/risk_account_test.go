@@ -230,3 +230,28 @@ func TestSubaccountViewOnlyContainsMainAccount(t *testing.T) {
 	assert.Equal(t, main.Id, subView.LinkedAccounts[0].ID)
 	assert.Equal(t, "enabled", subView.LinkedAccounts[0].Status)
 }
+
+func TestRiskAccountActionsAreFilteredAndSanitized(t *testing.T) {
+	setupRiskAccountTest(t)
+	now := time.Now().Unix()
+	admin := createRiskTestUser(t, "action-admin", "action-admin@example.com", common.RoleAdminUser, common.UserStatusEnabled, now-20)
+	main := createRiskTestUser(t, "action-main", "action-main@example.com", common.RoleCommonUser, common.UserStatusEnabled, now-10)
+	sub := createRiskTestUser(t, "action-sub", "action-sub@example.com", common.RoleCommonUser, common.UserStatusDisabled, now)
+	require.NoError(t, DB.Create(&RiskAccountAction{ActionKey: "system-action", UserID: sub.Id, MainUserID: main.Id, ClusterID: "cluster", Action: "disable_subaccount", Rule: "strong_identity_or_device", PolicyVersion: RiskAccountPolicyVersion, CreatedAt: now}).Error)
+	require.NoError(t, DB.Create(&RiskAccountAction{ActionKey: "admin-action", UserID: sub.Id, MainUserID: main.Id, ClusterID: "cluster", Action: "unlink_restore", Rule: "manual reason", PolicyVersion: RiskAccountPolicyVersion, CreatedBy: admin.Id, CreatedAt: now + 1}).Error)
+
+	systemRows, total, err := ListRiskAccountActions("disable_subaccount", "system", 0, 1, 20)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), total)
+	assert.Len(t, systemRows, 1)
+	assert.Equal(t, "system", systemRows[0].Source)
+	assert.Equal(t, sub.Username, systemRows[0].Username)
+	assert.NotContains(t, systemRows[0].Rule, "203.0.113")
+
+	adminRows, total, err := ListRiskAccountActions("unlink_restore", "admin", sub.Id, 1, 20)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), total)
+	assert.Len(t, adminRows, 1)
+	assert.Equal(t, "admin", adminRows[0].Source)
+	assert.Equal(t, admin.Username, adminRows[0].CreatedByUsername)
+}

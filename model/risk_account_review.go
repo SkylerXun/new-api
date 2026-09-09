@@ -91,11 +91,32 @@ type RiskAccountReviewView struct {
 	Evidence      string              `json:"evidence"`
 	PolicyVersion string              `json:"policy_version"`
 	CreatedBy     int                 `json:"created_by"`
+	CreatedByUsername string          `json:"created_by_username,omitempty"`
 	ResolvedBy    int                 `json:"resolved_by"`
+	ResolvedByUsername string         `json:"resolved_by_username,omitempty"`
 	Resolution    string              `json:"resolution"`
 	CreatedAt     int64               `json:"created_at"`
 	UpdatedAt     int64               `json:"updated_at"`
 	ResolvedAt    int64               `json:"resolved_at"`
+}
+
+// RiskAccountActionView is the safe administrator-facing representation of a
+// risk action. Raw observations are intentionally not included.
+type RiskAccountActionView struct {
+	ID                  int64  `json:"id"`
+	UserID              int    `json:"user_id"`
+	Username            string `json:"username"`
+	DisplayName         string `json:"display_name"`
+	MainUserID          int    `json:"main_user_id"`
+	MainUsername        string `json:"main_username"`
+	ClusterID           string `json:"cluster_id"`
+	Action              string `json:"action"`
+	Source              string `json:"source"`
+	Rule                string `json:"rule"`
+	PolicyVersion       string `json:"policy_version"`
+	CreatedBy           int    `json:"created_by"`
+	CreatedByUsername   string `json:"created_by_username,omitempty"`
+	CreatedAt           int64  `json:"created_at"`
 }
 
 func normalizeRiskMemberIDs(memberIDs []int) []int {
@@ -202,7 +223,7 @@ func ListRiskAccountReviews(status string, page, pageSize int) ([]RiskAccountRev
 		pageSize = 20
 	}
 	query := DB.Model(&RiskAccountReview{})
-	if status != "" {
+	if status != "" && status != "all" {
 		query = query.Where("status = ?", status)
 	}
 	var total int64
@@ -239,11 +260,88 @@ func ListRiskAccountReviews(status string, page, pageSize int) ([]RiskAccountRev
 			}
 			members = append(members, LinkedAccountView{ID: user.Id, Username: user.Username, DisplayName: user.DisplayName, Status: linkedAccountStatus(user.Status), CreatedAt: user.CreatedAt, Relation: relation})
 		}
+		createdByUsername := ""
+		resolvedByUsername := ""
+		if row.CreatedBy > 0 {
+			createdByUsername, _ = GetUsernameById(row.CreatedBy, true)
+		}
+		if row.ResolvedBy > 0 {
+			resolvedByUsername, _ = GetUsernameById(row.ResolvedBy, true)
+		}
 		views = append(views, RiskAccountReviewView{
 			ID: row.ID, Kind: row.Kind, Status: row.Status, ProposedMain: row.ProposedMain,
 			Members: members, Evidence: row.Evidence, PolicyVersion: row.PolicyVersion,
-			CreatedBy: row.CreatedBy, ResolvedBy: row.ResolvedBy, Resolution: row.Resolution,
+			CreatedBy: row.CreatedBy, CreatedByUsername: createdByUsername,
+			ResolvedBy: row.ResolvedBy, ResolvedByUsername: resolvedByUsername, Resolution: row.Resolution,
 			CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, ResolvedAt: row.ResolvedAt,
+		})
+	}
+	return views, total, nil
+}
+
+// ListRiskAccountActions returns immutable automatic and administrator risk
+// actions with user names resolved separately from the HMAC observations.
+func ListRiskAccountActions(action, source string, userID, page, pageSize int) ([]RiskAccountActionView, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+	query := DB.Model(&RiskAccountAction{})
+	if action != "" {
+		query = query.Where("action = ?", action)
+	}
+	if source == "system" {
+		query = query.Where("created_by = 0")
+	} else if source == "admin" {
+		query = query.Where("created_by > 0")
+	}
+	if userID > 0 {
+		query = query.Where("user_id = ? OR main_user_id = ?", userID, userID)
+	}
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var rows []RiskAccountAction
+	if err := query.Order("created_at desc, id desc").Offset((page - 1) * pageSize).Limit(pageSize).Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	ids := make([]int, 0, len(rows)*2)
+	seen := map[int]bool{}
+	for _, row := range rows {
+		for _, id := range []int{row.UserID, row.MainUserID, row.CreatedBy} {
+			if id > 0 && !seen[id] {
+				seen[id] = true
+				ids = append(ids, id)
+			}
+		}
+	}
+	var users []User
+	if len(ids) > 0 {
+		if err := DB.Unscoped().Where("id IN ?", ids).Find(&users).Error; err != nil {
+			return nil, 0, err
+		}
+	}
+	byID := make(map[int]User, len(users))
+	for _, user := range users {
+		byID[user.Id] = user
+	}
+	views := make([]RiskAccountActionView, 0, len(rows))
+	for _, row := range rows {
+		user := byID[row.UserID]
+		main := byID[row.MainUserID]
+		operator := byID[row.CreatedBy]
+		sourceValue := "admin"
+		if row.CreatedBy == 0 {
+			sourceValue = "system"
+		}
+		views = append(views, RiskAccountActionView{
+			ID: row.ID, UserID: row.UserID, Username: user.Username, DisplayName: user.DisplayName,
+			MainUserID: row.MainUserID, MainUsername: main.Username, ClusterID: row.ClusterID,
+			Action: row.Action, Source: sourceValue, Rule: row.Rule, PolicyVersion: row.PolicyVersion,
+			CreatedBy: row.CreatedBy, CreatedByUsername: operator.Username, CreatedAt: row.CreatedAt,
 		})
 	}
 	return views, total, nil

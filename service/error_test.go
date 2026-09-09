@@ -95,7 +95,7 @@ func TestResolveErrorMessageMapping(t *testing.T) {
 	got, ok := ResolveErrorMessageMappingWithMessage(
 		http.StatusBadGateway,
 		"stream disconnected before completion: upstream text",
-		`{"stream_disconnected":"上游繁忙，请稍后重试"}`,
+		`{"stream_disconnect":"上游繁忙，请稍后重试"}`,
 	)
 	require.True(t, ok)
 	require.Equal(t, "上游繁忙，请稍后重试", got)

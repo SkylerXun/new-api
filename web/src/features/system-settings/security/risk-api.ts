@@ -82,6 +82,30 @@ export type RiskAccountReview = {
   created_at: number
   updated_at: number
   resolution: string
+  created_by: number
+  created_by_username?: string
+  resolved_by: number
+  resolved_by_username?: string
+  resolved_at: number
+}
+
+export type RiskReviewStatus = 'pending' | 'approved' | 'rejected' | 'failed'
+
+export type RiskAccountAction = {
+  id: number
+  user_id: number
+  username: string
+  display_name: string
+  main_user_id: number
+  main_username: string
+  cluster_id: string
+  action: string
+  source: 'system' | 'admin'
+  rule: string
+  policy_version: string
+  created_by: number
+  created_by_username?: string
+  created_at: number
 }
 
 type ApiResponse<T> = { success: boolean; data?: T; message?: string }
@@ -130,6 +154,24 @@ export async function getRiskAccountReviews(status = 'pending') {
       page_size: number
     }>
   >('/api/user/risk/reviews', { params: { status, page: 1, page_size: 100 } })
+  return res.data
+}
+
+export async function getRiskAccountActions(params: {
+  action?: string
+  source?: 'system' | 'admin'
+  user_id?: number
+  page?: number
+  page_size?: number
+} = {}) {
+  const res = await api.get<
+    ApiResponse<{
+      items: RiskAccountAction[]
+      total: number
+      page: number
+      page_size: number
+    }>
+  >('/api/user/risk/actions', { params })
   return res.data
 }
 

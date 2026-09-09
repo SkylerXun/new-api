@@ -152,6 +152,22 @@ func ListRiskAccountReviews(c *gin.Context) {
 	common.ApiSuccess(c, gin.H{"items": rows, "total": total, "page": page, "page_size": pageSize})
 }
 
+func ListRiskAccountActions(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	userID, _ := strconv.Atoi(c.Query("user_id"))
+	rows, total, err := model.ListRiskAccountActions(
+		strings.TrimSpace(c.Query("action")),
+		strings.TrimSpace(c.Query("source")),
+		userID, page, pageSize,
+	)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{"items": rows, "total": total, "page": page, "page_size": pageSize})
+}
+
 type riskReviewResolutionRequest struct {
 	Resolution string `json:"resolution"`
 }
