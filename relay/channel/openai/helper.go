@@ -1,7 +1,6 @@
 package openai
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -55,7 +54,7 @@ func sanitizeNewAPIStreamErrorData(c *gin.Context, info *relaycommon.RelayInfo, 
 	}
 
 	var payload any
-	if err := json.Unmarshal([]byte(data), &payload); err != nil {
+	if err := common.Unmarshal([]byte(data), &payload); err != nil {
 		return data
 	}
 	matched := false
@@ -83,7 +82,7 @@ func sanitizeNewAPIStreamErrorData(c *gin.Context, info *relaycommon.RelayInfo, 
 	if !matched {
 		return data
 	}
-	updated, err := json.Marshal(payload)
+	updated, err := common.Marshal(payload)
 	if err != nil {
 		return data
 	}

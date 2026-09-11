@@ -172,7 +172,7 @@ func ResolveErrorMessageMapping(statusCode int, errorMessageMappingStr string) (
 
 // ResolveErrorMessageMappingWithMessage resolves a channel's client-facing
 // error message. In addition to HTTP status keys, New API channels may use the
-// special `stream_disconnected` key for upstream stream failures whose status
+// special `stream_disconnect` key for upstream stream failures whose status
 // code is otherwise shared with other gateway errors.
 func ResolveErrorMessageMappingWithMessage(statusCode int, rawMessage string, errorMessageMappingStr string) (string, bool) {
 	if strings.TrimSpace(errorMessageMappingStr) == "" {
@@ -223,7 +223,7 @@ func ValidateErrorMessageMapping(errorMessageMappingStr string) error {
 			continue
 		}
 		if len(key) != 3 || key[0] < '1' || key[0] > '5' || key[1] < '0' || key[1] > '9' || key[2] < '0' || key[2] > '9' {
-			return fmt.Errorf("error message mapping key %q must be an HTTP status code from 100 to 599, stream_disconnected, or default", key)
+			return fmt.Errorf("error message mapping key %q must be an HTTP status code from 100 to 599, stream_disconnect, stream_disconnected, or default", key)
 		}
 	}
 	return nil
