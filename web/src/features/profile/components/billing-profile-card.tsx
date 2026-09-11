@@ -45,11 +45,11 @@ export function BillingProfileCard() {
       </CardHeader>
       <CardContent className='grid gap-4 sm:grid-cols-2'>
         <div className='space-y-2'>
-          <Label htmlFor='profile-billing-username'>{t('Billing username')}</Label>
+          <Label htmlFor='profile-billing-username'>{t('Real name')}</Label>
           <Input id='profile-billing-username' maxLength={120} disabled={loading} value={username} onChange={(event) => setUsername(event.target.value)} />
         </div>
         <div className='space-y-2'>
-          <Label htmlFor='profile-billing-contact'>{t('Personal contact')}</Label>
+          <Label htmlFor='profile-billing-contact'>{t('Contact information')}</Label>
           <Input id='profile-billing-contact' maxLength={300} disabled={loading} value={contact} onChange={(event) => setContact(event.target.value)} />
         </div>
         <div className='sm:col-span-2'><Button onClick={save} disabled={saving || loading}>{t('Save billing profile')}</Button></div>

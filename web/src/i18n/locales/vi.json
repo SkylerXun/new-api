@@ -5616,6 +5616,10 @@
     "Warnings": "警告",
     "View previous month statement": "查看上月账单",
     "Previous month statement is not ready yet": "上月账单尚未生成，请稍后再试",
-    "System monthly statements are finalized at 00:00 on the first day of the next month in Asia/Shanghai.": "系统月度终版以 Asia/Shanghai 时区下月 1 日 00:00 为结算截止点。"
+    "System monthly statements are finalized at 00:00 on the first day of the next month in Asia/Shanghai.": "系统月度终版以 Asia/Shanghai 时区下月 1 日 00:00 为结算截止点。",
+    "Real name": "Họ và tên",
+    "Contact information": "Thông tin liên hệ",
+    "Real name (editable in Profile)": "Họ và tên (có thể chỉnh sửa trong Hồ sơ)",
+    "Contact information (editable in Profile)": "Thông tin liên hệ (có thể chỉnh sửa trong Hồ sơ)"
   }
 }

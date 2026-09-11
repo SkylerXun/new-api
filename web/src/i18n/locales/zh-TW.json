@@ -5705,6 +5705,10 @@
     "Existing main account requires merge review": "現有主帳號需要合併審核",
     "{{count}} total records": "共 {{count}} 筆記錄",
     "Previous page": "上一頁",
-    "Next page": "下一頁"
+    "Next page": "下一頁",
+    "Real name": "本人姓名",
+    "Contact information": "聯絡方式",
+    "Real name (editable in Profile)": "本人姓名（可在個人資料修改）",
+    "Contact information (editable in Profile)": "聯絡方式（可在個人資料修改）"
   }
 }

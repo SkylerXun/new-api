@@ -36,12 +36,12 @@ import {
   getBillingProfile,
   getSelfStatementHistory,
   regenerateSelfStatement,
-  updateBillingProfile,
   getAdminStatementHistory,
   getAdminStatementMonthly,
   getPreviousStatement,
 } from '../../api'
 import type { ConsumptionStatement, StatementMonthlySummary } from '../../types'
+import { StatementRecipientFields } from './statement-recipient-fields'
 
 interface StatementDialogProps {
   open: boolean
@@ -168,12 +168,12 @@ function StatementPreview({
               </div>
               {snapshot.recipient.billing_username && (
                 <div>
-                  {t('Billing username')}: {snapshot.recipient.billing_username}
+                  {t('Real name')}: {snapshot.recipient.billing_username}
                 </div>
               )}
               {snapshot.recipient.billing_contact && (
                 <div>
-                  {t('Personal contact')}: {snapshot.recipient.billing_contact}
+                  {t('Contact information')}: {snapshot.recipient.billing_contact}
                 </div>
               )}
               <div>
@@ -466,18 +466,14 @@ export function StatementDialog({ open, onOpenChange }: StatementDialogProps) {
       setBillingContact('')
       setSelfHistory([])
     }
-  }, [open])
+  }, [isAdmin, open])
 
   const generateSelf = async () => {
     setLoading(true)
     try {
-      const profileResponse = await updateBillingProfile({ billing_username: billingUsername.trim(), billing_contact: billingContact.trim() })
-      if (!profileResponse.success) throw new Error(profileResponse.message)
       const response = await generateCurrentStatement({
         billing_title: billingTitle.trim() || undefined,
         billing_address: billingAddress.trim() || undefined,
-        billing_username: billingUsername.trim() || undefined,
-        billing_contact: billingContact.trim() || undefined,
       })
       if (!response.success || !response.data) throw new Error(response.message)
       setStatement(response.data)
@@ -789,45 +785,14 @@ export function StatementDialog({ open, onOpenChange }: StatementDialogProps) {
             <Label htmlFor='statement-month'>{t('Statement month')}</Label>
             <Input id='statement-month' type='month' max={currentMonth()} value={month} onChange={(event) => setMonth(event.target.value)} />
           </div>
-          <div className='grid gap-4 sm:grid-cols-2'>
-            <div className='space-y-2'>
-              <Label htmlFor='statement-title'>
-                {t('Reconciliation title (optional)')}
-              </Label>
-              <Input
-                id='statement-title'
-                maxLength={120}
-                value={billingTitle}
-                onChange={(event) => setBillingTitle(event.target.value)}
-                placeholder={t('For example: company or department name')}
-              />
-              <p className='text-muted-foreground text-xs'>
-                {t(
-                  'This is user-supplied reconciliation information, not an invoice title.'
-                )}
-              </p>
-            </div>
-            <div className='space-y-2'>
-              <Label htmlFor='statement-username'>{t('Billing username')}</Label>
-              <Input id='statement-username' maxLength={120} value={billingUsername} onChange={(event) => setBillingUsername(event.target.value)} placeholder={t('Defaults to your display name')} />
-            </div>
-            <div className='space-y-2'>
-              <Label htmlFor='statement-contact'>{t('Personal contact')}</Label>
-              <Input id='statement-contact' maxLength={300} value={billingContact} onChange={(event) => setBillingContact(event.target.value)} placeholder={t('Defaults to your email')} />
-            </div>
-            <div className='space-y-2'>
-              <Label htmlFor='statement-address'>
-                {t('Contact address (optional)')}
-              </Label>
-              <Input
-                id='statement-address'
-                maxLength={300}
-                value={billingAddress}
-                onChange={(event) => setBillingAddress(event.target.value)}
-                placeholder={t('For example: Guangdong Province, Shenzhen...')}
-              />
-            </div>
-          </div>
+          <StatementRecipientFields
+            billingTitle={billingTitle}
+            billingAddress={billingAddress}
+            billingUsername={billingUsername}
+            billingContact={billingContact}
+            onBillingTitleChange={setBillingTitle}
+            onBillingAddressChange={setBillingAddress}
+          />
           <div className='space-y-2'>
             <div className='font-semibold'>{t('Generated statement history')}</div>
             {historyLoading ? <Loader2 className='h-4 w-4 animate-spin' /> : selfHistory.map((item) => (
