@@ -37,6 +37,8 @@ export function useReferrals() {
   const [user, setUser] = useState<ReferralUserData | null>(null)
   const [referralLink, setReferralLink] = useState('')
   const [complianceConfirmed, setComplianceConfirmed] = useState(true)
+  const [rebateEnabled, setRebateEnabled] = useState(false)
+  const [rebatePercent, setRebatePercent] = useState(0)
   const [loading, setLoading] = useState(true)
   const [transferring, setTransferring] = useState(false)
 
@@ -57,6 +59,12 @@ export function useReferrals() {
       }
       setComplianceConfirmed(
         settingsResponse?.data?.payment_compliance_confirmed !== false
+      )
+      setRebateEnabled(
+        settingsResponse?.data?.affiliate_rebate_enabled === true
+      )
+      setRebatePercent(
+        Math.max(0, settingsResponse?.data?.affiliate_rebate_percent ?? 0)
       )
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -97,6 +105,8 @@ export function useReferrals() {
     user,
     referralLink,
     complianceConfirmed,
+    rebateEnabled,
+    rebatePercent,
     loading,
     transferring,
     transferRewards,

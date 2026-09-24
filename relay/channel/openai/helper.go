@@ -55,7 +55,19 @@ func sanitizeNewAPIStreamErrorData(c *gin.Context, info *relaycommon.RelayInfo, 
 
 	var payload any
 	if err := common.Unmarshal([]byte(data), &payload); err != nil {
-		return data
+		// Some upstream gateways emit the disconnect explanation as a plain
+		// SSE data line instead of a JSON error object. Do not pass that text
+		// through to the client; normalize it to the same mapped error shape.
+		mapped, marshalErr := common.Marshal(map[string]any{
+			"error": map[string]string{
+				"type":    "upstream_error",
+				"message": newAPIStreamDisconnectClientMessage(c),
+			},
+		})
+		if marshalErr != nil {
+			return data
+		}
+		return string(mapped)
 	}
 	matched := false
 	var rewrite func(any)
@@ -90,7 +102,7 @@ func sanitizeNewAPIStreamErrorData(c *gin.Context, info *relaycommon.RelayInfo, 
 }
 
 func isNewAPIStreamDisconnectMessage(message string) bool {
-	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(message)), newAPIStreamDisconnectPrefix)
+	return strings.Contains(strings.ToLower(strings.TrimSpace(message)), strings.TrimSuffix(newAPIStreamDisconnectPrefix, ":"))
 }
 
 func newAPIStreamDisconnectClientMessage(c *gin.Context) string {

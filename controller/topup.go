@@ -25,6 +25,7 @@ import (
 
 func GetTopUpInfo(c *gin.Context) {
 	complianceConfirmed := operation_setting.IsPaymentComplianceConfirmed()
+	affiliateSetting := operation_setting.GetAffiliateSetting()
 
 	// 获取支付方式
 	payMethods := operation_setting.PayMethods
@@ -119,6 +120,8 @@ func GetTopUpInfo(c *gin.Context) {
 		"enable_redemption":                complianceConfirmed,
 		"payment_compliance_confirmed":     complianceConfirmed,
 		"payment_compliance_terms_version": operation_setting.CurrentComplianceTermsVersion,
+		"affiliate_rebate_enabled":         affiliateSetting.RedeemRebateEnabled,
+		"affiliate_rebate_percent":         affiliateSetting.RedeemRebatePercent,
 		"waffo_pay_methods": func() interface{} {
 			if enableWaffo {
 				return setting.GetWaffoPayMethods()

@@ -28,6 +28,7 @@ type BaseNavItem = {
   attention?: boolean
   attentionLabel?: string
   icon?: React.ElementType
+  accentIcon?: React.ElementType
   activeUrls?: (LinkProps['to'] | (string & {}))[]
   configUrls?: (LinkProps['to'] | (string & {}))[]
   /**

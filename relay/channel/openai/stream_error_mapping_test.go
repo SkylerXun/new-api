@@ -50,9 +50,28 @@ func TestOaiStreamHandlerMapsFinalNewAPIStreamDisconnectChunk(t *testing.T) {
 		DisablePing: true,
 	}
 
-	_, relayErr := OaiStreamHandler(c, info, resp)
+	usage, relayErr := OaiStreamHandler(c, info, resp)
 	require.Nil(t, relayErr)
+	require.NotNil(t, usage)
+	require.Zero(t, usage.TotalTokens)
 	require.Contains(t, recorder.Body.String(), "服务繁忙，请稍后重试")
 	require.NotContains(t, recorder.Body.String(), "stream disconnected before completion")
 	require.NotContains(t, recorder.Body.String(), "upstream private detail")
+}
+
+func TestSanitizeNewAPIPlainTextStreamDisconnect(t *testing.T) {
+	oldMode := gin.Mode()
+	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(oldMode) })
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	common.SetContextKey(c, constant.ContextKeyChannelErrorMessageMapping,
+		`{"stream_disconnect":"服务繁忙，请稍后重试"}`)
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeNewAPI}}
+
+	result := sanitizeNewAPIStreamErrorData(c, info,
+		"stream disconnected before completion: upstream private detail")
+	require.Contains(t, result, "服务繁忙，请稍后重试")
+	require.NotContains(t, result, "stream disconnected before completion")
+	require.NotContains(t, result, "upstream private detail")
 }

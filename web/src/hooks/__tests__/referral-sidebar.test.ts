@@ -16,24 +16,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export interface ApiResponse<T = unknown> {
-  success?: boolean
-  message?: string
-  data?: T
-}
+import assert from 'node:assert/strict'
+import { test } from 'node:test'
 
-export interface ReferralUserData {
-  aff_quota: number
-  aff_history_quota: number
-  aff_count: number
-}
+import type { TFunction } from 'i18next'
+import { Flame } from 'lucide-react'
 
-export interface AffiliateTransferRequest {
-  quota: number
-}
+import { getSidebarData } from '../use-sidebar-data'
 
-export interface ReferralSettings {
-  payment_compliance_confirmed?: boolean
-  affiliate_rebate_enabled?: boolean
-  affiliate_rebate_percent?: number
-}
+const translate = ((key: string) => key) as TFunction
+
+test('referral navigation uses a flame accent to draw attention', () => {
+  const data = getSidebarData(translate, false)
+  const referral = data.navGroups
+    .find((group) => group.id === 'personal')
+    ?.items.find((item) => 'url' in item && item.url === '/referrals')
+
+  assert.ok(referral)
+  assert.equal(referral.accentIcon, Flame)
+})

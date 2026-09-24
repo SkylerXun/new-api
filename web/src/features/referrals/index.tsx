@@ -32,6 +32,8 @@ export function Referrals() {
     user,
     referralLink,
     complianceConfirmed,
+    rebateEnabled,
+    rebatePercent,
     loading,
     transferring,
     transferRewards,
@@ -50,6 +52,8 @@ export function Referrals() {
               referralLink={referralLink}
               onTransfer={() => setTransferDialogOpen(true)}
               complianceConfirmed={complianceConfirmed}
+              rebateEnabled={rebateEnabled}
+              rebatePercent={rebatePercent}
               loading={loading}
             />
           </div>

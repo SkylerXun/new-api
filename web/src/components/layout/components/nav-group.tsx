@@ -147,6 +147,12 @@ function SidebarMenuLink({ item, href }: { item: NavLink; href: string }) {
       >
         {item.icon && <item.icon className='shrink-0' />}
         <span className='min-w-0 flex-1 truncate'>{item.title}</span>
+        {item.accentIcon ? (
+          <item.accentIcon
+            className='size-3.5 shrink-0 text-orange-500 group-data-[collapsible=icon]:hidden'
+            aria-hidden='true'
+          />
+        ) : null}
         {item.badge && <NavBadge>{item.badge}</NavBadge>}
         {item.attention ? (
           <NavAttentionDot label={item.attentionLabel} />

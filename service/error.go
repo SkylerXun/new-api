@@ -201,7 +201,7 @@ func ResolveErrorMessageMappingWithMessage(statusCode int, rawMessage string, er
 }
 
 func isStreamDisconnectedMessage(message string) bool {
-	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(message)), "stream disconnected before completion")
+	return strings.Contains(strings.ToLower(strings.TrimSpace(message)), "stream disconnected before completion")
 }
 
 func ValidateErrorMessageMapping(errorMessageMappingStr string) error {
