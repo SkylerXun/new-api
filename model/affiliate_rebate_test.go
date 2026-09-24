@@ -1,6 +1,7 @@
 package model
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -115,7 +116,7 @@ func TestRedeemCreditsInviterByConfiguredPercentOfOriginalQuota(t *testing.T) {
 	assert.Equal(t, 250, inviter.AffHistoryQuota)
 }
 
-func TestRedeemRebateUsesOriginalQuotaNotNewUserBonus(t *testing.T) {
+func TestRedeemRebateUsesOriginalQuotaAndGrantsFirstRechargeBonus(t *testing.T) {
 	fixture := setupAffiliateRedeemFixture(t, 1000, true)
 	affiliateSetting := operation_setting.GetAffiliateSetting()
 	affiliateSetting.RedeemRebateEnabled = true
@@ -130,10 +131,40 @@ func TestRedeemRebateUsesOriginalQuotaNotNewUserBonus(t *testing.T) {
 	assert.Equal(t, 1300, totalQuota)
 
 	invitee := loadAffiliateTestUser(t, fixture.invitee.Id)
-	assert.Equal(t, 1300, invitee.Quota, "invitee receives the independent activity bonus")
+	assert.Equal(t, 1300, invitee.Quota, "the first quota-code recharge receives the newcomer bonus")
 	inviter := loadAffiliateTestUser(t, fixture.inviter.Id)
 	assert.Equal(t, 200, inviter.AffQuota, "rebate must use 20% of the 1000-code value")
 	assert.Equal(t, 200, inviter.AffHistoryQuota)
+	grant, err := GetActivityGrantForUser(fixture.invitee.Id, ActivityKeyNewUserRedeemBonus)
+	require.NoError(t, err)
+	require.NotNil(t, grant)
+	assert.Equal(t, ActivityGrantSourceRedeem, grant.SourceType)
+	assert.Equal(t, "redemption:"+strconv.Itoa(fixture.redemption.Id), grant.SourceRef)
+	assert.Equal(t, 300, grant.Quota)
+}
+
+func TestRedeemCreditsInviterForEveryNewCode(t *testing.T) {
+	fixture := setupAffiliateRedeemFixture(t, 1000, true)
+	affiliateSetting := operation_setting.GetAffiliateSetting()
+	affiliateSetting.RedeemRebateEnabled = true
+	affiliateSetting.RedeemRebatePercent = 10
+
+	_, err := Redeem(fixture.redemption.Key, fixture.invitee.Id)
+	require.NoError(t, err)
+	second := &Redemption{
+		Name:        "affiliate-rebate-redemption-second",
+		Key:         "affiliate-rebate-key-0000000000000002",
+		Status:      common.RedemptionCodeStatusEnabled,
+		Quota:       500,
+		CreatedTime: common.GetTimestamp(),
+	}
+	require.NoError(t, DB.Create(second).Error)
+	_, err = Redeem(second.Key, fixture.invitee.Id)
+	require.NoError(t, err)
+
+	inviter := loadAffiliateTestUser(t, fixture.inviter.Id)
+	assert.Equal(t, 150, inviter.AffQuota)
+	assert.Equal(t, 150, inviter.AffHistoryQuota)
 }
 
 func TestRedeemRebateIsAppliedOnlyOnceForAUsedCode(t *testing.T) {

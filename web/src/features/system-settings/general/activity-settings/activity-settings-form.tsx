@@ -93,10 +93,10 @@ export function ActivitySettingsForm(props: ActivitySettingsFormProps) {
           render={({ field }) => (
             <SettingsSwitchItem>
               <SettingsSwitchContent>
-                <FormLabel>{t('Enable new-user redemption bonus')}</FormLabel>
+                <FormLabel>{t('Enable new-user first top-up bonus')}</FormLabel>
                 <FormDescription>
                   {t(
-                    'Give eligible new users a bonus on every redeemed code during the activity window.'
+                    'Give eligible new users a bonus on their first successful top-up during the activity window.'
                   )}
                 </FormDescription>
               </SettingsSwitchContent>
@@ -132,7 +132,7 @@ export function ActivitySettingsForm(props: ActivitySettingsFormProps) {
                 </InputGroup>
               </FormControl>
               <FormDescription>
-                {t('Percentage added to the redeemed quota.')}
+                {t('Percentage added to the first successful top-up.')}
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -162,7 +162,7 @@ export function ActivitySettingsForm(props: ActivitySettingsFormProps) {
               </FormControl>
               <FormDescription>
                 {t(
-                  'Time after registration when every redeemed code can receive a bonus.'
+                  'Time after registration when the first successful top-up can receive a bonus.'
                 )}
               </FormDescription>
               <FormMessage />

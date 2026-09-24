@@ -81,11 +81,11 @@ export function ReferralOverviewCard(props: ReferralOverviewCardProps) {
   const description =
     props.rebatePercent > 0
       ? t(
-          'When a friend registers through your link and purchases quota, you earn {{percent}}% back. Rewards can be transferred to your balance at any time.',
+          'When a friend registers through your link and redeems a balance code or purchases quota, you earn {{percent}}% back. Rewards can be transferred to your balance at any time.',
           { percent }
         )
       : t(
-          'When a friend registers through your link and purchases quota, you earn a rebate. Rewards can be transferred to your balance at any time.'
+          'When a friend registers through your link and redeems a balance code or purchases quota, you earn a rebate. Rewards can be transferred to your balance at any time.'
         )
   const steps = [
     {
@@ -101,9 +101,9 @@ export function ReferralOverviewCard(props: ReferralOverviewCardProps) {
       ),
     },
     {
-      title: t('Friend purchases, rebate arrives'),
+      title: t('Friend redeems or purchases, rebate arrives'),
       description: t(
-        'When your friend purchases quota, your rebate is credited automatically.'
+        'When your friend redeems a balance code or purchases quota, your rebate is credited automatically.'
       ),
     },
   ]
@@ -212,21 +212,19 @@ export function ReferralOverviewCard(props: ReferralOverviewCardProps) {
                 />
                 {planActive
                   ? t(
-                      'Rewards are credited automatically after your friend completes a quota purchase.'
+                      'Rewards are credited automatically after your friend redeems a balance code or completes a quota purchase.'
                     )
                   : t('The rebate plan is not currently active.')}
               </p>
-              {hasRewards ? (
-                <Button
-                  onClick={props.onTransfer}
-                  disabled={!props.complianceConfirmed}
-                  variant='outline'
-                  className='mt-4 w-full'
-                >
-                  <WalletCards aria-hidden='true' />
-                  {t('Transfer to Balance')}
-                </Button>
-              ) : null}
+              <Button
+                onClick={props.onTransfer}
+                disabled={!hasRewards || !props.complianceConfirmed}
+                variant='outline'
+                className='mt-4 w-full'
+              >
+                <WalletCards aria-hidden='true' />
+                {t('Transfer to Balance')}
+              </Button>
             </div>
           </aside>
         </div>

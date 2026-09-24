@@ -34,7 +34,7 @@ func setupActivityControllerTest(t *testing.T) *model.User {
 	require.NoError(t, err)
 	model.DB = db
 	model.LOG_DB = db
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.ActivityGrant{}, &model.ActivityCampaign{}, &model.ActivityCampaignRecipient{}))
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.TopUp{}, &model.ActivityGrant{}, &model.ActivityCampaign{}, &model.ActivityCampaignRecipient{}))
 
 	activitySetting := operation_setting.GetActivitySetting()
 	previousSetting := *activitySetting
@@ -63,11 +63,15 @@ func setupActivityControllerTest(t *testing.T) *model.User {
 	return user
 }
 
-func getUserActivitiesForTest(t *testing.T, userId int) userActivity {
+func getUserActivitiesForTest(t *testing.T, userId int, view string) []userActivity {
 	t.Helper()
 	recorder := httptest.NewRecorder()
 	context, _ := gin.CreateTestContext(recorder)
-	context.Request = httptest.NewRequest(http.MethodGet, "/api/user/activities", nil)
+	path := "/api/user/activities"
+	if view != "" {
+		path += "?view=" + view
+	}
+	context.Request = httptest.NewRequest(http.MethodGet, path, nil)
 	context.Set("id", userId)
 
 	GetUserActivities(context)
@@ -82,16 +86,19 @@ func getUserActivitiesForTest(t *testing.T, userId int) userActivity {
 	}
 	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
 	require.True(t, payload.Success)
-	require.Len(t, payload.Data.Activities, 1)
 	assert.Greater(t, payload.Data.ServerTime, int64(0))
-	return payload.Data.Activities[0]
+	return payload.Data.Activities
 }
 
-func TestGetUserActivitiesReturnsNewUserWindowAndCumulativeBonus(t *testing.T) {
+func TestGetUserActivitiesReturnsFirstTopUpWindowAndCreditedReward(t *testing.T) {
 	user := setupActivityControllerTest(t)
 
-	activity := getUserActivitiesForTest(t, user.Id)
+	ongoing := getUserActivitiesForTest(t, user.Id, "ongoing")
+	require.Len(t, ongoing, 1)
+	activity := ongoing[0]
 	assert.Equal(t, model.ActivityKeyNewUserRedeemBonus, activity.Id)
+	assert.Equal(t, "new_user_topup_bonus", activity.Type)
+	assert.Equal(t, "新用户首充奖励", activity.Title)
 	assert.Equal(t, "active", activity.Status)
 	assert.Equal(t, float64(25), activity.BonusPercent)
 	assert.Equal(t, user.CreatedAt+2*24*60*60, activity.EndsAt)
@@ -100,14 +107,28 @@ func TestGetUserActivitiesReturnsNewUserWindowAndCumulativeBonus(t *testing.T) {
 	require.NoError(t, model.DB.Create(&model.ActivityGrant{
 		ActivityKey: model.ActivityKeyNewUserRedeemBonus,
 		UserId:      user.Id,
-		SourceType:  model.ActivityGrantSourceRedeem,
-		SourceRef:   "redemption-1",
+		SourceType:  model.ActivityGrantSourceTopUp,
+		SourceRef:   "topup:first-order",
 		Quota:       250,
 	}).Error)
-	updated := getUserActivitiesForTest(t, user.Id)
-	assert.Equal(t, "active", updated.Status)
-	assert.Equal(t, int64(250), updated.RewardQuota)
-	assert.NotNil(t, updated.Action)
+	assert.Empty(t, getUserActivitiesForTest(t, user.Id, "ongoing"))
+	participated := getUserActivitiesForTest(t, user.Id, "participated")
+	require.Len(t, participated, 1)
+	assert.Equal(t, "credited", participated[0].Status)
+	assert.Equal(t, int64(250), participated[0].RewardQuota)
+	assert.Nil(t, participated[0].Action)
+}
+
+func TestGetUserActivitiesHidesFirstTopUpOfferAfterSuccessfulOrderWithoutBonus(t *testing.T) {
+	user := setupActivityControllerTest(t)
+	require.NoError(t, model.DB.Create(&model.TopUp{
+		UserId:  user.Id,
+		TradeNo: "activity-existing-successful-topup",
+		Status:  common.TopUpStatusSuccess,
+	}).Error)
+
+	assert.Empty(t, getUserActivitiesForTest(t, user.Id, "ongoing"))
+	assert.Empty(t, getUserActivitiesForTest(t, user.Id, "participated"))
 }
 
 func TestGetUserActivitiesIncludesClaimableCampaign(t *testing.T) {
@@ -266,9 +287,35 @@ func TestGetUserActivityAttentionClearsAfterNewUserParticipation(t *testing.T) {
 	assert.True(t, requestAttention())
 	require.NoError(t, model.DB.Create(&model.ActivityGrant{
 		ActivityKey: model.ActivityKeyNewUserRedeemBonus, UserId: user.Id,
-		SourceType: model.ActivityGrantSourceRedeem, SourceRef: "attention-redemption", Quota: 100,
+		SourceType: model.ActivityGrantSourceTopUp, SourceRef: "topup:attention-first-order", Quota: 100,
 	}).Error)
 	assert.False(t, requestAttention())
+}
+
+func TestGetUserActivityAttentionClearsAfterSuccessfulTopUpWithoutBonus(t *testing.T) {
+	user := setupActivityControllerTest(t)
+	require.NoError(t, model.DB.Create(&model.TopUp{
+		UserId:  user.Id,
+		TradeNo: "attention-existing-successful-topup",
+		Status:  common.TopUpStatusSuccess,
+	}).Error)
+
+	recorder := httptest.NewRecorder()
+	requestContext, _ := gin.CreateTestContext(recorder)
+	requestContext.Request = httptest.NewRequest(http.MethodGet, "/api/user/activities/attention", nil)
+	requestContext.Set("id", user.Id)
+	GetUserActivityAttention(requestContext)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var payload struct {
+		Success bool `json:"success"`
+		Data    struct {
+			HasPending bool `json:"has_pending"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.True(t, payload.Success)
+	assert.False(t, payload.Data.HasPending)
 }
 
 func TestListActivityCampaignGrantsReturnsPagedUserDetails(t *testing.T) {

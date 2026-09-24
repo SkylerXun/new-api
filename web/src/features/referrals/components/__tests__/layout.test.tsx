@@ -33,12 +33,12 @@ void testI18n.use(initReactI18next).init({
   resources: { en: { translation: {} } },
 })
 
-function renderReferralPage() {
+function renderReferralPage(affQuota = 100000) {
   const window = new Window()
   window.document.body.innerHTML = renderToStaticMarkup(
     <I18nextProvider i18n={testI18n}>
       <ReferralOverviewCard
-        user={{ aff_quota: 100000, aff_history_quota: 200000, aff_count: 3 }}
+        user={{ aff_quota: affQuota, aff_history_quota: 200000, aff_count: 3 }}
         referralLink='https://example.com/sign-up?aff=demo'
         onTransfer={() => undefined}
         complianceConfirmed
@@ -83,6 +83,38 @@ describe('referral program layout', () => {
     assert.ok(controls)
     assert.match(controls.className, /flex-col/)
     assert.match(controls.className, /sm:flex-row/)
+    window.close()
+  })
+
+  test('keeps the transfer action visible and disables it when no rebate is available', () => {
+    const window = renderReferralPage(0)
+    const transferButton = [...window.document.querySelectorAll('button')].find(
+      (button) => button.textContent?.includes('Transfer to Balance')
+    )
+
+    assert.ok(transferButton)
+    assert.equal(transferButton.disabled, true)
+    window.close()
+  })
+
+  test('enables the transfer action when rebate is available', () => {
+    const window = renderReferralPage(100000)
+    const transferButton = [...window.document.querySelectorAll('button')].find(
+      (button) => button.textContent?.includes('Transfer to Balance')
+    )
+
+    assert.ok(transferButton)
+    assert.equal(transferButton.disabled, false)
+    window.close()
+  })
+
+  test('explains that both balance-code redemptions and purchases earn rebates', () => {
+    const window = renderReferralPage()
+
+    assert.match(
+      window.document.body.textContent,
+      /redeems a balance code or purchases quota/
+    )
     window.close()
   })
 })

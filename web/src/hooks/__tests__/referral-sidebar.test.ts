@@ -20,8 +20,8 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import type { TFunction } from 'i18next'
-import { Flame } from 'lucide-react'
 
+import { FireAccentIcon } from '@/components/icons/fire-accent-icon'
 import { getSidebarData } from '../use-sidebar-data'
 
 const translate = ((key: string) => key) as TFunction
@@ -33,5 +33,5 @@ test('referral navigation uses a flame accent to draw attention', () => {
     ?.items.find((item) => 'url' in item && item.url === '/referrals')
 
   assert.ok(referral)
-  assert.equal(referral.accentIcon, Flame)
+  assert.equal(referral.accentIcon, FireAccentIcon)
 })

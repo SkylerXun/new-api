@@ -133,7 +133,7 @@ func setupRedeemFixture(t *testing.T, quota int) (userId int, key string) {
 	return user.Id, key
 }
 
-func TestRedeemCreditsConfigurableNewUserBonusForEachEligibleCode(t *testing.T) {
+func TestRedeemTriggersFirstRechargeBonusOnlyOnce(t *testing.T) {
 	userId, key := setupRedeemFixture(t, 1000)
 	activitySetting := operation_setting.GetActivitySetting()
 	activitySetting.NewUserRedeemBonusEnabled = true
@@ -154,40 +154,23 @@ func TestRedeemCreditsConfigurableNewUserBonusForEachEligibleCode(t *testing.T) 
 	require.NoError(t, DB.Create(&secondRedemption).Error)
 	secondTotal, err := Redeem(secondRedemption.Key, userId)
 	require.NoError(t, err)
-	assert.Equal(t, 563, secondTotal)
+	assert.Equal(t, 500, secondTotal)
 
 	var user User
 	require.NoError(t, DB.First(&user, "id = ?", userId).Error)
-	assert.Equal(t, 1688, user.Quota)
+	assert.Equal(t, 1625, user.Quota)
 
 	grant, err := GetActivityGrantForUser(userId, ActivityKeyNewUserRedeemBonus)
 	require.NoError(t, err)
 	require.NotNil(t, grant)
-	assert.Equal(t, 63, grant.Quota)
+	assert.Equal(t, ActivityGrantSourceRedeem, grant.SourceType)
+	assert.Equal(t, "redemption:1", grant.SourceRef)
 	count, err := CountActivityGrants(context.Background(), ActivityKeyNewUserRedeemBonus)
 	require.NoError(t, err)
-	assert.Equal(t, int64(2), count)
+	assert.Equal(t, int64(1), count)
 	cumulative, err := SumActivityGrantQuotaForUser(context.Background(), userId, ActivityKeyNewUserRedeemBonus)
 	require.NoError(t, err)
-	assert.Equal(t, int64(188), cumulative)
-}
-
-func TestRedeemDoesNotCreditBonusAfterRegistrationWindow(t *testing.T) {
-	userId, key := setupRedeemFixture(t, 1000)
-	activitySetting := operation_setting.GetActivitySetting()
-	activitySetting.NewUserRedeemBonusEnabled = true
-	activitySetting.NewUserRedeemBonusPercent = 30
-	activitySetting.NewUserRedeemBonusWindowDays = 1
-	require.NoError(t, DB.Model(&User{}).Where("id = ?", userId).
-		Update("created_at", common.GetTimestamp()-24*60*60-1).Error)
-
-	totalQuota, err := Redeem(key, userId)
-	require.NoError(t, err)
-	assert.Equal(t, 1000, totalQuota)
-
-	grant, err := GetActivityGrantForUser(userId, ActivityKeyNewUserRedeemBonus)
-	require.NoError(t, err)
-	assert.Nil(t, grant)
+	assert.Equal(t, 125, cumulative)
 }
 
 func TestRedeemCreditsQuotaExactlyOnce(t *testing.T) {

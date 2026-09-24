@@ -63,12 +63,12 @@ export function ActivityCard(props: ActivityCardProps) {
   const canShowCountdown = status === 'active' || status === 'claimable'
   const activityTitle =
     props.activity.type === 'new_user_topup_bonus'
-      ? t('New user recharge bonus')
+      ? t('New user first top-up bonus')
       : props.activity.title
   const activityDescription =
     props.activity.type === 'new_user_topup_bonus'
       ? t(
-          'Top up within {{days}} days of registration for an extra {{percent}}% credit each time.',
+          'Complete your first top-up within {{days}} days of registration for an extra {{percent}}% credit.',
           {
             days: Math.max(
               0,
@@ -157,7 +157,7 @@ export function ActivityCard(props: ActivityCardProps) {
           <CheckCircle2 className='size-5 text-emerald-600 dark:text-emerald-400' />
           <span>
             {props.activity.type === 'new_user_topup_bonus'
-              ? t('Cumulative bonus received')
+              ? t('First top-up bonus received')
               : t('Credit received')}
           </span>
           <span className='font-semibold'>

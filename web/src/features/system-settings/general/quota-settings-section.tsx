@@ -199,11 +199,11 @@ export function QuotaSettingsSection({
                   <SettingsSwitchItem>
                     <SettingsSwitchContent>
                       <FormLabel>
-                        {t('Enable affiliate redemption rebate')}
+                        {t('Enable affiliate transaction rebate')}
                       </FormLabel>
                       <FormDescription>
                         {t(
-                          'Give inviters a percentage of each balance code redeemed by their invitees.'
+                          'Give inviters a percentage of every balance code redemption and online top-up completed by their invitees.'
                         )}
                       </FormDescription>
                     </SettingsSwitchContent>
@@ -241,7 +241,7 @@ export function QuotaSettingsSection({
                   </FormControl>
                   <FormDescription>
                     {t(
-                      'Percentage of redeemed balance quota credited to the inviter.'
+                      'Percentage of redeemed or purchased quota credited to the inviter.'
                     )}
                   </FormDescription>
                   <FormMessage />

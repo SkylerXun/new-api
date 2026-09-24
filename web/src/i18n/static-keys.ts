@@ -21,9 +21,9 @@ For commercial licensing, please contact support@quantumnous.com
 export const STATIC_I18N_KEYS = [
   // Activity center
   'Activity Center',
-  'New user recharge bonus',
+  'New user first top-up bonus',
   'Redeem codes within {{days}} days of registration for an extra {{percent}}% credit each time.',
-  'Top up within {{days}} days of registration for an extra {{percent}}% credit each time.',
+  'Complete your first top-up within {{days}} days of registration for an extra {{percent}}% credit.',
   'Days',
   'Hours',
   'Minutes',
@@ -37,7 +37,7 @@ export const STATIC_I18N_KEYS = [
   'unavailable',
   'Recharge now',
   'Claim now',
-  'Cumulative bonus received',
+  'First top-up bonus received',
   'Credit received',
   'Active',
   'Queued',

@@ -46,18 +46,65 @@ func TestRechargeHupijiaoCreditsNewUserBonusExactlyOnce(t *testing.T) {
 		DB.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&ActivityGrant{})
 	})
 	user := insertUserForPaymentGuardTest(t, 603, 0)
-	order := &TopUp{UserId: user.Id, Amount: 1000, Money: 8, TradeNo: "HUPIJAO-BONUS", PaymentMethod: "alipay", PaymentProvider: PaymentProviderHupijiao, Status: common.TopUpStatusPending, CreateTime: time.Now().Unix()}
-	require.NoError(t, order.Insert())
-	_, err := RechargeHupijiao(order.TradeNo, "alipay", "127.0.0.1")
+	firstOrder := &TopUp{UserId: user.Id, Amount: 1000, Money: 8, TradeNo: "HUPIJAO-BONUS-FIRST", PaymentMethod: "alipay", PaymentProvider: PaymentProviderHupijiao, Status: common.TopUpStatusPending, CreateTime: time.Now().Unix()}
+	require.NoError(t, firstOrder.Insert())
+	_, err := RechargeHupijiao(firstOrder.TradeNo, "alipay", "127.0.0.1")
 	require.NoError(t, err)
 	assert.Equal(t, 1250, getUserQuotaForPaymentGuardTest(t, user.Id))
-	grant, err := GetActivityGrantForUserSource(user.Id, ActivityKeyNewUserRedeemBonus, "topup:"+order.TradeNo)
+	grant, err := GetActivityGrantForUserSource(user.Id, ActivityKeyNewUserRedeemBonus, "topup:"+firstOrder.TradeNo)
 	require.NoError(t, err)
 	require.NotNil(t, grant)
 	assert.Equal(t, 250, grant.Quota)
-	_, err = RechargeHupijiao(order.TradeNo, "alipay", "127.0.0.1")
+
+	secondOrder := &TopUp{UserId: user.Id, Amount: 500, Money: 4, TradeNo: "HUPIJAO-BONUS-SECOND", PaymentMethod: "alipay", PaymentProvider: PaymentProviderHupijiao, Status: common.TopUpStatusPending, CreateTime: time.Now().Unix()}
+	require.NoError(t, secondOrder.Insert())
+	_, err = RechargeHupijiao(secondOrder.TradeNo, "alipay", "127.0.0.1")
 	require.NoError(t, err)
-	assert.Equal(t, 1250, getUserQuotaForPaymentGuardTest(t, user.Id))
+	assert.Equal(t, 1750, getUserQuotaForPaymentGuardTest(t, user.Id))
+	secondGrant, err := GetActivityGrantForUserSource(user.Id, ActivityKeyNewUserRedeemBonus, "topup:"+secondOrder.TradeNo)
+	require.NoError(t, err)
+	assert.Nil(t, secondGrant)
+
+	_, err = RechargeHupijiao(secondOrder.TradeNo, "alipay", "127.0.0.1")
+	require.NoError(t, err)
+	assert.Equal(t, 1750, getUserQuotaForPaymentGuardTest(t, user.Id))
+}
+
+func TestRechargeHupijiaoCreditsInviterForEveryNewOrder(t *testing.T) {
+	truncateTables(t)
+	affiliateSetting := operation_setting.GetAffiliateSetting()
+	previousAffiliate := *affiliateSetting
+	activitySetting := operation_setting.GetActivitySetting()
+	previousActivity := *activitySetting
+	affiliateSetting.RedeemRebateEnabled = true
+	affiliateSetting.RedeemRebatePercent = 10
+	activitySetting.NewUserRedeemBonusEnabled = false
+	t.Cleanup(func() {
+		*affiliateSetting = previousAffiliate
+		*activitySetting = previousActivity
+	})
+
+	inviter := &User{Username: "hupijiao-affiliate-inviter", Password: "password", Status: common.UserStatusEnabled}
+	require.NoError(t, DB.Create(inviter).Error)
+	invitee := &User{Username: "hupijiao-affiliate-invitee", Password: "password", Status: common.UserStatusEnabled, InviterId: inviter.Id}
+	require.NoError(t, DB.Create(invitee).Error)
+
+	firstOrder := &TopUp{UserId: invitee.Id, Amount: 1000, Money: 8, TradeNo: "HUPIJAO-REBATE-FIRST", PaymentMethod: "alipay", PaymentProvider: PaymentProviderHupijiao, Status: common.TopUpStatusPending, CreateTime: time.Now().Unix()}
+	secondOrder := &TopUp{UserId: invitee.Id, Amount: 500, Money: 4, TradeNo: "HUPIJAO-REBATE-SECOND", PaymentMethod: "alipay", PaymentProvider: PaymentProviderHupijiao, Status: common.TopUpStatusPending, CreateTime: time.Now().Unix()}
+	require.NoError(t, firstOrder.Insert())
+	require.NoError(t, secondOrder.Insert())
+
+	_, err := RechargeHupijiao(firstOrder.TradeNo, "alipay", "127.0.0.1")
+	require.NoError(t, err)
+	_, err = RechargeHupijiao(secondOrder.TradeNo, "alipay", "127.0.0.1")
+	require.NoError(t, err)
+	_, err = RechargeHupijiao(secondOrder.TradeNo, "alipay", "127.0.0.1")
+	require.NoError(t, err)
+
+	assert.Equal(t, 1500, getUserQuotaForPaymentGuardTest(t, invitee.Id))
+	storedInviter := loadAffiliateTestUser(t, inviter.Id)
+	assert.Equal(t, 150, storedInviter.AffQuota)
+	assert.Equal(t, 150, storedInviter.AffHistoryQuota)
 }
 
 func TestRechargeHupijiaoRejectsCredentialMethodMismatch(t *testing.T) {

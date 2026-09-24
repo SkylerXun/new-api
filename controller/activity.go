@@ -85,8 +85,8 @@ func GetUserActivities(c *gin.Context) {
 	newUserActivity := userActivity{
 		Id:               model.ActivityKeyNewUserRedeemBonus,
 		Type:             "new_user_topup_bonus",
-		Title:            "新用户兑换加赠",
-		Description:      fmt.Sprintf("注册后 %d 天内每次钱包充值，额外赠送 %g%% 额度。", windowDays, bonusPercent),
+		Title:            "新用户首充奖励",
+		Description:      fmt.Sprintf("注册后 %d 天内完成首次充值，可额外获得 %g%% 额度。", windowDays, bonusPercent),
 		Status:           "active",
 		StartsAt:         user.CreatedAt,
 		EndsAt:           endsAt,
@@ -99,8 +99,15 @@ func GetUserActivities(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	hasCompletedRecharge, err := model.HasCompletedRechargeForUser(c.Request.Context(), userId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	newUserActivity.RewardQuota = cumulativeReward
 	if !activitySetting.NewUserRedeemBonusEnabled || !validConfiguration || bonusPercent <= 0 || user.CreatedAt <= 0 {
+		newUserActivity.Status = "unavailable"
+	} else if cumulativeReward > 0 || hasCompletedRecharge {
 		newUserActivity.Status = "unavailable"
 	} else if now >= endsAt {
 		newUserActivity.Status = "expired"
@@ -250,8 +257,15 @@ func GetUserActivityAttention(c *gin.Context) {
 			return
 		}
 		if rewardQuota == 0 {
-			common.ApiSuccess(c, gin.H{"has_pending": true})
-			return
+			hasCompletedRecharge, err := model.HasCompletedRechargeForUser(c.Request.Context(), userId)
+			if err != nil {
+				common.ApiError(c, err)
+				return
+			}
+			if !hasCompletedRecharge {
+				common.ApiSuccess(c, gin.H{"has_pending": true})
+				return
+			}
 		}
 	}
 

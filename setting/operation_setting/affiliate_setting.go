@@ -8,7 +8,7 @@ import (
 )
 
 // AffiliateSetting controls the global invitation rebate applied when an
-// invitee redeems a balance redemption code. The feature is deliberately
+// invitee redeems a balance code or completes an online top-up. The feature is deliberately
 // disabled by default so existing installations keep their current behavior
 // until an administrator opts in.
 type AffiliateSetting struct {
@@ -30,7 +30,7 @@ func GetAffiliateSetting() *AffiliateSetting {
 // before it is persisted. Percentages are finite and inclusive of 0 and 100.
 func ValidateRedeemRebatePercent(percent float64) error {
 	if math.IsNaN(percent) || math.IsInf(percent, 0) || percent < 0 || percent > 100 {
-		return fmt.Errorf("邀请兑换返利比例必须在 0 到 100 之间")
+	return fmt.Errorf("邀请充值返利比例必须在 0 到 100 之间")
 	}
 	return nil
 }

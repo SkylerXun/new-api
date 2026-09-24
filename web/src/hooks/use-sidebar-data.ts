@@ -24,7 +24,6 @@ import {
   CalendarCheck,
   CreditCard,
   FileText,
-  Flame,
   FlaskConical,
   Gift,
   Key,
@@ -44,6 +43,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { FireAccentIcon } from '@/components/icons/fire-accent-icon'
 import type { SidebarData } from '@/components/layout/types'
 import {
   activityAttentionQueryKey,
@@ -172,7 +172,7 @@ export function getSidebarData(
             title: t('Referral Program'),
             url: '/referrals',
             icon: Share2,
-            accentIcon: Flame,
+            accentIcon: FireAccentIcon,
           },
         ],
       },

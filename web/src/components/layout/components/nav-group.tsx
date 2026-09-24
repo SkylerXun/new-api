@@ -149,7 +149,7 @@ function SidebarMenuLink({ item, href }: { item: NavLink; href: string }) {
         <span className='min-w-0 flex-1 truncate'>{item.title}</span>
         {item.accentIcon ? (
           <item.accentIcon
-            className='size-3.5 shrink-0 text-orange-500 group-data-[collapsible=icon]:hidden'
+            className='size-4 shrink-0 object-contain group-data-[collapsible=icon]:hidden'
             aria-hidden='true'
           />
         ) : null}

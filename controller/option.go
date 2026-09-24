@@ -159,7 +159,7 @@ func UpdateOption(c *gin.Context) {
 	case "affiliate_setting.redeem_rebate_enabled":
 		enabled, parseErr := strconv.ParseBool(strings.TrimSpace(option.Value.(string)))
 		if parseErr != nil {
-			c.JSON(http.StatusOK, gin.H{"success": false, "message": "邀请兑换返利开关值无效"})
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": "邀请充值返利开关值无效"})
 			return
 		}
 		if enabled && !operation_setting.IsPaymentComplianceConfirmed() {
@@ -169,7 +169,7 @@ func UpdateOption(c *gin.Context) {
 	case "affiliate_setting.redeem_rebate_percent":
 		percent, parseErr := strconv.ParseFloat(strings.TrimSpace(option.Value.(string)), 64)
 		if parseErr != nil || math.IsNaN(percent) || math.IsInf(percent, 0) || percent < 0 || percent > 100 {
-			c.JSON(http.StatusOK, gin.H{"success": false, "message": "邀请兑换返利比例必须在 0 到 100 之间"})
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": "邀请充值返利比例必须在 0 到 100 之间"})
 			return
 		}
 		if percent > 0 && !operation_setting.IsPaymentComplianceConfirmed() {
