@@ -62,6 +62,7 @@ import type {
   CreemProduct,
   WaffoPayMethod,
 } from './types'
+import { formatQuota } from '@/lib/format'
 
 interface WalletProps {
   initialShowHistory?: boolean
@@ -119,7 +120,7 @@ export function Wallet(props: WalletProps) {
     resumeQRCode,
     setAmount: setPaymentAmount,
   } = usePayment()
-  const { redeeming, redeemCode } = useRedemption()
+  const { redeeming, redeemCode, decreasingNotice, clearDecreasingNotice } = useRedemption()
   const { processing: creemProcessing, processCreemPayment } = useCreemPayment()
   const { processing: waffoProcessing, processWaffoPayment } = useWaffoPayment()
   const { processing: pancakeProcessing, processWaffoPancakePayment } =
@@ -400,6 +401,21 @@ export function Wallet(props: WalletProps) {
           topupInfo?.online_payment_provider === 'hupijiao' ? '¥' : ''
         }
       />
+      <Dialog open={!!decreasingNotice} onOpenChange={(open) => { if (!open) clearDecreasingNotice() }}>
+        <DialogContent className='sm:max-w-md'>
+          <DialogHeader>
+            <DialogTitle>大额度兑换码需要分期兑换</DialogTitle>
+            <DialogDescription>本次已按本月兑换额度到账，剩余额度将在下次刷新后继续可用。</DialogDescription>
+          </DialogHeader>
+          {decreasingNotice && <div className='space-y-2 rounded-lg bg-muted/50 p-4 text-sm'>
+            <div className='flex justify-between'><span>兑换码额度</span><strong>{formatQuota(decreasingNotice.requested)}</strong></div>
+            <div className='flex justify-between'><span>本次实际到账</span><strong>{formatQuota(decreasingNotice.quota)}</strong></div>
+            <div className='flex justify-between'><span>本月剩余可兑换</span><strong>{formatQuota(decreasingNotice.remaining)}</strong></div>
+            <div className='flex justify-between'><span>下次刷新时间</span><strong>{new Date(decreasingNotice.nextRefresh * 1000).toLocaleString()}</strong></div>
+          </div>}
+          <Button onClick={clearDecreasingNotice}>知道了</Button>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={qrcodeOpen}
