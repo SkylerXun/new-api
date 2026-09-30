@@ -28,6 +28,7 @@ import { Label } from '@/components/ui/label'
 
 import {
   createRedemptionCategory,
+  createDecreasingRedemption,
   getRedemptionCategories,
   updateRedemptionCategory,
   updateRedemptionCategoryStatus,
@@ -47,6 +48,9 @@ export function RedemptionCategoryDialog({
   const [name, setName] = useState('')
   const [price, setPrice] = useState('0.00')
   const [loading, setLoading] = useState(false)
+  const [decreasingName, setDecreasingName] = useState('')
+  const [decreasingTotal, setDecreasingTotal] = useState('100000000')
+  const [decreasingMonthly, setDecreasingMonthly] = useState('500')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -122,6 +126,24 @@ export function RedemptionCategoryDialog({
     }
   }
 
+  const createDecreasing = async () => {
+    const total = Number(decreasingTotal)
+    const monthly = Number(decreasingMonthly)
+    if (!decreasingName.trim() || !Number.isFinite(total) || !Number.isFinite(monthly) || total <= 0 || monthly <= 0) {
+      toast.error('请填写有效的总额度和每月上限')
+      return
+    }
+    setLoading(true)
+    try {
+      const result = await createDecreasingRedemption({ name: decreasingName.trim(), total_quota: Math.round(total * 1000000), monthly_limit_quota: Math.round(monthly * 1000000) })
+      if (!result.success) throw new Error(result.message)
+      toast.success('递减兑换码已创建')
+      setDecreasingName('')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '创建递减兑换码失败')
+    } finally { setLoading(false) }
+  }
+
   return (
     <Dialog
       open={open}
@@ -170,6 +192,16 @@ export function RedemptionCategoryDialog({
             )}
             {t(editingId ? 'Save' : 'Create')}
           </Button>
+        </div>
+      </div>
+
+      <div className='space-y-3 rounded-lg border border-dashed border-indigo-300 bg-indigo-50/40 p-4'>
+        <div><div className='font-medium'>递减额度兑换码（独立功能）</div><p className='text-muted-foreground text-sm'>不影响普通兑换码；用户仍从原钱包兑换入口输入兑换码。</p></div>
+        <div className='grid gap-3 sm:grid-cols-[1fr_160px_160px_auto] sm:items-end'>
+          <div className='space-y-2'><Label>名称</Label><Input value={decreasingName} onChange={(event) => setDecreasingName(event.target.value)} placeholder='例如：1亿额度' /></div>
+          <div className='space-y-2'><Label>总额度（美元）</Label><Input type='number' min='0.01' value={decreasingTotal} onChange={(event) => setDecreasingTotal(event.target.value)} /></div>
+          <div className='space-y-2'><Label>每月上限（美元）</Label><Input type='number' min='0.01' value={decreasingMonthly} onChange={(event) => setDecreasingMonthly(event.target.value)} /></div>
+          <Button onClick={createDecreasing} disabled={loading}>创建递减码</Button>
         </div>
       </div>
 

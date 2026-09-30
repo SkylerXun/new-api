@@ -150,3 +150,12 @@ export async function assignRedemptionCategory(
   )
   return res.data
 }
+
+export async function createDecreasingRedemption(input: {
+  name: string
+  total_quota: number
+  monthly_limit_quota: number
+}) {
+  const res = await api.post<ApiResponse>('/api/redemption/decreasing', input)
+  return res.data
+}
