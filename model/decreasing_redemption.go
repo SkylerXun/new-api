@@ -14,10 +14,10 @@ type DecreasingRedemption struct {
 	ID                   int    `json:"id"`
 	Key                  string `json:"key" gorm:"type:char(32);uniqueIndex"`
 	Name                 string `json:"name"`
-	TotalQuota           int    `json:"total_quota"`
-	RemainingQuota       int    `json:"remaining_quota"`
-	MonthlyLimitQuota    int    `json:"monthly_limit_quota"`
-	MonthlyRedeemedQuota int    `json:"monthly_redeemed_quota"`
+	TotalQuota           int    `json:"total_quota" gorm:"type:bigint"`
+	RemainingQuota       int    `json:"remaining_quota" gorm:"type:bigint"`
+	MonthlyLimitQuota    int    `json:"monthly_limit_quota" gorm:"type:bigint"`
+	MonthlyRedeemedQuota int    `json:"monthly_redeemed_quota" gorm:"type:bigint"`
 	MonthlyPeriod        int64  `json:"monthly_period" gorm:"bigint;index"`
 	Enabled              bool   `json:"enabled"`
 	CreatedAt            int64  `json:"created_at" gorm:"bigint"`
