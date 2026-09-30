@@ -30,6 +30,8 @@ type DecreasingRedeemResult struct {
 	MonthlyRemaining int  `json:"monthly_remaining"`
 	NextRefreshAt  int64 `json:"next_refresh_at"`
 	Decreasing     bool  `json:"decreasing"`
+	Exhausted      bool  `json:"exhausted"`
+	Message        string `json:"message,omitempty"`
 }
 
 func currentMonth() (int64, int64) {
@@ -43,18 +45,22 @@ func currentMonth() (int64, int64) {
 // handled=false means the caller must use the legacy redemption path.
 func RedeemDecreasing(key string, userID int) (result DecreasingRedeemResult, handled bool, err error) {
 	var code DecreasingRedemption
-	if err = DB.Where("key = ? AND enabled = ?", key, true).First(&code).Error; err != nil {
+	if err = DB.Where("key = ?", key).First(&code).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) { return result, false, nil }
 		return result, true, err
 	}
 	handled = true
+	if !code.Enabled { return result, true, errors.New("递减兑换码已禁用") }
 	month, nextRefresh := currentMonth()
 	err = DB.Transaction(func(tx *gorm.DB) error {
 		if err := lockForUpdate(tx).Where("id = ?", code.ID).First(&code).Error; err != nil { return err }
 		used := code.MonthlyRedeemedQuota
 		if code.MonthlyPeriod != month { used = 0 }
 		remaining := code.MonthlyLimitQuota - used
-		if remaining <= 0 { return errors.New("本月兑换额度已用完") }
+		if remaining <= 0 {
+			result = DecreasingRedeemResult{RequestedQuota: code.TotalQuota, MonthlyLimit: code.MonthlyLimitQuota, MonthlyRemaining: 0, NextRefreshAt: nextRefresh, Decreasing: true, Exhausted: true, Message: "本月额度已用完"}
+			return nil
+		}
 		if code.RemainingQuota <= 0 { return errors.New("兑换码额度已用完") }
 		credit := code.RemainingQuota
 		if credit > remaining { credit = remaining }

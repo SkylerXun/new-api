@@ -35,7 +35,7 @@ export function useRedemption() {
   const [redeeming, setRedeeming] = useState(false)
   const queryClient = useQueryClient()
   const [decreasingNotice, setDecreasingNotice] = useState<{
-    requested: number; quota: number; limit: number; remaining: number; nextRefresh: number
+    requested: number; quota: number; limit: number; remaining: number; nextRefresh: number; exhausted?: boolean
   } | null>(null)
 
   const redeemCode = useCallback(
@@ -50,14 +50,10 @@ export function useRedemption() {
         const response = await redeemTopupCode({ key: code })
 
         if (response.success && response.data) {
-          const payload = response.data as number | { quota: number; requested_quota: number; monthly_limit: number; monthly_remaining: number; next_refresh_at: number; decreasing?: boolean }
+          const payload = response.data as number | { quota: number; requested_quota: number; monthly_limit: number; monthly_remaining: number; next_refresh_at: number; decreasing?: boolean; exhausted?: boolean }
           const quotaAdded = typeof payload === 'number' ? payload : payload.quota
-          if (typeof payload !== 'number' && payload.decreasing) setDecreasingNotice({ requested: payload.requested_quota, quota: payload.quota, limit: payload.monthly_limit, remaining: payload.monthly_remaining, nextRefresh: payload.next_refresh_at })
-          toast.success(
-            i18next.t('Redemption successful! Added: {{quota}}', {
-              quota: formatQuota(quotaAdded),
-            })
-          )
+          if (typeof payload !== 'number' && payload.decreasing) setDecreasingNotice({ requested: payload.requested_quota, quota: payload.quota, limit: payload.monthly_limit, remaining: payload.monthly_remaining, nextRefresh: payload.next_refresh_at, exhausted: payload.exhausted })
+          if (typeof payload === 'number' || !payload.decreasing) toast.success(i18next.t('Redemption successful! Added: {{quota}}', { quota: formatQuota(quotaAdded) }))
           await getSelf()
           await queryClient.invalidateQueries({
             queryKey: activityAttentionQueryKey,

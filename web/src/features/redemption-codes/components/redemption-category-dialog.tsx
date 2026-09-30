@@ -30,6 +30,8 @@ import {
   createRedemptionCategory,
   createDecreasingRedemption,
   getDecreasingRedemptions,
+  updateDecreasingRedemptionStatus,
+  deleteDecreasingRedemption,
   getRedemptionCategories,
   updateRedemptionCategory,
   updateRedemptionCategoryStatus,
@@ -216,6 +218,7 @@ export function RedemptionCategoryDialog({
             <div className='text-muted-foreground mt-2 grid gap-1 sm:grid-cols-4'>
               <span>总额：{(code.total_quota / 1000000).toLocaleString()} USD</span><span>剩余：{(code.remaining_quota / 1000000).toLocaleString()} USD</span><span>每月上限：{(code.monthly_limit_quota / 1000000).toLocaleString()} USD</span><span>本月已用：{(code.monthly_redeemed_quota / 1000000).toLocaleString()} USD</span>
             </div>
+            <div className='mt-2 flex gap-2'><Button type='button' size='sm' variant='outline' onClick={async () => { await updateDecreasingRedemptionStatus(code.id, !code.enabled); await load() }}>{code.enabled ? '禁用' : '启用'}</Button><Button type='button' size='sm' variant='destructive' onClick={async () => { if (window.confirm('确定删除这个递减兑换码吗？')) { await deleteDecreasingRedemption(code.id); await load() } }}>删除</Button></div>
           </div>)}
         </div>}
       </div>

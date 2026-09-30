@@ -176,3 +176,11 @@ export async function getDecreasingRedemptions() {
   const res = await api.get<ApiResponse<DecreasingRedemption[]>>('/api/redemption/decreasing')
   return res.data
 }
+export async function updateDecreasingRedemptionStatus(id: number, enabled: boolean) {
+  const res = await api.patch<ApiResponse>(`/api/redemption/decreasing/${id}/status`, { enabled })
+  return res.data
+}
+export async function deleteDecreasingRedemption(id: number) {
+  const res = await api.delete<ApiResponse>(`/api/redemption/decreasing/${id}`)
+  return res.data
+}

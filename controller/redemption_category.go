@@ -36,6 +36,21 @@ func ListDecreasingRedemptions(c *gin.Context) {
 	common.ApiSuccess(c, codes)
 }
 
+func UpdateDecreasingRedemptionStatus(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id")); if err != nil { common.ApiError(c, err); return }
+	var request struct { Enabled *bool `json:"enabled"` }
+	if err := c.ShouldBindJSON(&request); err != nil || request.Enabled == nil { common.ApiErrorMsg(c, "enabled 必填"); return }
+	result := model.DB.Model(&model.DecreasingRedemption{}).Where("id = ?", id).Update("enabled", *request.Enabled)
+	if result.Error != nil { common.ApiError(c, result.Error); return }
+	common.ApiSuccess(c, nil)
+}
+
+func DeleteDecreasingRedemption(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id")); if err != nil { common.ApiError(c, err); return }
+	if err := model.DB.Delete(&model.DecreasingRedemption{}, id).Error; err != nil { common.ApiError(c, err); return }
+	common.ApiSuccess(c, nil)
+}
+
 func CreateRedemptionCategory(c *gin.Context) {
 	var category model.RedemptionCategory
 	if err := c.ShouldBindJSON(&category); err != nil {

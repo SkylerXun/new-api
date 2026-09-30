@@ -405,7 +405,7 @@ export function Wallet(props: WalletProps) {
         <DialogContent className='sm:max-w-md'>
           <DialogHeader>
             <DialogTitle>大额度兑换码需要分期兑换</DialogTitle>
-            <DialogDescription>本次已按本月兑换额度到账，剩余额度将在下次刷新后继续可用。</DialogDescription>
+            <DialogDescription>{decreasingNotice?.exhausted ? '本月兑换额度已用完，请在下次刷新后继续兑换。' : '本次已按本月兑换额度到账，剩余额度将在下次刷新后继续可用。'}</DialogDescription>
           </DialogHeader>
           {decreasingNotice && <div className='space-y-2 rounded-lg bg-muted/50 p-4 text-sm'>
             <div className='flex justify-between'><span>兑换码额度</span><strong>{formatQuota(decreasingNotice.requested)}</strong></div>

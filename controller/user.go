@@ -1569,7 +1569,7 @@ func TopUp(c *gin.Context) {
 			logger.LogError(c, fmt.Sprintf("failed to redeem decreasing key %s for user %d: %s", req.Key, id, err.Error()))
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": decreasingResult})
+		c.JSON(http.StatusOK, gin.H{"success": true, "message": decreasingResult.Message, "data": decreasingResult})
 		return
 	}
 	quota, err := model.Redeem(req.Key, id)
