@@ -25,6 +25,8 @@ import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { parseQuotaFromDollars } from '@/lib/format'
+import { quotaUnitsToEditableAmount } from '@/lib/format'
 
 import {
   createRedemptionCategory,
@@ -142,7 +144,7 @@ export function RedemptionCategoryDialog({
     }
     setLoading(true)
     try {
-      const result = await createDecreasingRedemption({ name: decreasingName.trim(), total_quota: Math.round(total * 1000000), monthly_limit_quota: Math.round(monthly * 1000000) })
+      const result = await createDecreasingRedemption({ name: decreasingName.trim(), total_quota: parseQuotaFromDollars(total), monthly_limit_quota: parseQuotaFromDollars(monthly) })
       if (!result.success) throw new Error(result.message)
       toast.success('递减兑换码已创建')
       setDecreasingName('')
@@ -216,7 +218,7 @@ export function RedemptionCategoryDialog({
           {decreasingCodes.map((code) => <div key={code.id} className='rounded-md border bg-white p-3 text-sm'>
             <div className='flex flex-wrap items-center gap-2'><span className='font-medium'>{code.name}</span><code className='rounded bg-slate-100 px-2 py-1'>{code.key}</code><Button type='button' size='sm' variant='ghost' className='h-7 gap-1' onClick={() => { void navigator.clipboard.writeText(code.key); toast.success('兑换码已复制') }}><Clipboard className='h-3.5 w-3.5' />复制</Button></div>
             <div className='text-muted-foreground mt-2 grid gap-1 sm:grid-cols-4'>
-              <span>总额：{(code.total_quota / 1000000).toLocaleString()} USD</span><span>剩余：{(code.remaining_quota / 1000000).toLocaleString()} USD</span><span>每月上限：{(code.monthly_limit_quota / 1000000).toLocaleString()} USD</span><span>本月已用：{(code.monthly_redeemed_quota / 1000000).toLocaleString()} USD</span>
+              <span>总额：{quotaUnitsToEditableAmount(code.total_quota).toLocaleString()} USD</span><span>剩余：{quotaUnitsToEditableAmount(code.remaining_quota).toLocaleString()} USD</span><span>每月上限：{quotaUnitsToEditableAmount(code.monthly_limit_quota).toLocaleString()} USD</span><span>本月已用：{quotaUnitsToEditableAmount(code.monthly_redeemed_quota).toLocaleString()} USD</span>
             </div>
             <div className='mt-2 flex gap-2'><Button type='button' size='sm' variant='outline' onClick={async () => { await updateDecreasingRedemptionStatus(code.id, !code.enabled); await load() }}>{code.enabled ? '禁用' : '启用'}</Button><Button type='button' size='sm' variant='destructive' onClick={async () => { if (window.confirm('确定删除这个递减兑换码吗？')) { await deleteDecreasingRedemption(code.id); await load() } }}>删除</Button></div>
           </div>)}
