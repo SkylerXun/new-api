@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Loader2, Pencil, Plus } from 'lucide-react'
+import { Clipboard, Loader2, Pencil, Plus } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -29,11 +29,13 @@ import { Label } from '@/components/ui/label'
 import {
   createRedemptionCategory,
   createDecreasingRedemption,
+  getDecreasingRedemptions,
   getRedemptionCategories,
   updateRedemptionCategory,
   updateRedemptionCategoryStatus,
 } from '../api'
 import type { RedemptionCategory } from '../types'
+import type { DecreasingRedemption } from '../api'
 
 export function RedemptionCategoryDialog({
   open,
@@ -51,6 +53,7 @@ export function RedemptionCategoryDialog({
   const [decreasingName, setDecreasingName] = useState('')
   const [decreasingTotal, setDecreasingTotal] = useState('100000000')
   const [decreasingMonthly, setDecreasingMonthly] = useState('500')
+  const [decreasingCodes, setDecreasingCodes] = useState<DecreasingRedemption[]>([])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -58,6 +61,8 @@ export function RedemptionCategoryDialog({
       const result = await getRedemptionCategories(true)
       if (!result.success) throw new Error(result.message)
       setCategories(result.data || [])
+      const decreasingResult = await getDecreasingRedemptions()
+      if (decreasingResult.success) setDecreasingCodes(decreasingResult.data || [])
     } catch (error) {
       toast.error(
         error instanceof Error && error.message
@@ -139,6 +144,7 @@ export function RedemptionCategoryDialog({
       if (!result.success) throw new Error(result.message)
       toast.success('递减兑换码已创建')
       setDecreasingName('')
+      await load()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '创建递减兑换码失败')
     } finally { setLoading(false) }
@@ -203,6 +209,15 @@ export function RedemptionCategoryDialog({
           <div className='space-y-2'><Label>每月上限（美元）</Label><Input type='number' min='0.01' value={decreasingMonthly} onChange={(event) => setDecreasingMonthly(event.target.value)} /></div>
           <Button onClick={createDecreasing} disabled={loading}>创建递减码</Button>
         </div>
+        {decreasingCodes.length > 0 && <div className='space-y-2 border-t border-indigo-200 pt-3'>
+          <div className='text-sm font-medium'>已创建的递减兑换码</div>
+          {decreasingCodes.map((code) => <div key={code.id} className='rounded-md border bg-white p-3 text-sm'>
+            <div className='flex flex-wrap items-center gap-2'><span className='font-medium'>{code.name}</span><code className='rounded bg-slate-100 px-2 py-1'>{code.key}</code><Button type='button' size='sm' variant='ghost' className='h-7 gap-1' onClick={() => { void navigator.clipboard.writeText(code.key); toast.success('兑换码已复制') }}><Clipboard className='h-3.5 w-3.5' />复制</Button></div>
+            <div className='text-muted-foreground mt-2 grid gap-1 sm:grid-cols-4'>
+              <span>总额：{(code.total_quota / 1000000).toLocaleString()} USD</span><span>剩余：{(code.remaining_quota / 1000000).toLocaleString()} USD</span><span>每月上限：{(code.monthly_limit_quota / 1000000).toLocaleString()} USD</span><span>本月已用：{(code.monthly_redeemed_quota / 1000000).toLocaleString()} USD</span>
+            </div>
+          </div>)}
+        </div>}
       </div>
 
       <div className='max-h-[46vh] space-y-2 overflow-y-auto'>

@@ -28,6 +28,18 @@ import type {
   RedemptionCategory,
 } from './types'
 
+export interface DecreasingRedemption {
+  id: number
+  key: string
+  name: string
+  total_quota: number
+  remaining_quota: number
+  monthly_limit_quota: number
+  monthly_redeemed_quota: number
+  monthly_period: number
+  enabled: boolean
+}
+
 // ============================================================================
 // Redemption Code Management
 // ============================================================================
@@ -157,5 +169,10 @@ export async function createDecreasingRedemption(input: {
   monthly_limit_quota: number
 }) {
   const res = await api.post<ApiResponse>('/api/redemption/decreasing', input)
+  return res.data
+}
+
+export async function getDecreasingRedemptions() {
+  const res = await api.get<ApiResponse<DecreasingRedemption[]>>('/api/redemption/decreasing')
   return res.data
 }
