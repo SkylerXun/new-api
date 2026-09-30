@@ -61,6 +61,10 @@ describe('authentication layout frame', () => {
     assert.doesNotMatch(page.className, /h-svh(?:\s|$)/)
     assert.equal(backdrop.getAttribute('aria-hidden'), 'true')
     assert.match(backdrop.className, /pointer-events-none/)
+    assert.match(
+      backdrop.getAttribute('style') ?? '',
+      /background-image:\s*url\(\/auth-backgrounds\/national-day-2026\.png\)/
+    )
 
     window.close()
   })

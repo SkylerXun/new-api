@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/shopspring/decimal"
 
 	"gorm.io/gorm"
 )
@@ -74,6 +75,7 @@ type ActivityCampaign struct {
 	Description        string `json:"description" gorm:"type:text"`
 	Reason             string `json:"reason" gorm:"type:varchar(255)"`
 	AmountUSD          string `json:"amount_usd" gorm:"type:varchar(64);not null;default:''"`
+	MinRechargeUSD     string `json:"min_recharge_usd" gorm:"type:varchar(64);not null;default:''"`
 	Quota              int    `json:"quota" gorm:"type:int;not null"`
 	StartsAt           int64  `json:"starts_at" gorm:"bigint;not null;index"`
 	EndsAt             int64  `json:"ends_at" gorm:"bigint;not null;index"`
@@ -800,13 +802,23 @@ func IsActivityCampaignUserEligible(ctx context.Context, campaign *ActivityCampa
 }
 
 func isActivityCampaignUserEligible(tx *gorm.DB, campaign *ActivityCampaign, userId int) (bool, error) {
+	minRechargeQuota, err := RechargeThresholdQuotaString(strings.TrimSpace(campaign.MinRechargeUSD))
+	if err != nil {
+		return false, err
+	}
+	if minRechargeQuota > 0 {
+		eligible, err := hasUserReachedRechargeThresholdQuotaDB(tx, userId, minRechargeQuota)
+		if err != nil || !eligible {
+			return eligible, err
+		}
+	}
 	audienceType := campaign.AudienceType
 	if audienceType == "" {
 		audienceType = ActivityCampaignAudienceAll
 	}
 	if audienceType == ActivityCampaignAudienceSelected {
 		var count int64
-		err := tx.Model(&ActivityCampaignRecipient{}).
+		err = tx.Model(&ActivityCampaignRecipient{}).
 			Where("campaign_id = ? AND user_id = ?", campaign.Id, userId).
 			Count(&count).Error
 		return count == 1, err
@@ -858,14 +870,25 @@ func HasUnclaimedActivityCampaignForUser(ctx context.Context, userId int, now in
 	claimedActivityKeys := DB.WithContext(ctx).Model(&ActivityGrant{}).
 		Select("activity_key").
 		Where("user_id = ? AND source_type = ? AND source_ref = ?", userId, ActivityGrantSourceCampaignClaim, ActivityGrantSourceRefClaim)
-	var count int64
+	var campaigns []ActivityCampaign
 	err := DB.WithContext(ctx).Model(&ActivityCampaign{}).
 		Where("type = ? AND status = ? AND starts_at <= ? AND ends_at > ?", ActivityCampaignTypeClaimable, ActivityCampaignStatusActive, now, now).
 		Where("((audience_type = ? AND id IN (?)) OR ((audience_type = ? OR audience_type = '') AND recipient_max_user_id >= ?))", ActivityCampaignAudienceSelected, selectedCampaignIds, ActivityCampaignAudienceAll, userId).
 		Where("activity_key NOT IN (?)", claimedActivityKeys).
-		Limit(1).
-		Count(&count).Error
-	return count > 0, err
+		Find(&campaigns).Error
+	if err != nil {
+		return false, err
+	}
+	for index := range campaigns {
+		eligible, eligibilityErr := isActivityCampaignUserEligible(DB.WithContext(ctx), &campaigns[index], userId)
+		if eligibilityErr != nil {
+			return false, eligibilityErr
+		}
+		if eligible {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // ListActivityGrantsForUserActivityKeys returns grants keyed by activity key
@@ -984,23 +1007,28 @@ func GetActivityGrantTargetSnapshot(ctx context.Context) (maxUserId int, total i
 	return lastUser.Id, total, nil
 }
 
-func CountActivityGrantEligibleUsers(ctx context.Context, maxUserId int) (int64, error) {
+func CountActivityGrantEligibleUsers(ctx context.Context, maxUserId int, minRechargeQuota ...int64) (int64, error) {
 	if maxUserId <= 0 {
 		return 0, nil
 	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	threshold := int64(0)
+	if len(minRechargeQuota) > 0 {
+		threshold = minRechargeQuota[0]
+	}
+	query := DB.WithContext(ctx).Model(&User{}).
+		Where("id <= ? AND status = ?", maxUserId, common.UserStatusEnabled)
+	query = applyRechargeThreshold(query, threshold)
 	var total int64
-	err := DB.WithContext(ctx).Model(&User{}).
-		Where("id <= ? AND status = ?", maxUserId, common.UserStatusEnabled).
-		Count(&total).Error
+	err := query.Count(&total).Error
 	return total, err
 }
 
 // ListActivityGrantEligibleUserIds returns one deterministic ID-ordered page
 // of currently enabled, non-deleted users inside the enqueue-time ID snapshot.
-func ListActivityGrantEligibleUserIds(ctx context.Context, afterUserId int, maxUserId int, limit int) ([]int, error) {
+func ListActivityGrantEligibleUserIds(ctx context.Context, afterUserId int, maxUserId int, limit int, minRechargeQuota ...int64) ([]int, error) {
 	if maxUserId <= 0 || limit <= 0 {
 		return []int{}, nil
 	}
@@ -1010,11 +1038,29 @@ func ListActivityGrantEligibleUserIds(ctx context.Context, afterUserId int, maxU
 	if afterUserId < 0 {
 		afterUserId = 0
 	}
+	threshold := int64(0)
+	if len(minRechargeQuota) > 0 {
+		threshold = minRechargeQuota[0]
+	}
+	query := DB.WithContext(ctx).Model(&User{}).
+		Where("id > ? AND id <= ? AND status = ?", afterUserId, maxUserId, common.UserStatusEnabled)
+	query = applyRechargeThreshold(query, threshold)
 	var userIds []int
-	err := DB.WithContext(ctx).Model(&User{}).
-		Where("id > ? AND id <= ? AND status = ?", afterUserId, maxUserId, common.UserStatusEnabled).
-		Order("id asc").Limit(limit).Pluck("id", &userIds).Error
+	err := query.Order("id asc").Limit(limit).Pluck("id", &userIds).Error
 	return userIds, err
+}
+
+// applyRechargeThreshold keeps immediate campaign grants set-based. The
+// correlated sums deliberately include only successful top-ups and redeemed
+// quota codes, matching the user-facing recharge gate.
+func applyRechargeThreshold(query *gorm.DB, threshold int64) *gorm.DB {
+	if threshold <= 0 {
+		return query
+	}
+	return query.Where(`
+		COALESCE((SELECT SUM(amount) FROM top_ups WHERE top_ups.user_id = users.id AND top_ups.status = ?), 0) +
+		COALESCE((SELECT SUM(quota) FROM redemptions WHERE redemptions.used_user_id = users.id AND redemptions.status = ?), 0) >= ?`,
+		common.TopUpStatusSuccess, common.RedemptionCodeStatusUsed, threshold)
 }
 
 func CountActivityGrants(ctx context.Context, activityKey string) (int64, error) {
@@ -1057,6 +1103,7 @@ func normalizeNewActivityCampaign(campaign *ActivityCampaign) error {
 	campaign.Description = strings.TrimSpace(campaign.Description)
 	campaign.Reason = strings.TrimSpace(campaign.Reason)
 	campaign.AmountUSD = strings.TrimSpace(campaign.AmountUSD)
+	campaign.MinRechargeUSD = strings.TrimSpace(campaign.MinRechargeUSD)
 	if campaign.AudienceType == "" {
 		campaign.AudienceType = ActivityCampaignAudienceAll
 	}
@@ -1074,6 +1121,13 @@ func normalizeNewActivityCampaign(campaign *ActivityCampaign) error {
 	}
 	if campaign.AmountUSD == "" || utf8.RuneCountInString(campaign.AmountUSD) > 64 {
 		return errors.New("activity campaign amount is invalid")
+	}
+	if campaign.MinRechargeUSD != "" {
+		minRecharge, err := decimal.NewFromString(campaign.MinRechargeUSD)
+		if err != nil || minRecharge.IsNegative() {
+			return errors.New("activity campaign recharge threshold is invalid")
+		}
+		campaign.MinRechargeUSD = minRecharge.String()
 	}
 	if campaign.Quota <= 0 || campaign.Quota > common.MaxQuota {
 		return errors.New("activity campaign quota is invalid")

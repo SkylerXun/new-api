@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { AUTH_BACKGROUND_IMAGE } from './auth-background'
+
 type AuthLayoutFrameProps = {
   brand: React.ReactNode
   children: React.ReactNode
@@ -30,7 +32,8 @@ export function AuthLayoutFrame(props: AuthLayoutFrameProps) {
       <div
         data-slot='auth-background'
         aria-hidden='true'
-        className='auth-swirl-background pointer-events-none fixed inset-0 -z-10'
+        className='auth-seasonal-background pointer-events-none fixed inset-0 -z-10'
+        style={{ backgroundImage: `url(${AUTH_BACKGROUND_IMAGE})` }}
       />
       <div className='container flex min-h-svh items-center justify-center px-4 py-6 sm:py-10'>
         <section

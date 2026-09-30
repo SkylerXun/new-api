@@ -43,6 +43,7 @@ export type UserActivity = {
   ends_at: number
   remaining_seconds: number
   bonus_percent: number
+  min_recharge_usd?: string
   reward_quota?: number
   granted_at?: number
   action?: ActivityAction

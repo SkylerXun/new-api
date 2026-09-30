@@ -31,6 +31,16 @@ func GetCheckinStatus(c *gin.Context) {
 		})
 		return
 	}
+	rechargeAmountUSD, err := model.GetUserRechargeAmountUSD(c.Request.Context(), userId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	rechargeEligible, _, err := model.HasUserReachedRechargeThresholdUSD(c.Request.Context(), userId, setting.MinRechargeUSD)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -38,6 +48,9 @@ func GetCheckinStatus(c *gin.Context) {
 			"enabled":   setting.Enabled,
 			"min_quota": setting.MinQuota,
 			"max_quota": setting.MaxQuota,
+			"min_recharge_usd": setting.MinRechargeUSD,
+			"recharge_amount_usd": rechargeAmountUSD,
+			"recharge_eligible": rechargeEligible,
 			"stats":     stats,
 		},
 	})

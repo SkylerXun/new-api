@@ -80,6 +80,14 @@ export function ActivityCard(props: ActivityCardProps) {
           }
         )
       : props.activity.description
+  const rechargeRequirement =
+    props.activity.status === 'unavailable' &&
+    props.activity.min_recharge_usd &&
+    Number(props.activity.min_recharge_usd) > 0
+      ? t('Recharge {{amount}} USD or more is required for this activity', {
+          amount: Number(props.activity.min_recharge_usd).toFixed(2),
+        })
+      : null
   const labels = [
     { value: countdown.days, label: t('Days') },
     { value: countdown.hours, label: t('Hours') },
@@ -104,6 +112,11 @@ export function ActivityCard(props: ActivityCardProps) {
             <p className='text-muted-foreground mt-1 text-sm leading-6'>
               {activityDescription}
             </p>
+            {rechargeRequirement ? (
+              <p className='text-muted-foreground mt-1 text-xs'>
+                {rechargeRequirement}
+              </p>
+            ) : null}
           </div>
         </div>
 

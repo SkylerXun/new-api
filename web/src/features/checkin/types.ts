@@ -31,6 +31,9 @@ export interface CheckinStats {
 
 export interface CheckinStatusResponse {
   enabled: boolean
+  min_recharge_usd: number
+  recharge_amount_usd: number
+  recharge_eligible: boolean
   stats: CheckinStats
 }
 

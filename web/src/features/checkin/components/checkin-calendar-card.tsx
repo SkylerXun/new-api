@@ -119,6 +119,9 @@ export function CheckinCalendarCard({
   }, [])
 
   const checkedToday = checkinData?.stats?.checked_in_today === true
+  const rechargeEligible = checkinData?.recharge_eligible !== false
+  const minRechargeUSD = checkinData?.min_recharge_usd || 0
+  const rechargeAmountUSD = checkinData?.recharge_amount_usd || 0
   const todayAward = checkinRecordsMap[todayString]
 
   useEffect(() => {
@@ -324,13 +327,24 @@ export function CheckinCalendarCard({
             </button>
             <Button
               onClick={() => doCheckin()}
-              disabled={checkinLoading || checkedToday}
+              disabled={checkinLoading || checkedToday || !rechargeEligible}
               size='sm'
               className='w-full shrink-0 sm:w-auto'
             >
               {checkinButtonLabel}
             </Button>
           </div>
+          {!rechargeEligible ? (
+            <p className='text-muted-foreground mt-2 text-xs'>
+              {t('Recharge {{amount}} USD or more is required to check in', {
+                amount: minRechargeUSD.toFixed(2),
+              })}
+              {' · '}
+              {t('Current eligible recharge: {{amount}} USD', {
+                amount: rechargeAmountUSD.toFixed(2),
+              })}
+            </p>
+          ) : null}
         </div>
 
         {!collapsed ? (

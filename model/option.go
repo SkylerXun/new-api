@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -219,6 +220,12 @@ func SyncOptions(frequency int) {
 }
 
 func validateOptionValue(key string, value string) error {
+	if key == "checkin_setting.min_recharge_usd" {
+		amount, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
+		if err != nil || math.IsNaN(amount) || math.IsInf(amount, 0) || amount < 0 {
+			return fmt.Errorf("check-in recharge threshold must be a non-negative number")
+		}
+	}
 	if key == "subscription_expiry_notify_days" {
 		days, err := strconv.Atoi(strings.TrimSpace(value))
 		if err != nil || days < 1 || days > 30 {

@@ -36,6 +36,7 @@ type AllUsersActivityGrantPayload struct {
 	BatchSize      int     `json:"batch_size"`
 	ActivityKey    string  `json:"activity_key"`
 	CampaignID     int64   `json:"campaign_id,omitempty"`
+	MinRechargeQuota int64 `json:"min_recharge_quota,omitempty"`
 }
 
 type AllUsersActivityGrantState struct {
@@ -93,7 +94,7 @@ func (allUsersActivityGrantHandler) Run(ctx context.Context, task *model.SystemT
 	if payload.CampaignID > 0 {
 		state.Total = payload.RecipientCount
 	} else {
-		total, err := model.CountActivityGrantEligibleUsers(ctx, payload.MaxUserId)
+		total, err := model.CountActivityGrantEligibleUsers(ctx, payload.MaxUserId, payload.MinRechargeQuota)
 		if err != nil {
 			failAllUsersActivityGrantTask(task, runnerId, payload.CampaignID, err)
 			return
@@ -120,6 +121,7 @@ func (allUsersActivityGrantHandler) Run(ctx context.Context, task *model.SystemT
 			state.LastUserId,
 			payload.MaxUserId,
 			payload.BatchSize,
+			payload.MinRechargeQuota,
 		)
 		if err != nil {
 			failAllUsersActivityGrantTask(task, runnerId, payload.CampaignID, err)
@@ -259,7 +261,32 @@ func EnqueueAllUsersActivityGrant(request EnqueueAllUsersActivityGrantRequest) (
 			return nil, false, model.ErrActivityCampaignInvalidStatus
 		}
 		maxUserId = campaign.RecipientMaxUserID
-		recipientCount = campaign.RecipientCount
+			threshold, err := model.RechargeThresholdQuotaString(campaign.MinRechargeUSD)
+			if err != nil {
+				return nil, false, err
+			}
+			if threshold > 0 {
+				recipientCount, err = model.CountActivityGrantEligibleUsers(context.Background(), maxUserId, threshold)
+				if err != nil {
+					return nil, false, err
+				}
+			} else {
+				recipientCount = campaign.RecipientCount
+			}
+			minRechargeQuota := threshold
+			payload := AllUsersActivityGrantPayload{
+				AmountUSD:        request.AmountUSD,
+				Quota:            request.Quota,
+				Reason:           request.Reason,
+				IssuedBy:         request.IssuedBy,
+				MaxUserId:        maxUserId,
+				RecipientCount:   recipientCount,
+				BatchSize:        request.BatchSize,
+				ActivityKey:      request.ActivityKey,
+				CampaignID:       request.CampaignID,
+				MinRechargeQuota: minRechargeQuota,
+			}
+			return enqueueAllUsersActivityGrantTask(payload)
 	} else {
 		var err error
 		maxUserId, recipientCount, err = model.GetActivityGrantTargetSnapshot(context.Background())
@@ -321,7 +348,7 @@ func validateAllUsersActivityGrantPayload(payload AllUsersActivityGrantPayload) 
 	if activityKey == model.ActivityKeyNewUserRedeemBonus {
 		return errors.New("activity grant key is reserved")
 	}
-	if payload.CampaignID < 0 || payload.MaxUserId < 0 || payload.RecipientCount < 0 {
+	if payload.CampaignID < 0 || payload.MaxUserId < 0 || payload.RecipientCount < 0 || payload.MinRechargeQuota < 0 {
 		return errors.New("activity grant user snapshot is invalid")
 	}
 	if payload.BatchSize <= 0 || payload.BatchSize > allUsersActivityGrantMaxBatchSize {

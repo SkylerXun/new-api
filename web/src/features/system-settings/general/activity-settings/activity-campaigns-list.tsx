@@ -264,6 +264,14 @@ export function ActivityCampaignsList(props: ActivityCampaignsListProps) {
                 </div>
                 <div>
                   <dt className='text-muted-foreground'>
+                    {t('Minimum cumulative recharge')}
+                  </dt>
+                  <dd className='mt-0.5 font-mono font-medium'>
+                    ${campaign.min_recharge_usd || '0'}
+                  </dd>
+                </div>
+                <div>
+                  <dt className='text-muted-foreground'>
                     {t('Activity audience')}
                   </dt>
                   <dd className='mt-0.5 tabular-nums'>

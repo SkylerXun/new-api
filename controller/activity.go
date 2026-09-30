@@ -36,6 +36,7 @@ type userActivity struct {
 	RemainingSeconds int64               `json:"remaining_seconds"`
 	BonusPercent     float64             `json:"bonus_percent"`
 	RewardQuota      int64               `json:"reward_quota,omitempty"`
+	MinRechargeUSD   string              `json:"min_recharge_usd,omitempty"`
 	Action           *userActivityAction `json:"action,omitempty"`
 	GrantedAt        int64               `json:"granted_at,omitempty"`
 }
@@ -156,21 +157,27 @@ func GetUserActivities(c *gin.Context) {
 			if campaign.Type != model.ActivityCampaignTypeClaimable || campaign.Status != model.ActivityCampaignStatusActive || campaign.EndsAt <= now || now < campaign.StartsAt {
 				continue
 			}
+			eligible := true
 			if len(campaignGrants) == 0 {
-				eligible, eligibilityErr := model.IsActivityCampaignUserEligible(c.Request.Context(), campaign, userId)
+				var eligibilityErr error
+				eligible, eligibilityErr = model.IsActivityCampaignUserEligible(c.Request.Context(), campaign, userId)
 				if eligibilityErr != nil {
 					common.ApiError(c, eligibilityErr)
 					return
 				}
 				if !eligible {
-					continue
+					if campaign.AudienceType == model.ActivityCampaignAudienceSelected || strings.TrimSpace(campaign.MinRechargeUSD) == "" {
+						continue
+					}
 				}
 			}
+			activities = append(activities, userActivityFromCampaign(campaign, campaignGrants, userId, now, view, eligible))
+			continue
 		}
 		if view == "participated" && campaign.AudienceType == model.ActivityCampaignAudienceSelected && len(campaignGrants) == 0 {
 			continue
 		}
-		activities = append(activities, userActivityFromCampaign(campaign, campaignGrants, userId, now, view))
+		activities = append(activities, userActivityFromCampaign(campaign, campaignGrants, userId, now, view, true))
 	}
 	if view == "participated" && cursor == 0 {
 		allGrants, grantsErr := model.ListActivityGrantsForUser(c.Request.Context(), userId)
@@ -290,7 +297,7 @@ func ClaimUserActivity(c *gin.Context) {
 	})
 }
 
-func userActivityFromCampaign(campaign *model.ActivityCampaign, grants []model.ActivityGrant, userId int, now int64, view string) userActivity {
+func userActivityFromCampaign(campaign *model.ActivityCampaign, grants []model.ActivityGrant, userId int, now int64, view string, eligible bool) userActivity {
 	activity := userActivity{
 		Id:          campaign.ActivityKey,
 		Type:        campaign.Type,
@@ -299,6 +306,7 @@ func userActivityFromCampaign(campaign *model.ActivityCampaign, grants []model.A
 		Status:      "unavailable",
 		StartsAt:    campaign.StartsAt,
 		EndsAt:      campaign.EndsAt,
+		MinRechargeUSD: campaign.MinRechargeUSD,
 	}
 	if view == "participated" {
 		activity.Status = "credited"
@@ -351,6 +359,9 @@ func userActivityFromCampaign(campaign *model.ActivityCampaign, grants []model.A
 		activity.Status = "expired"
 		return activity
 	}
+	if !eligible {
+		return activity
+	}
 	activity.Status = "claimable"
 	activity.Action = &userActivityAction{
 		Label:    "立即领取",
@@ -368,6 +379,7 @@ type activityCampaignRequest struct {
 	Description      string `json:"description"`
 	Reason           string `json:"reason"`
 	AmountUSD        string `json:"amount_usd"`
+	MinRechargeUSD   string `json:"min_recharge_usd"`
 	Quota            *int   `json:"quota"`
 	StartsAt         int64  `json:"starts_at"`
 	EndsAt           int64  `json:"ends_at"`
@@ -458,6 +470,7 @@ func CreateActivityCampaign(c *gin.Context) {
 		Description:  request.Description,
 		Reason:       request.Reason,
 		AmountUSD:    strings.TrimSpace(request.AmountUSD),
+		MinRechargeUSD: strings.TrimSpace(request.MinRechargeUSD),
 		Quota:        quota,
 		StartsAt:     request.StartsAt,
 		EndsAt:       request.EndsAt,

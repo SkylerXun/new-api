@@ -47,7 +47,12 @@ export function useRedemption() {
         const response = await redeemTopupCode({ key: code })
 
         if (response.success && response.data) {
-          const quotaAdded = response.data
+          const payload = response.data as number | { quota: number; requested_quota: number; monthly_limit: number; monthly_remaining: number; next_refresh_at: number; decreasing?: boolean }
+          const quotaAdded = typeof payload === 'number' ? payload : payload.quota
+          if (typeof payload !== 'number' && payload.decreasing) {
+            const nextRefresh = new Date(payload.next_refresh_at * 1000).toLocaleString()
+            window.alert(`兑换额度提示\n\n本次兑换 ${formatQuota(payload.requested_quota)}，本月最多可兑换 ${formatQuota(payload.monthly_limit)}。\n本次实际到账：${formatQuota(payload.quota)}\n本月剩余：${formatQuota(payload.monthly_remaining)}\n下次刷新时间：${nextRefresh}`)
+          }
           toast.success(
             i18next.t('Redemption successful! Added: {{quota}}', {
               quota: formatQuota(quotaAdded),

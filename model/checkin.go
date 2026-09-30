@@ -57,6 +57,15 @@ func UserCheckin(userId int) (*Checkin, error) {
 	if !setting.Enabled {
 		return nil, errors.New("签到功能未启用")
 	}
+	if setting.MinRechargeUSD > 0 {
+		eligible, _, err := HasUserReachedRechargeThresholdUSD(nil, userId, setting.MinRechargeUSD)
+		if err != nil {
+			return nil, err
+		}
+		if !eligible {
+			return nil, errors.New("累计充值未达到签到门槛")
+		}
+	}
 
 	// 检查今天是否已签到
 	hasChecked, err := HasCheckedInToday(userId)

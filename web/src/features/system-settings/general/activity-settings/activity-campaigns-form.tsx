@@ -83,6 +83,7 @@ const defaultActivityCampaignFormValues: ActivityCampaignFormValues = {
   title: '',
   description: '',
   amountUSD: '',
+  minRechargeUSD: '',
   endsAt: '',
   audienceType: 'all',
 }
@@ -160,6 +161,7 @@ export function ActivityCampaignsForm() {
         title: values.title,
         description: values.description || undefined,
         amount_usd: values.amountUSD,
+        min_recharge_usd: values.minRechargeUSD || undefined,
         audience_type: values.audienceType,
         recipient_user_ids:
           values.audienceType === 'selected'
@@ -486,6 +488,34 @@ export function ActivityCampaignsForm() {
 
               <FormField
                 control={form.control}
+                name='minRechargeUSD'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Minimum cumulative recharge')}</FormLabel>
+                    <FormControl>
+                      <InputGroup>
+                        <InputGroupAddon>$</InputGroupAddon>
+                        <InputGroupInput
+                          type='number'
+                          min='0'
+                          step='0.01'
+                          inputMode='decimal'
+                          placeholder='0'
+                          {...field}
+                          disabled={formDisabled}
+                        />
+                      </InputGroup>
+                    </FormControl>
+                    <FormDescription>
+                      {t('Optional. Includes successful direct top-ups and redeemed quota codes; 0 means no recharge requirement.')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
                 name='description'
                 render={({ field }) => (
                   <FormItem className='lg:col-span-2'>
@@ -682,6 +712,14 @@ export function ActivityCampaignsForm() {
           <div className='flex justify-between gap-3'>
             <dt className='text-muted-foreground'>{t('Amount')}</dt>
             <dd className='font-mono'>${confirmation?.amountUSD}</dd>
+          </div>
+          <div className='flex justify-between gap-3'>
+            <dt className='text-muted-foreground'>
+              {t('Minimum cumulative recharge')}
+            </dt>
+            <dd className='font-mono'>
+              ${confirmation?.minRechargeUSD || '0'}
+            </dd>
           </div>
           <div className='flex justify-between gap-3'>
             <dt className='text-muted-foreground'>{t('Delivery mode')}</dt>

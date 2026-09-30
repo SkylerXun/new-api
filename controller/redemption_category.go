@@ -18,6 +18,23 @@ func ListRedemptionCategories(c *gin.Context) {
 	common.ApiSuccess(c, categories)
 }
 
+// CreateDecreasingRedemption creates a code owned by the optional plugin.
+// It never writes to the legacy redemption table.
+func CreateDecreasingRedemption(c *gin.Context) {
+	var req struct { Name string `json:"name"`; TotalQuota int `json:"total_quota"`; MonthlyLimitQuota int `json:"monthly_limit_quota"` }
+	if err := c.ShouldBindJSON(&req); err != nil || req.TotalQuota <= 0 || req.MonthlyLimitQuota <= 0 { common.ApiErrorMsg(c, "递减兑换码参数无效"); return }
+	key, err := common.GenerateKey(); if err != nil { common.ApiError(c, err); return }
+	code := model.DecreasingRedemption{Key: key, Name: req.Name, TotalQuota: req.TotalQuota, RemainingQuota: req.TotalQuota, MonthlyLimitQuota: req.MonthlyLimitQuota, Enabled: true, CreatedAt: common.GetTimestamp()}
+	if err := model.DB.Create(&code).Error; err != nil { common.ApiError(c, err); return }
+	common.ApiSuccess(c, code)
+}
+
+func ListDecreasingRedemptions(c *gin.Context) {
+	var codes []model.DecreasingRedemption
+	if err := model.DB.Order("id desc").Find(&codes).Error; err != nil { common.ApiError(c, err); return }
+	common.ApiSuccess(c, codes)
+}
+
 func CreateRedemptionCategory(c *gin.Context) {
 	var category model.RedemptionCategory
 	if err := c.ShouldBindJSON(&category); err != nil {

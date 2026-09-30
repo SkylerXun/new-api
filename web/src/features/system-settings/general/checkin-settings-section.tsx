@@ -47,6 +47,7 @@ const schema = z.object({
   enabled: z.boolean(),
   minQuota: z.coerce.number().int().min(0),
   maxQuota: z.coerce.number().int().min(0),
+  minRechargeUSD: z.coerce.number().min(0),
 })
 
 type Values = z.infer<typeof schema>
@@ -58,6 +59,7 @@ export function CheckinSettingsSection({
     enabled: boolean
     minQuota: number
     maxQuota: number
+    minRechargeUSD: number
   }
 }) {
   const { t } = useTranslation()
@@ -69,6 +71,7 @@ export function CheckinSettingsSection({
       enabled: defaultValues.enabled,
       minQuota: defaultValues.minQuota,
       maxQuota: defaultValues.maxQuota,
+      minRechargeUSD: defaultValues.minRechargeUSD,
     },
   })
 
@@ -96,6 +99,13 @@ export function CheckinSettingsSection({
       updates.push({
         key: 'checkin_setting.max_quota',
         value: String(values.maxQuota),
+      })
+    }
+
+    if (values.minRechargeUSD !== defaultValues.minRechargeUSD) {
+      updates.push({
+        key: 'checkin_setting.min_recharge_usd',
+        value: String(values.minRechargeUSD),
       })
     }
 
@@ -185,6 +195,30 @@ export function CheckinSettingsSection({
                     </FormControl>
                     <FormDescription>
                       {t('Maximum quota amount awarded for check-in')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='minRechargeUSD'
+                render={({ field }) => (
+                  <FormItem className='sm:col-span-2'>
+                    <FormLabel>{t('Minimum cumulative recharge for check-in')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        min={0}
+                        step='0.01'
+                        inputMode='decimal'
+                        placeholder='0'
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Includes successful direct top-ups and redeemed quota codes. Set 0 to allow all users.')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

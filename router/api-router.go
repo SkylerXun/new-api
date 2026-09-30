@@ -314,6 +314,8 @@ func SetApiRouter(router *gin.Engine) {
 			redemptionRoute.PUT("/categories/:id", controller.UpdateRedemptionCategory)
 			redemptionRoute.PATCH("/categories/:id/status", controller.UpdateRedemptionCategoryStatus)
 			redemptionRoute.POST("/categories/assign", controller.AssignRedemptionCategories)
+			redemptionRoute.GET("/decreasing", controller.ListDecreasingRedemptions)
+			redemptionRoute.POST("/decreasing", controller.CreateDecreasingRedemption)
 			redemptionRoute.GET("/", controller.GetAllRedemptions)
 			redemptionRoute.GET("/search", controller.SearchRedemptions)
 			redemptionRoute.GET("/:id", controller.GetRedemption)

@@ -167,6 +167,7 @@ export type ActivityCampaign = {
   description: string
   reason: string
   amount_usd: string
+  min_recharge_usd?: string
   quota: number
   starts_at: number
   ends_at: number
@@ -202,6 +203,7 @@ export type CreateActivityCampaignRequest = {
   description?: string
   reason?: string
   amount_usd: string
+  min_recharge_usd?: string
   starts_at?: number
   ends_at?: number
   audience_type?: 'all' | 'selected'
@@ -479,6 +481,7 @@ export type BillingSettings = {
   'checkin_setting.enabled': boolean
   'checkin_setting.min_quota': number
   'checkin_setting.max_quota': number
+  'checkin_setting.min_recharge_usd': number
 }
 
 export type OperationsSettings = {

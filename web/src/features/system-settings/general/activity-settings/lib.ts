@@ -55,6 +55,14 @@ export const activityCampaignSchema = z
         const amount = Number(value)
         return Number.isFinite(amount) && amount > 0
       }),
+    minRechargeUSD: z
+      .string()
+      .trim()
+      .refine((value) => {
+        if (value === '') return true
+        const amount = Number(value)
+        return Number.isFinite(amount) && amount >= 0
+      }),
     endsAt: z.string().trim(),
     audienceType: z.enum(['all', 'selected']),
   })
